@@ -1,0 +1,44 @@
+# ─── Dependencies ────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ─── Environment / secrets — NEVER commit ────────────────────
+.env
+.env.local
+.env*.local
+.env.production
+**/.env
+!**/.env.example
+
+# ─── Expo / React Native ─────────────────────────────────────
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# Generated native folders
+**/ios/
+**/android/
+
+# Signing / native secrets
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+*.orig.*
+
+# ─── Backend uploads (user-generated) ────────────────────────
+Combined Backend/uploads/
+
+# ─── Logs / debug ────────────────────────────────────────────
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# ─── OS / editor ─────────────────────────────────────────────
+.DS_Store
+*.tsbuildinfo

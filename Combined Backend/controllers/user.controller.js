@@ -1,45 +1,11 @@
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
 const User = require('../models/User');
 const PatientProfile = require('../models/PatientProfile');
 const DoctorProfile = require('../models/DoctorProfile');
+const { memoryUpload, uploadToCloudinary } = require('../config/cloudinary');
 
-// Multer storage configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', 'uploads');
-    // Create uploads directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `avatar-${req.user._id}-${uniqueSuffix}${ext}`);
-  }
-});
-
-// File filter — allow only images
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only .jpg, .jpeg, and .png files are allowed'), false);
-  }
-};
-
-// Multer upload instance
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
-  }
-});
+// Uploads are streamed to Cloudinary (persistent on serverless hosts).
+// memoryUpload keeps the file as a Buffer in req.file.buffer.
+const upload = memoryUpload;
 
 // @desc    Get current user with profile
 // @route   GET /api/users/me
@@ -250,7 +216,7 @@ const uploadAvatar = async (req, res) => {
       });
     }
 
-    const imageUrl = `/uploads/${req.file.filename}`;
+    const imageUrl = await uploadToCloudinary(req.file.buffer, 'mydentist/avatars');
 
     // Update profile image on PatientProfile
     const profile = await PatientProfile.findOneAndUpdate(
@@ -260,12 +226,6 @@ const uploadAvatar = async (req, res) => {
     );
 
     if (!profile) {
-      // Clean up uploaded file if profile not found
-      const filePath = path.join(__dirname, '..', 'uploads', req.file.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
       return res.status(404).json({
         success: false,
         message: 'Patient profile not found. Create a patient profile first.'
@@ -301,14 +261,14 @@ const uploadFile = async (req, res) => {
       });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = await uploadToCloudinary(req.file.buffer, 'mydentist/uploads');
 
     res.status(200).json({
       success: true,
       message: 'File uploaded successfully',
       data: {
         url: fileUrl,
-        filename: req.file.filename
+        filename: req.file.originalname
       }
     });
   } catch (error) {

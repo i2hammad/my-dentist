@@ -19,6 +19,7 @@ import API_BASE_URL from '../config/api';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
+import useResponsive from '../hooks/useResponsive';
 
 // ─── Filter tab config ──────────────────────────────────────────────
 const FILTER_TABS = [
@@ -59,7 +60,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── Single Doctor Card ──────────────────────────────────────────────
-function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite }) {
+function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style }) {
   const photoUri = doc.photo
     ? `${API_BASE_URL}${doc.photo}`
     : null;
@@ -71,7 +72,7 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite }) {
     : 'offline';
 
   return (
-    <View style={styles.doctorCard}>
+    <View style={[styles.doctorCard, style]}>
       {/* Top section: photo + info */}
       <View style={styles.doctorCardTop}>
         {/* Photo */}
@@ -184,6 +185,7 @@ export default function HomeScreen({ navigation }) {
   const [favorites, setFavorites]     = useState({});
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
+  const { isWide, columns } = useResponsive();
 
   const fetchData = useCallback(async () => {
     try {
@@ -333,7 +335,10 @@ export default function HomeScreen({ navigation }) {
       {/* ── SCROLLABLE BODY ── */}
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[
+          styles.bodyContent,
+          isWide && { width: '100%', maxWidth: 1100, alignSelf: 'center' },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -430,15 +435,22 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.emptyText}>No doctors found for this filter.</Text>
           </View>
         ) : (
-          filteredDoctors.map(doc => (
-            <DoctorCard
-              key={doc._id}
-              doc={doc}
-              isFavorite={!!favorites[doc._id]}
-              onToggleFavorite={toggleFavorite}
-              onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id })}
-            />
-          ))
+          <View style={isWide ? styles.doctorGrid : null}>
+            {filteredDoctors.map(doc => (
+              <View
+                key={doc._id}
+                style={isWide ? [styles.doctorGridCell, { width: `${100 / columns}%` }] : null}
+              >
+                <DoctorCard
+                  doc={doc}
+                  isFavorite={!!favorites[doc._id]}
+                  onToggleFavorite={toggleFavorite}
+                  onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id })}
+                  style={isWide ? { marginHorizontal: 0 } : null}
+                />
+              </View>
+            ))}
+          </View>
         )}
 
       </ScrollView>
@@ -671,6 +683,16 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  // Responsive grid for doctor cards (wide web only)
+  doctorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 8,
+  },
+  doctorGridCell: {
+    paddingHorizontal: 8,
   },
 
   // Doctor card

@@ -6,8 +6,10 @@ import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
 import { useNotifications } from '../context/NotificationContext';
+import useResponsive from '../hooks/useResponsive';
 
 export default function SearchScreen({ navigation, route }) {
+  const { isWide, columns } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function SearchScreen({ navigation, route }) {
   ];
 
   const renderDoctor = ({ item }) => (
-    <View style={styles.card}>
+    <View style={[styles.card, isWide && styles.cardGrid]}>
       <View style={styles.cardTop}>
         <View style={styles.doctorImageContainer}>
           <Image 
@@ -251,10 +253,16 @@ export default function SearchScreen({ navigation, route }) {
           <ActivityIndicator size="large" color="#0066FF" style={{ marginTop: 50 }} />
         ) : (
           <FlatList
+            key={`cols-${columns}`}
             data={filteredDoctors}
             keyExtractor={(item, index) => item._id?.toString() || item.id?.toString() || String(index)}
             renderItem={renderDoctor}
-            contentContainerStyle={styles.listContent}
+            numColumns={columns}
+            columnWrapperStyle={columns > 1 ? styles.columnWrapper : undefined}
+            contentContainerStyle={[
+              styles.listContent,
+              isWide && styles.listContentWide,
+            ]}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -436,6 +444,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
+  listContentWide: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center',
+  },
+  columnWrapper: {
+    gap: 16,
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -443,6 +459,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#F1F5F9',
+  },
+  cardGrid: {
+    flex: 1,
   },
   cardTop: {
     flexDirection: 'row',

@@ -36,19 +36,50 @@ import OrthodonticsScreen from '../screens/OrthodonticsScreen';
 
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
+import useResponsive from '../hooks/useResponsive';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Tab bar styling shared by patient + doctor navigators. On wide web the
+// bar moves to the left as a sidebar; on phones it stays at the bottom.
+function useTabBarOptions() {
+  const { isWide } = useResponsive();
+  if (isWide) {
+    return {
+      tabBarPosition: 'left',
+      tabBarVariant: 'material',
+      tabBarActiveTintColor: '#0052FF',
+      tabBarInactiveTintColor: '#64748B',
+      tabBarStyle: {
+        width: 230,
+        paddingTop: 16,
+        backgroundColor: '#FFFFFF',
+        borderRightWidth: 1,
+        borderRightColor: '#E2E8F0',
+      },
+      tabBarLabelStyle: { fontSize: 14, fontWeight: '600' },
+    };
+  }
+  return {
+    tabBarPosition: 'bottom',
+    tabBarActiveTintColor: '#0052FF',
+    tabBarInactiveTintColor: '#94A3B8',
+    tabBarStyle: { paddingBottom: Platform.OS === 'ios' ? 20 : 24, paddingTop: 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' },
+    tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+  };
+}
+
 // Main Tabs (after login)
 function MainTabNavigator() {
+  const tabBarOptions = useTabBarOptions();
   return (
-    <Tab.Navigator 
+    <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-          
+
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
           else if (route.name === 'Implants') iconName = focused ? 'medkit' : 'medkit-outline';
           else if (route.name === 'Cosmetic') iconName = focused ? 'happy' : 'happy-outline';
@@ -57,10 +88,7 @@ function MainTabNavigator() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#0052FF',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: { paddingBottom: Platform.OS === 'ios' ? 20 : 24, paddingTop: 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' }
+        ...tabBarOptions,
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -76,6 +104,7 @@ function MainTabNavigator() {
 function DoctorTabNavigator() {
   const { unreadChatCount } = useNotifications();
   const chatBadge = unreadChatCount > 0 ? (unreadChatCount > 99 ? '99+' : unreadChatCount) : undefined;
+  const tabBarOptions = useTabBarOptions();
 
   return (
     <Tab.Navigator
@@ -93,10 +122,7 @@ function DoctorTabNavigator() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#0052FF',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: { paddingBottom: Platform.OS === 'ios' ? 20 : 24, paddingTop: 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' }
+        ...tabBarOptions,
       })}
     >
       <Tab.Screen name="DoctorHome" component={DoctorHomeScreen} options={{ tabBarLabel: 'Home' }} />

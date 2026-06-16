@@ -1,5 +1,6 @@
 const Gallery = require('../models/Gallery');
 const DoctorProfile = require('../models/DoctorProfile');
+const { uploadToCloudinary } = require('../config/cloudinary');
 
 // @desc    Get logged-in doctor's gallery items
 // @route   GET /api/gallery/my
@@ -96,15 +97,21 @@ const addGalleryItem = async (req, res) => {
       description,
     };
 
-    // Handle file uploads
+    // Handle file uploads — stream buffers to Cloudinary
     if (category === 'before_after') {
       // For before/after, handle two images
       if (req.files) {
         if (req.files.beforeImage && req.files.beforeImage[0]) {
-          galleryData.beforeImage = req.files.beforeImage[0].path.replace(/\\/g, '/');
+          galleryData.beforeImage = await uploadToCloudinary(
+            req.files.beforeImage[0].buffer,
+            'mydentist/gallery'
+          );
         }
         if (req.files.afterImage && req.files.afterImage[0]) {
-          galleryData.afterImage = req.files.afterImage[0].path.replace(/\\/g, '/');
+          galleryData.afterImage = await uploadToCloudinary(
+            req.files.afterImage[0].buffer,
+            'mydentist/gallery'
+          );
         }
       }
 
@@ -119,10 +126,16 @@ const addGalleryItem = async (req, res) => {
       galleryData.imageUrl = galleryData.beforeImage || galleryData.afterImage || req.body.imageUrl || req.body.image || 'before_after_gallery';
     } else {
       // Single image upload
-      if (req.file) {
-        galleryData.imageUrl = req.file.path.replace(/\\/g, '/');
-      } else if (req.files && req.files.image && req.files.image[0]) {
-        galleryData.imageUrl = req.files.image[0].path.replace(/\\/g, '/');
+      if (req.files && req.files.image && req.files.image[0]) {
+        galleryData.imageUrl = await uploadToCloudinary(
+          req.files.image[0].buffer,
+          'mydentist/gallery'
+        );
+      } else if (req.file) {
+        galleryData.imageUrl = await uploadToCloudinary(
+          req.file.buffer,
+          'mydentist/gallery'
+        );
       } else if (req.body.imageUrl) {
         galleryData.imageUrl = req.body.imageUrl;
       } else if (req.body.image) {

@@ -8,9 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
+import useResponsive from '../hooks/useResponsive';
 
+// Used only by a couple of static StyleSheet entries below (half-width cards).
+// Component layout uses the live useResponsive() hook instead.
 const { width } = Dimensions.get('window');
-const isWide = width >= 768;
 
 // ─── No Default Facilities ────────────────────────────────────────────────────────
 
@@ -35,6 +37,7 @@ const getTreatmentIcon = (name = '') => {
 };
 
 export default function DoctorProfileScreen({ route, navigation }) {
+  const { isWide } = useResponsive();
   const [loading, setLoading]       = useState(!route.params?.doctor);
   const [doctor, setDoctor]         = useState(route.params?.doctor || null);
   const [treatments, setTreatments] = useState([]);
@@ -587,7 +590,13 @@ Thank you for visiting!
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          { paddingBottom: 150 },
+          isWide && { width: '100%', maxWidth: 900, alignSelf: 'center' },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Cover Image — only shown on About tab */}
         {activeTab === 'About' && (
           <View style={styles.coverContainer}>

@@ -31,7 +31,7 @@ expo-env.d.ts
 *.orig.*
 
 # ─── Backend uploads (user-generated) ────────────────────────
-Combined Backend/uploads/
+backend/uploads/
 
 # ─── DB backups / dumps (contain real user data) ─────────────
 db-backup/

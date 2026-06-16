@@ -34,6 +34,7 @@ app.use('/api/gallery', require('./routes/gallery.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/chat', require('./routes/chat.routes'));
 app.use('/api/favorites', require('./routes/favorite.routes'));
+app.use('/api/admin', require('./routes/admin.routes'));
 
 // ─── Health Check ──────────────────────────────────────────
 app.get('/', (req, res) => {

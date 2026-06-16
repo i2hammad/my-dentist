@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Touchable
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
+import { actionMenu } from '../../../utils/confirmAlert';
 import storage from '../../../config/storage';
 
 const { width } = Dimensions.get('window');
@@ -162,15 +163,15 @@ export default function ReviewsTab({ profile }) {
                         <TouchableOpacity 
                           style={{ padding: 4, marginLeft: 8 }}
                           onPress={() => {
-                            Alert.alert(
-                              'Review Options',
-                              `Reviewer: ${review.patientId?.fullName || 'Patient'}\nRating: ${review.rating} Stars`,
-                              [
+                            actionMenu({
+                              title: 'Review Options',
+                              message: `Reviewer: ${review.patientId?.fullName || 'Patient'}\nRating: ${review.rating} Stars`,
+                              options: [
                                 { text: 'Reply to Review', onPress: () => Alert.alert('Reply', 'Reply feature will be active soon!') },
                                 { text: 'Report Review', style: 'destructive', onPress: () => Alert.alert('Reported', 'Review reported for administrative review.') },
                                 { text: 'Close', style: 'cancel' }
                               ]
-                            );
+                            });
                           }}
                         >
                           <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />

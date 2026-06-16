@@ -145,6 +145,27 @@ const doctorProfileSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // ── Popular status ──
+    // Doctor's accumulated reward points. At >= 20000 they auto-earn the
+    // green "popular" badge. Admins can also grant a paid (blue) badge.
+    rewardPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    isPopular: {
+      type: Boolean,
+      default: false,
+    },
+    // 'earned' = reached 20k points (green) · 'paid' = admin-granted (blue) · null = not popular
+    popularType: {
+      type: String,
+      enum: {
+        values: ['earned', 'paid', null],
+        message: '{VALUE} is not a valid popular type',
+      },
+      default: null,
+    },
   },
   {
     timestamps: true,

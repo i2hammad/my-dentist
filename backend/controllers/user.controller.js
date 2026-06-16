@@ -27,6 +27,9 @@ const getMe = async (req, res) => {
       profile = await PatientProfile.findOne({ userId: user._id });
     } else if (user.role === 'doctor') {
       profile = await DoctorProfile.findOne({ userId: user._id });
+    } else if (user.role === 'admin') {
+      const AdminProfile = require('../models/AdminProfile');
+      profile = await AdminProfile.findOne({ userId: user._id });
     }
 
     res.status(200).json({

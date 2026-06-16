@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Dimensions, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import storage from '../../config/storage';
+import confirmAlert from '../../utils/confirmAlert';
 import API_BASE_URL from '../../config/api';
 import { useNotifications } from '../../context/NotificationContext';
 
@@ -123,22 +124,16 @@ export default function DoctorHomeScreen({ route, navigation }) {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await storage.removeItem('userToken');
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+    confirmAlert({
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      confirmText: 'Logout',
+      destructive: true,
+      onConfirm: async () => {
+        await storage.removeItem('userToken');
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      },
+    });
   };
 
   if (loading) {

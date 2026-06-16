@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
+import confirmAlert, { actionMenu } from '../../../utils/confirmAlert';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
@@ -196,29 +197,29 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
     }
 
     if (apt.status !== 'cancelled' && apt.status !== 'completed') {
-      options.push({ 
-        text: 'Cancel Appointment', 
+      options.push({
+        text: 'Cancel Appointment',
         style: 'destructive',
         onPress: () => {
-          Alert.alert(
-            'Cancel Appointment',
-            'Are you sure you want to cancel this appointment?',
-            [
-              { text: 'No', style: 'cancel' },
-              { text: 'Yes, Cancel', style: 'destructive', onPress: () => handleAction(apt._id, 'cancel') }
-            ]
-          );
+          confirmAlert({
+            title: 'Cancel Appointment',
+            message: 'Are you sure you want to cancel this appointment?',
+            confirmText: 'Yes, Cancel',
+            cancelText: 'No',
+            destructive: true,
+            onConfirm: () => handleAction(apt._id, 'cancel'),
+          });
         }
       });
     }
 
     options.push({ text: 'Close', style: 'cancel' });
 
-    Alert.alert(
-      'Appointment Options',
-      `Patient: ${apt.patientName}\nTreatment: ${apt.treatment}\nTime: ${apt.timeStr || apt.time}\nStatus: ${apt.status.toUpperCase()}`,
-      options
-    );
+    actionMenu({
+      title: 'Appointment Options',
+      message: `Patient: ${apt.patientName}\nTreatment: ${apt.treatment}\nTime: ${apt.timeStr || apt.time}\nStatus: ${apt.status.toUpperCase()}`,
+      options,
+    });
   };
 
   return (

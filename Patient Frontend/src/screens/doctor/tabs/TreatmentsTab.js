@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
+import { actionMenu } from '../../../utils/confirmAlert';
 
 const { width } = Dimensions.get('window');
 
@@ -184,10 +185,10 @@ export default function TreatmentsTab({ profile }) {
             <TouchableOpacity 
               style={{ padding: 4, marginLeft: 8 }}
               onPress={() => {
-                Alert.alert(
-                  'Treatment Options',
-                  `Treatment: ${t.name || 'New Treatment'}\nPrice Range: PKR ${t.priceMin} - ${t.priceMax}`,
-                  [
+                actionMenu({
+                  title: 'Treatment Options',
+                  message: `Treatment: ${t.name || 'New Treatment'}\nPrice Range: PKR ${t.priceMin} - ${t.priceMax}`,
+                  options: [
                     { text: t.isActive ? 'Deactivate Treatment' : 'Activate Treatment', onPress: () => handleToggle(t._id) },
                     { text: 'Delete Treatment', style: 'destructive', onPress: () => {
                       if (t._id && t._id.length === 24) {
@@ -197,7 +198,7 @@ export default function TreatmentsTab({ profile }) {
                     }},
                     { text: 'Close', style: 'cancel' }
                   ]
-                );
+                });
               }}
             >
               <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />

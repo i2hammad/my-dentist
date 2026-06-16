@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
+import confirmAlert from '../../../utils/confirmAlert';
 
 
 import * as ImagePicker from 'expo-image-picker';
@@ -172,9 +173,12 @@ export default function GalleryTab({ profile }) {
   };
 
   const handleDelete = async (id) => {
-    Alert.alert('Delete', 'Are you sure you want to delete this image?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+    confirmAlert({
+      title: 'Delete',
+      message: 'Are you sure you want to delete this image?',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
         try {
           const token = await storage.getItem('userToken');
           await axios.delete(`${API_BASE_URL}/api/gallery/${id}`, {
@@ -185,8 +189,8 @@ export default function GalleryTab({ profile }) {
           console.error(err);
           Alert.alert('Error', 'Failed to delete image');
         }
-      }}
-    ]);
+      },
+    });
   };
 
   const clinicPhotos = items.filter(i => i.category === 'clinic_photos' || i.category === 'clinic_photo');

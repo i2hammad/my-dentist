@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['doctor', 'patient', 'vendor'],
+        values: ['doctor', 'patient', 'vendor', 'admin'],
         message: '{VALUE} is not a valid role',
       },
       required: [true, 'Role is required'],

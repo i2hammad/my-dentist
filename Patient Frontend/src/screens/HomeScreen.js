@@ -107,6 +107,14 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style }) {
             {doc.specialization || 'Dentist'}
           </Text>
 
+          {/* Popular badge — green = earned, blue = paid */}
+          {doc.isPopular && (
+            <View style={[styles.popularBadge, { backgroundColor: doc.popularType === 'paid' ? '#DBEAFE' : '#DCFCE7' }]}>
+              <Ionicons name="star" size={11} color={doc.popularType === 'paid' ? '#1D4ED8' : '#15803D'} />
+              <Text style={[styles.popularBadgeText, { color: doc.popularType === 'paid' ? '#1D4ED8' : '#15803D' }]}>Popular</Text>
+            </View>
+          )}
+
           {/* Rating */}
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={13} color="#F59E0B" />
@@ -771,6 +779,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     marginBottom: 4,
+  },
+  popularBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginBottom: 4,
+    gap: 3,
+  },
+  popularBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   ratingRow: {
     flexDirection: 'row',

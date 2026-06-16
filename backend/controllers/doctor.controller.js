@@ -42,13 +42,29 @@ const getDoctors = async (req, res) => {
     // Get total count for pagination
     const total = await DoctorProfile.countDocuments(filter);
 
-    // Fetch doctors sorted by facilityScore descending
-    const doctors = await DoctorProfile.find(filter)
-      .sort({ facilityScore: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('userId', 'email role')
-      .lean();
+    // Popular doctors rank to the top: paid (blue) first, then earned (green),
+    // then everyone else — each tier ordered by facilityScore.
+    const doctors = await DoctorProfile.aggregate([
+      { $match: filter },
+      {
+        $addFields: {
+          popularRank: {
+            $switch: {
+              branches: [
+                { case: { $eq: ['$popularType', 'paid'] }, then: 2 },
+                { case: { $eq: ['$popularType', 'earned'] }, then: 1 },
+              ],
+              default: 0,
+            },
+          },
+        },
+      },
+      { $sort: { popularRank: -1, facilityScore: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ]);
+    // Populate userId (aggregate doesn't auto-populate)
+    await DoctorProfile.populate(doctors, { path: 'userId', select: 'email role' });
 
     // Enrich with treatment count and average rating
     const Review = getReviewModel();

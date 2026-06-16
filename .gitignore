@@ -33,6 +33,11 @@ expo-env.d.ts
 # ─── Backend uploads (user-generated) ────────────────────────
 Combined Backend/uploads/
 
+# ─── DB backups / dumps (contain real user data) ─────────────
+db-backup/
+**/db-backup/
+*.bson
+
 # ─── Logs / debug ────────────────────────────────────────────
 npm-debug.*
 yarn-debug.*

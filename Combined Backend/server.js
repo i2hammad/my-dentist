@@ -71,14 +71,18 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // ─── Start Server ──────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🦷 ═══════════════════════════════════════════`);
-  console.log(`   MyDentist API Server`);
-  console.log(`   Running on: http://0.0.0.0:${PORT}`);
-  console.log(`   Accepting connections from ANY device`);
-  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🦷 ═══════════════════════════════════════════\n`);
-});
+// On Vercel the app runs as a serverless function (no long-lived listener);
+// the platform sets process.env.VERCEL. Locally we start a normal HTTP server.
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🦷 ═══════════════════════════════════════════`);
+    console.log(`   MyDentist API Server`);
+    console.log(`   Running on: http://0.0.0.0:${PORT}`);
+    console.log(`   Accepting connections from ANY device`);
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🦷 ═══════════════════════════════════════════\n`);
+  });
+}
 
 module.exports = app;

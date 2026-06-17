@@ -9,8 +9,8 @@ export default function SplashScreen({ navigation }) {
     let isCancelled = false;
 
     const checkLoginStatus = async () => {
-      // Create a delay promise for 3 seconds
-      const delay = new Promise(resolve => setTimeout(resolve, 3000));
+      // Branded splash delay on native; near-instant on web (users expect a fast site).
+      const delay = new Promise(resolve => setTimeout(resolve, Platform.OS === 'web' ? 0 : 3000));
       
       const checkStatus = async () => {
         try {
@@ -56,8 +56,15 @@ export default function SplashScreen({ navigation }) {
 
       // Run delay and status check concurrently, but wait for BOTH to finish
       const [_, navData] = await Promise.all([delay, checkStatus()]);
-      
-      if (!isCancelled) {
+
+      if (isCancelled) return;
+
+      // Skip the one-time consent notice for returning users who already agreed.
+      const agreed = await storage.getItem('hasAgreedNotice');
+      if (agreed === 'true') {
+        if (navData.params) navigation.replace(navData.route, navData.params);
+        else navigation.replace(navData.route);
+      } else {
         navigation.replace('Notice', { nextRoute: navData.route, nextParams: navData.params });
       }
     };

@@ -16,6 +16,7 @@ import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import { useIsFocused } from '@react-navigation/native';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
+import { SkeletonTreatmentList } from '../components/Skeleton';
 
 function StatusBadge({ status }) {
   const map = {
@@ -198,10 +199,7 @@ export default function CosmeticScreen({ navigation }) {
         </View>
 
         {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#0052FF" />
-            <Text style={styles.loadingText}>Loading cosmetic specialists…</Text>
-          </View>
+          <SkeletonTreatmentList count={5} />
         ) : doctors.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="sad-outline" size={48} color="#CBD5E1" />

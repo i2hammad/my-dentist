@@ -51,6 +51,71 @@ export function SkeletonList({ count = 4 }) {
   );
 }
 
+// A treatment-screen doctor card skeleton: 80px square photo + info + bottom row.
+// Matches the DoctorCard layout used in Cosmetic/Implants/Orthodontics screens.
+export function SkeletonTreatmentCard() {
+  return (
+    <View style={styles.tCard}>
+      <View style={styles.tRow}>
+        <Shimmer style={{ width: 80, height: 80, borderRadius: 12 }} />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <SkeletonLine width="62%" height={15} />
+          <SkeletonLine width="44%" height={11} style={{ marginTop: 9 }} />
+          <SkeletonLine width="52%" height={11} style={{ marginTop: 8 }} />
+          <SkeletonLine width="34%" height={11} style={{ marginTop: 8 }} />
+        </View>
+      </View>
+      <View style={styles.tDivider} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <SkeletonLine width="48%" height={38} style={{ borderRadius: 10 }} />
+        <SkeletonLine width="48%" height={38} style={{ borderRadius: 10 }} />
+      </View>
+    </View>
+  );
+}
+
+// N stacked treatment-card skeletons.
+export function SkeletonTreatmentList({ count = 5 }) {
+  return (
+    <View>
+      {Array.from({ length: count }).map((_, i) => <SkeletonTreatmentCard key={i} />)}
+    </View>
+  );
+}
+
+// Patient profile / edit-profile screen skeleton: avatar + titles + form card.
+export function SkeletonProfile({ fields = 5 }) {
+  return (
+    <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+      {/* Avatar */}
+      <View style={{ alignItems: 'center', marginTop: 8 }}>
+        <SkeletonCircle size={84} />
+      </View>
+      {/* Title + subtitle */}
+      <View style={{ alignItems: 'center', marginTop: 16 }}>
+        <SkeletonLine width={180} height={16} />
+        <SkeletonLine width={220} height={11} style={{ marginTop: 10 }} />
+      </View>
+      {/* Form card */}
+      <View style={pStyles.formCard}>
+        <View style={[styles.row, { marginBottom: 18 }]}>
+          <SkeletonCircle size={40} />
+          <View style={{ marginLeft: 12 }}>
+            <SkeletonLine width={150} height={13} />
+            <SkeletonLine width={110} height={10} style={{ marginTop: 7 }} />
+          </View>
+        </View>
+        {Array.from({ length: fields }).map((_, i) => (
+          <View key={i} style={{ marginBottom: 16 }}>
+            <SkeletonLine width="32%" height={11} />
+            <SkeletonLine width="100%" height={46} style={{ marginTop: 8, borderRadius: 12 }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // Doctor-details screen skeleton (cover + floating card + tabs + content).
 export function SkeletonDoctorDetail({ topInset = 0 }) {
   return (
@@ -90,8 +155,15 @@ const dStyles = StyleSheet.create({
   card: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 16, marginHorizontal: 16, marginTop: -40 },
 });
 
+const pStyles = StyleSheet.create({
+  formCard: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 18, marginTop: 22 },
+});
+
 const styles = StyleSheet.create({
   block: { backgroundColor: '#E2E8F0' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9', padding: 16, marginBottom: 14 },
   row: { flexDirection: 'row', alignItems: 'center' },
+  tRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  tCard: { backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 },
+  tDivider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
 });

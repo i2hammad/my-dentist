@@ -175,7 +175,7 @@ const getBill = async (req, res) => {
 // @access  Private (Doctor only)
 const createBill = async (req, res) => {
   try {
-    const { appointmentId, patientId, treatmentName, amount, dueDate, discountFromRewards } = req.body;
+    const { appointmentId, patientId, treatmentName, amount, dueDate, discountFromRewards, paidAmount, status: reqStatus } = req.body;
 
     // Verify doctor profile
     const doctorProfile = await DoctorProfile.findOne({ userId: req.user._id });
@@ -212,6 +212,9 @@ const createBill = async (req, res) => {
     // Calculate final amount
     const discount = discountFromRewards || 0;
     const finalAmount = Math.max(amount - discount, 0);
+    const paid = paidAmount || 0;
+    // status: draft (saved for later) | paid (fully paid) | unpaid
+    const status = reqStatus === 'draft' ? 'draft' : (paid >= finalAmount && finalAmount > 0 ? 'paid' : 'unpaid');
 
     const bill = await Bill.create({
       invoiceNumber,
@@ -222,19 +225,22 @@ const createBill = async (req, res) => {
       amount,
       finalAmount,
       discountFromRewards: discount,
+      paidAmount: paid,
       dueDate: new Date(dueDate),
-      status: 'unpaid'
+      status
     });
 
-    // Create notification for patient
-    await Notification.create({
-      userId: patientProfile.userId,
-      type: 'bill',
-      title: 'New Bill Generated',
-      message: `A new bill of $${finalAmount.toFixed(2)} for ${treatmentName} has been generated. Invoice: ${invoiceNumber}.`,
-      relatedId: bill._id,
-      data: { doctorId: String(doctorProfile._id) }
-    });
+    // Notify the patient — but not for drafts (drafts aren't issued yet).
+    if (status !== 'draft') {
+      await Notification.create({
+        userId: patientProfile.userId,
+        type: 'bill',
+        title: 'New Bill Generated',
+        message: `A new bill of $${finalAmount.toFixed(2)} for ${treatmentName} has been generated. Invoice: ${invoiceNumber}.`,
+        relatedId: bill._id,
+        data: { doctorId: String(doctorProfile._id) }
+      });
+    }
 
     res.status(201).json({
       success: true,

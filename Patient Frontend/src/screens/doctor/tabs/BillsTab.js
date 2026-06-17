@@ -30,6 +30,23 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
   // Active / Specimen Invoice for Printing
   const [currentInvoice, setCurrentInvoice] = useState(null);
+  // Draft being edited (id) — null when creating fresh.
+  const [editingBillId, setEditingBillId] = useState(null);
+
+  // Load a draft bill back into the Current Bill form for editing.
+  const editDraft = (bill) => {
+    setEditingBillId(bill._id);
+    const names = (bill.treatmentName || '').split(',').map(s => s.trim()).filter(Boolean);
+    setItems(names.length ? names.map(n => ({ name: n, price: '' })) : [{ name: '', price: '' }]);
+    setDiscount(String(bill.discountFromRewards || 0));
+    setPaidAmount(String(bill.paidAmount || 0));
+    const p = bill.patientId;
+    if (p && (p._id || p)) {
+      setSelectedPatient({ id: p._id || p, name: p.fullName || 'Patient', phone: p.mobileNumber || '' });
+    }
+    setSubTab('current');
+    Alert.alert('Editing Draft', 'This draft is loaded for editing. Save it as a final bill or update the draft.');
+  };
 
   useEffect(() => {
     fetchBills();
@@ -107,7 +124,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     return;
   };
 
-  const handleCreateBill = async () => {
+  const handleCreateBill = async (asDraft = false) => {
     if (!isProfileComplete) {
       Alert.alert(
         'Profile Setup Incomplete',
@@ -119,7 +136,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       Alert.alert('Error', 'Please select a patient first.');
       return;
     }
-    if (items.length === 0 || items.some(it => !it.name || !it.price)) {
+    // Drafts can be incomplete; a final bill needs valid treatments.
+    if (!asDraft && (items.length === 0 || items.some(it => !it.name || !it.price))) {
       Alert.alert('Error', 'Please ensure all treatments have a name and price.');
       return;
     }
@@ -127,7 +145,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     try {
       setSaving(true);
       const token = await storage.getItem('userToken');
-      
+
       const payload = {
         patientId: selectedPatient.id,
         treatmentName: items.map(it => it.name).join(', '),
@@ -135,16 +153,29 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         discountFromRewards: discountVal,
         paidAmount: paidVal,
         paymentMethod: paymentMethod,
-        dueDate: new Date().toISOString()
+        dueDate: new Date().toISOString(),
+        ...(asDraft ? { status: 'draft' } : {}),
       };
 
-      const res = await axios.post(`${API_BASE_URL}/api/bills`, payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Editing an existing draft → PUT; otherwise create a new bill.
+      const res = editingBillId
+        ? await axios.put(`${API_BASE_URL}/api/bills/${editingBillId}`, payload, { headers: { Authorization: `Bearer ${token}` } })
+        : await axios.post(`${API_BASE_URL}/api/bills`, payload, { headers: { Authorization: `Bearer ${token}` } });
 
       if (res.data?.success) {
         const newBill = res.data.data;
-        Alert.alert('Success', 'Bill created successfully!');
+        Alert.alert('Success', asDraft ? 'Saved as draft.' : (editingBillId ? 'Bill updated successfully!' : 'Bill created successfully!'));
+        setEditingBillId(null);
+
+        // Drafts: just refresh the list and stay; don't go to print.
+        if (asDraft) {
+          setItems([{ name: 'Teeth Cleaning', price: '1500' }, { name: 'Consultation', price: '1500' }]);
+          setPaidAmount('0'); setDiscount('0'); setPointsCode('');
+          fetchBills();
+          setSubTab('previous');
+          setSaving(false);
+          return;
+        }
 
         // Populate specimen for Print Current Bill tab
         setCurrentInvoice({
@@ -414,11 +445,17 @@ Thank you for visiting!
                         <Text style={[styles.td, {width: 100}]}>PKR {inv.discountFromRewards || 0}</Text>
                         <Text style={[styles.td, {width: 100}]}>PKR {billOut}</Text>
                         <View style={{width: 80, alignItems: 'center'}}>
-                          <View style={[styles.statusBadge, {backgroundColor: inv.status === 'paid' ? '#DCFCE7' : '#FEE2E2'}]}>
-                            <Text style={[styles.statusBadgeText, {color: inv.status === 'paid' ? '#16A34A' : '#DC2626'}]}>
-                              {inv.status === 'paid' ? 'Paid' : 'Unpaid'}
+                          <View style={[styles.statusBadge, {backgroundColor: inv.status === 'paid' ? '#DCFCE7' : inv.status === 'draft' ? '#FEF3C7' : '#FEE2E2'}]}>
+                            <Text style={[styles.statusBadgeText, {color: inv.status === 'paid' ? '#16A34A' : inv.status === 'draft' ? '#D97706' : '#DC2626'}]}>
+                              {inv.status === 'paid' ? 'Paid' : inv.status === 'draft' ? 'Draft' : 'Unpaid'}
                             </Text>
                           </View>
+                          {inv.status === 'draft' && (
+                            <TouchableOpacity onPress={() => editDraft(inv)} style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
+                              <Ionicons name="create-outline" size={13} color="#0052FF" />
+                              <Text style={{ color: '#0052FF', fontSize: 11, fontWeight: '700', marginLeft: 2 }}>Edit</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                         <TouchableOpacity 
                           style={{width: 50, alignItems: 'center'}}
@@ -648,11 +685,19 @@ Thank you for visiting!
 
                 {/* Action Buttons */}
                 <View style={styles.actionBtnsRow}>
-                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setItems([{ name: 'Teeth Cleaning', price: '1500' }])}><Text style={styles.cancelBtnText}>Reset</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.createBtn} onPress={handleCreateBill} disabled={saving}>
-                    {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.createBtnText}>Create Bill</Text>}
+                  <TouchableOpacity style={styles.draftBtn} onPress={() => handleCreateBill(true)} disabled={saving}>
+                    <Ionicons name="save-outline" size={16} color="#0052FF" style={{ marginRight: 6 }} />
+                    <Text style={styles.draftBtnText}>Save as Draft</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.createBtn} onPress={() => handleCreateBill(false)} disabled={saving}>
+                    {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.createBtnText}>{editingBillId ? 'Save Bill' : 'Create Bill'}</Text>}
                   </TouchableOpacity>
                 </View>
+                {editingBillId && (
+                  <TouchableOpacity onPress={() => { setEditingBillId(null); setItems([{ name: 'Teeth Cleaning', price: '1500' }]); setSelectedPatient(null); }} style={{ marginTop: 10, alignItems: 'center' }}>
+                    <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancel editing draft</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
             </View>
@@ -852,6 +897,8 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: '#0052FF', fontSize: 12.5, fontWeight: 'bold' },
   createBtn: { flex: 2, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0052FF', borderRadius: 8 },
   createBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
+  draftBtn: { flex: 1.4, height: 40, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#0052FF', borderRadius: 8, backgroundColor: '#EFF6FF' },
+  draftBtnText: { color: '#0052FF', fontSize: 12.5, fontWeight: 'bold' },
 
   /* Print / Share Receipt */
   printNowBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 40, backgroundColor: '#0052FF', borderRadius: 8 },

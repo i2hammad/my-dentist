@@ -18,6 +18,7 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import { SkeletonList } from '../components/Skeleton';
+import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
@@ -282,21 +283,23 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
 
       {/* ── BLUE HEADER ── */}
-      <View style={styles.blueHeader}>
+      <AnimatedHeader style={styles.blueHeader}>
         {/* Row 1 */}
         <View style={styles.headerRow1}>
           <Text style={styles.headerTitle}>My Dentist PK</Text>
           <View style={styles.headerRight}>
             {/* Appointments Icon */}
-            <TouchableOpacity 
+            <PressableScale
               style={styles.bellWrapper}
+              hitSlop={8}
               onPress={() => navigation.navigate('Appointments')}
             >
               <Ionicons name="calendar-outline" size={26} color="#FFFFFF" />
-            </TouchableOpacity>
+            </PressableScale>
             {/* Chat Inbox Icon */}
-            <TouchableOpacity 
+            <PressableScale
               style={styles.bellWrapper}
+              hitSlop={8}
               onPress={() => navigation.navigate('PatientInbox')}
             >
               <Ionicons name="chatbubbles-outline" size={26} color="#FFFFFF" />
@@ -305,10 +308,11 @@ export default function HomeScreen({ navigation }) {
                   <Text style={styles.notifBadgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </PressableScale>
             {/* Notification bell */}
-            <TouchableOpacity 
+            <PressableScale
               style={styles.bellWrapper}
+              hitSlop={8}
               onPress={() => navigation.navigate('Notifications')}
             >
               <Ionicons name="notifications-outline" size={28} color="#FFFFFF" />
@@ -317,10 +321,11 @@ export default function HomeScreen({ navigation }) {
                   <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </PressableScale>
             {/* Profile photo */}
-            <TouchableOpacity
+            <PressableScale
               style={styles.profilePhotoWrapper}
+              scaleTo={0.9}
               onPress={() => navigation.navigate('Profile')}
             >
               {profile?.profileImage ? (
@@ -331,17 +336,17 @@ export default function HomeScreen({ navigation }) {
               ) : (
                 <Ionicons name="person" size={22} color="#FFFFFF" />
               )}
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </View>
 
         {/* Row 2: Location */}
-        <TouchableOpacity style={styles.locationRow} activeOpacity={0.7}>
+        <PressableScale style={styles.locationRow} scaleTo={0.97}>
           <Ionicons name="location-outline" size={16} color="#FFFFFF" />
           <Text style={styles.locationText}>Islamabad, Pakistan</Text>
           <Ionicons name="chevron-down" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+        </PressableScale>
+      </AnimatedHeader>
 
       {/* ── SCROLLABLE BODY ── */}
       <ScrollView

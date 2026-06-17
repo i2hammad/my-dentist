@@ -9,6 +9,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
+import { AnimatedHeader, PressableScale } from '../components/Animated';
 
 export default function PatientInboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -122,11 +123,11 @@ export default function PatientInboxScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+      <AnimatedHeader style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={{ marginRight: 12, padding: 4 }} onPress={() => navigation.goBack()}>
+          <PressableScale style={{ marginRight: 12, padding: 4 }} hitSlop={8} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#0A1551" />
-          </TouchableOpacity>
+          </PressableScale>
           <View>
             <Text style={styles.headerTitle}>Messages</Text>
             {totalUnread > 0 && (
@@ -134,10 +135,10 @@ export default function PatientInboxScreen({ navigation }) {
             )}
           </View>
         </View>
-        <TouchableOpacity style={styles.refreshBtn} onPress={fetchConversations}>
+        <PressableScale style={styles.refreshBtn} onPress={fetchConversations}>
           <Ionicons name="refresh-outline" size={22} color="#0052FF" />
-        </TouchableOpacity>
-      </View>
+        </PressableScale>
+      </AnimatedHeader>
 
       <View style={styles.searchWrap}>
         <Ionicons name="search-outline" size={18} color="#94A3B8" style={styles.searchIcon} />

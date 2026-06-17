@@ -7,6 +7,7 @@ import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
 import { SkeletonList } from '../components/Skeleton';
+import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
 
@@ -163,33 +164,32 @@ export default function SearchScreen({ navigation, route }) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.blueHeader}>
-        <View style={styles.headerTop}>
+        <AnimatedHeader style={styles.headerTop}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            <TouchableOpacity style={{ marginRight: 12, marginTop: 2 }} onPress={() => navigation.goBack()}>
+            <PressableScale style={{ marginRight: 12, marginTop: 2 }} hitSlop={10} onPress={() => navigation.goBack()}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
+            </PressableScale>
             <View>
               <Text style={styles.headerTitle}>My Dentist PK</Text>
-              <TouchableOpacity style={styles.locationDropdown}>
+              <PressableScale style={styles.locationDropdown} scaleTo={0.96}>
                 <Ionicons name="location" size={14} color="#FFFFFF" />
                 <Text style={styles.locationText}>Islamabad, Pakistan</Text>
                 <Ionicons name="chevron-down" size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.bellBtn} 
+            <PressableScale
+              style={styles.bellBtn}
               onPress={() => navigation.navigate('Notifications')}
               hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              activeOpacity={0.7}
             >
               <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
               {unreadCount > 0 && (
                 <View style={styles.bellBadge}><Text style={styles.bellBadgeTxt}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
               )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.userAvatar} onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
+            </PressableScale>
+            <PressableScale style={styles.userAvatar} scaleTo={0.9} onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
               {profile?.profileImage ? (
                 <Image source={{ uri: imgUrl(profile.profileImage) }} style={styles.avatarImg} />
               ) : (
@@ -198,9 +198,9 @@ export default function SearchScreen({ navigation, route }) {
                 </View>
               )}
               <View style={styles.avatarOnlineIndicator} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
-        </View>
+        </AnimatedHeader>
 
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#94A3B8" />

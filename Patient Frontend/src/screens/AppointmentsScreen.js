@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import { SkeletonList } from '../components/Skeleton';
+import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useIsFocused } from '@react-navigation/native';
 import API_BASE_URL from '../config/api';
 
@@ -96,12 +97,12 @@ export default function AppointmentsScreen({ navigation }) {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
       <View style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 16, marginHorizontal: 20 }}>
-        <TouchableOpacity style={{ marginRight: 12 }} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
+      <AnimatedHeader style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 16, marginHorizontal: 20 }}>
+        <PressableScale style={{ marginRight: 12 }} hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
           <Ionicons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
+        </PressableScale>
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0F172A' }}>My Appointments</Text>
-      </View>
+      </AnimatedHeader>
       
       {/* Tabs */}
       <View style={styles.tabContainer}>

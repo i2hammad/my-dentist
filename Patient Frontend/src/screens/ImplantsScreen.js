@@ -15,6 +15,7 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import { useIsFocused } from '@react-navigation/native';
+import { AnimatedHeader, PressableScale } from '../components/Animated';
 
 function StatusBadge({ status }) {
   const map = {
@@ -170,15 +171,15 @@ export default function ImplantsScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* Header */}
-      <View style={styles.blueHeader}>
+      <AnimatedHeader style={styles.blueHeader}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backBtn}>
+          <PressableScale onPress={() => navigation.navigate('Home')} style={styles.backBtn} hitSlop={10}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          </PressableScale>
           <Text style={styles.headerTitle}>Dental Implants</Text>
           <View style={{ width: 24 }} />
         </View>
-      </View>
+      </AnimatedHeader>
 
       {/* Body */}
       <ScrollView

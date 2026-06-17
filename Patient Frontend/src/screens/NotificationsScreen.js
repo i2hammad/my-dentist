@@ -9,6 +9,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
 import { useNotifications } from '../context/NotificationContext';
+import { AnimatedHeader, PressableScale } from '../components/Animated';
 
 export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
@@ -242,16 +243,17 @@ export default function NotificationsScreen({ navigation }) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
+      <AnimatedHeader style={styles.header}>
+        <PressableScale
           style={styles.backBtn}
+          hitSlop={10}
           onPress={() => (navigation.canGoBack() ? navigation.goBack() : null)}
         >
           <Ionicons name="arrow-back" size={24} color="#0A1551" />
-        </TouchableOpacity>
+        </PressableScale>
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 32 }} />
-      </View>
+      </AnimatedHeader>
 
       {loading ? (
         <View style={styles.center}>

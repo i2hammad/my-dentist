@@ -6,6 +6,7 @@ import API_BASE_URL from '../../../config/api';
 import { actionMenu } from '../../../utils/confirmAlert';
 import storage from '../../../config/storage';
 import { getClinicTier } from '../../../utils/clinicTier';
+import { FACILITY_CATEGORIES } from '../../../config/facilities';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
@@ -17,8 +18,8 @@ export default function ReviewsTab({ profile }) {
 
   // Editable facilities & services (persisted to the doctor profile).
   const [services, setServices] = useState([]);
-  const [newService, setNewService] = useState('');
   const [savingServices, setSavingServices] = useState(false);
+  const [showFacilityPicker, setShowFacilityPicker] = useState(false);
 
   // Reply modal state.
   const [replyTarget, setReplyTarget] = useState(null);
@@ -44,12 +45,11 @@ export default function ReviewsTab({ profile }) {
     }
   };
 
-  const addService = () => {
-    const v = newService.trim();
-    if (!v) return;
-    if (services.includes(v)) { setNewService(''); return; }
-    const list = [...services, v];
-    setServices(list); setNewService('');
+  // Toggle a predefined facility from the selection modal.
+  const toggleFacility = (name) => {
+    const has = services.includes(name);
+    const list = has ? services.filter(s => s !== name) : [...services, name];
+    setServices(list);
     persistServices(list);
   };
 
@@ -168,20 +168,10 @@ export default function ReviewsTab({ profile }) {
                 </Text>
               )}
 
-              <View style={styles.addServiceRow}>
-                <TextInput
-                  style={styles.addServiceInput}
-                  value={newService}
-                  onChangeText={setNewService}
-                  placeholder="e.g. Teeth Whitening, X-Ray, Parking"
-                  placeholderTextColor="#94A3B8"
-                  onSubmitEditing={addService}
-                  returnKeyType="done"
-                />
-                <TouchableOpacity style={styles.addServiceBtn} onPress={addService}>
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.addFacilityBtn} onPress={() => setShowFacilityPicker(true)}>
+                <Ionicons name="add-circle-outline" size={18} color="#0052FF" />
+                <Text style={styles.addFacilityBtnText}>Add / Manage Facilities</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Patient Reviews */}
@@ -379,6 +369,44 @@ export default function ReviewsTab({ profile }) {
         </View>
       </Modal>
 
+      {/* Facility selection modal — choose only from available facilities */}
+      <Modal visible={showFacilityPicker} transparent animationType="slide" onRequestClose={() => setShowFacilityPicker(false)}>
+        <View style={styles.fpOverlay}>
+          <View style={styles.fpModal}>
+            <View style={styles.fpHead}>
+              <Text style={styles.fpTitle}>Select Facilities & Services</Text>
+              <TouchableOpacity onPress={() => setShowFacilityPicker(false)}><Ionicons name="close" size={22} color="#64748B" /></TouchableOpacity>
+            </View>
+            <Text style={styles.fpSub}>Tap to add or remove. {services.length} selected.</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {FACILITY_CATEGORIES.map(cat => (
+                <View key={cat.key} style={{ marginBottom: 16 }}>
+                  <View style={styles.fpCatHead}>
+                    <View style={[styles.fpCatIcon, { backgroundColor: cat.bgColor }]}><Ionicons name={cat.icon} size={14} color={cat.color} /></View>
+                    <Text style={styles.fpCatTitle}>{cat.title}</Text>
+                  </View>
+                  <View style={styles.fpChips}>
+                    {cat.items.map(item => {
+                      const on = services.includes(item);
+                      return (
+                        <TouchableOpacity key={item} onPress={() => toggleFacility(item)} style={[styles.fpChip, on && styles.fpChipOn]}>
+                          <Ionicons name={on ? 'checkmark-circle' : 'add-circle-outline'} size={14} color={on ? '#FFFFFF' : '#64748B'} />
+                          <Text style={[styles.fpChipText, on && styles.fpChipTextOn]}>{item}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+              <View style={{ height: 10 }} />
+            </ScrollView>
+            <TouchableOpacity style={styles.fpDone} onPress={() => setShowFacilityPicker(false)}>
+              <Text style={styles.fpDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -477,9 +505,24 @@ const styles = StyleSheet.create({
   bookBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
 
   /* Add service */
-  addServiceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  addServiceInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13.5, color: '#0F172A' },
-  addServiceBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#0052FF', justifyContent: 'center', alignItems: 'center' },
+  addFacilityBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#0052FF', borderStyle: 'dashed', backgroundColor: '#EFF6FF' },
+  addFacilityBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 14 },
+  // Facility picker modal
+  fpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  fpModal: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 20, maxHeight: '85%' },
+  fpHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  fpTitle: { fontSize: 17, fontWeight: '800', color: '#0A1551' },
+  fpSub: { fontSize: 12.5, color: '#64748B', marginTop: 2, marginBottom: 12 },
+  fpCatHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  fpCatIcon: { width: 26, height: 26, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  fpCatTitle: { fontSize: 11.5, fontWeight: '800', color: '#475569', letterSpacing: 0.4 },
+  fpChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fpChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' },
+  fpChipOn: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  fpChipText: { fontSize: 12.5, color: '#334155', fontWeight: '600' },
+  fpChipTextOn: { color: '#FFFFFF' },
+  fpDone: { backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  fpDoneText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
   /* Doctor reply */
   replyBox: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#0052FF' },

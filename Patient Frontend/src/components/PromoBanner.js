@@ -15,7 +15,6 @@ import API_BASE_URL from '../config/api';
 export default function PromoBanner() {
   const navigation = useNavigation();
   const [campaign, setCampaign] = useState(null);
-  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,7 +33,7 @@ export default function PromoBanner() {
     return () => { cancelled = true; };
   }, []);
 
-  if (!campaign || dismissed) return null;
+  if (!campaign) return null;
 
   const img = campaign.bannerImage
     ? (campaign.bannerImage.startsWith('http') ? campaign.bannerImage : `${API_BASE_URL}${campaign.bannerImage}`)
@@ -56,13 +55,7 @@ export default function PromoBanner() {
         <Text style={styles.title} numberOfLines={1}>{campaign.title}</Text>
         {!!campaign.bannerText && <Text style={styles.sub} numberOfLines={1}>{campaign.bannerText}</Text>}
       </View>
-      <TouchableOpacity
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        onPress={(e) => { e.stopPropagation(); setDismissed(true); }}
-        style={styles.close}
-      >
-        <Ionicons name="close" size={16} color="#94A3B8" />
-      </TouchableOpacity>
+      <Ionicons name="chevron-forward" size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
     </TouchableOpacity>
   );
 }

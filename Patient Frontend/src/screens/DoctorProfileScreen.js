@@ -672,7 +672,7 @@ Thank you for visiting!
     <SafeAreaView edges={isWide ? ['top'] : []} style={styles.container}>
       <ScrollView
         contentContainerStyle={[
-          { paddingBottom: 150 },
+          { paddingBottom: 150 + (isWide ? 0 : insets.bottom) },
           isWide && styles.webScrollContent,
         ]}
         showsVerticalScrollIndicator={false}
@@ -1423,7 +1423,7 @@ Thank you for visiting!
 
       {/* Fixed Bottom Button — phone only (desktop has the rail's Book button) */}
       {!isWide && (
-        <View style={styles.bottomFixed}>
+        <View style={[styles.bottomFixed, { bottom: Math.max(insets.bottom, 12) }]}>
           <TouchableOpacity
             style={styles.bookBtn}
             onPress={() => navigation.navigate('Booking', { doctor })}

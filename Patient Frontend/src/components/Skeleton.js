@@ -54,8 +54,9 @@ export function SkeletonList({ count = 4 }) {
 // Doctor-details screen skeleton (cover + floating card + tabs + content).
 export function SkeletonDoctorDetail({ topInset = 0 }) {
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF', paddingTop: topInset }}>
-      <Shimmer style={{ width: '100%', height: 180, borderRadius: 0 }} />
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      {/* Banner bleeds under the status bar (edge-to-edge): height absorbs the inset */}
+      <Shimmer style={{ width: '100%', height: 180 + topInset, borderRadius: 0 }} />
       <View style={dStyles.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <SkeletonCircle size={68} />

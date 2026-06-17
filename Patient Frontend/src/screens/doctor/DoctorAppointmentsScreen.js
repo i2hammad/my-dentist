@@ -12,13 +12,33 @@ export default function DoctorAppointmentsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('upcoming');
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
   const [loading, setLoading] = useState(true);
+  const [online, setOnline] = useState(false);
   const isFocused = useIsFocused();
 
   useEffect(() => {
     if (isFocused) {
       fetchAppointments();
+      fetchMyStatus();
     }
   }, [isFocused]);
+
+  const fetchMyStatus = async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const status = res.data?.data?.profile?.onlineStatus;
+      setOnline(status === 'online');
+    } catch (e) { /* non-critical */ }
+  };
+
+  const toggleOnline = async () => {
+    const next = online ? 'offline' : 'online';
+    setOnline(!online);
+    try {
+      const token = await storage.getItem('userToken');
+      await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { onlineStatus: next }, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (e) { setOnline(online); /* revert on failure */ }
+  };
 
   const fetchAppointments = async () => {
     try {
@@ -80,10 +100,18 @@ export default function DoctorAppointmentsScreen({ navigation }) {
             <Text style={styles.treatmentType}>{item.treatmentType}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, item.status === 'confirmed' ? styles.statusConfirmed : styles.statusPending]}>
-          <Text style={[styles.statusText, item.status === 'confirmed' ? styles.statusTextConfirmed : styles.statusTextPending]}>
-            {item.status.toUpperCase()}
-          </Text>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={[styles.statusBadge, item.status === 'confirmed' ? styles.statusConfirmed : styles.statusPending]}>
+            <Text style={[styles.statusText, item.status === 'confirmed' ? styles.statusTextConfirmed : styles.statusTextPending]}>
+              {item.status.toUpperCase()}
+            </Text>
+          </View>
+          {item.status === 'confirmed' && (
+            <View style={styles.liveRow}>
+              <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
+              <Text style={[styles.liveRowText, { color: online ? '#16A34A' : '#94A3B8' }]}>{online ? 'You are Live' : 'Offline'}</Text>
+            </View>
+          )}
         </View>
       </View>
       
@@ -134,7 +162,10 @@ export default function DoctorAppointmentsScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color="#0A1551" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Appointments</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity style={[styles.liveToggle, { backgroundColor: online ? '#DCFCE7' : '#F1F5F9' }]} onPress={toggleOnline}>
+          <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
+          <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>{online ? 'Live' : 'Offline'}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tabContainer}>
@@ -241,5 +272,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
-  }
+  },
+  liveToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999 },
+  liveToggleText: { fontSize: 13, fontWeight: '700' },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  liveRowText: { fontSize: 11, fontWeight: '600' },
 });

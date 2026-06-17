@@ -7,6 +7,7 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
+import RoleBadge from '../components/RoleBadge';
 
 export default function LoginScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -101,7 +102,10 @@ export default function LoginScreen({ route, navigation }) {
   // card; on mobile it keeps the original scroll layout with logo header.
   const formBody = (
     <View style={styles.form}>
-          
+
+          {/* Which role is being logged into */}
+          <RoleBadge role={role} onSwitch={() => navigation.navigate('RoleSelection')} />
+
           {/* Email */}
           <Text style={styles.label}>Email Address</Text>
           <View style={styles.inputContainer}>
@@ -222,6 +226,7 @@ export default function LoginScreen({ route, navigation }) {
       <WebAuthLayout
         title={'Welcome back.\nLet’s get you in.'}
         subtitle="Log in to manage your appointments, chat with your dentist, and track your care."
+        onBack={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('RoleSelection')}
       >
         <Text style={styles.webHeading}>Welcome Back!</Text>
         <Text style={styles.webSubheading}>Login to continue to your account</Text>

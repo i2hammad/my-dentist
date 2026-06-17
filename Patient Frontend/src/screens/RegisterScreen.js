@@ -7,6 +7,7 @@ import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
+import RoleBadge from '../components/RoleBadge';
 
 export default function RegisterScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -95,6 +96,9 @@ export default function RegisterScreen({ route, navigation }) {
 
   const formBody = (
     <View style={styles.form}>
+
+          {/* Which role is being registered */}
+          <RoleBadge role={role} onSwitch={() => navigation.navigate('RoleSelection')} />
           
           {/* Email Address */}
           <Text style={styles.label}>Email Address</Text>
@@ -205,6 +209,7 @@ export default function RegisterScreen({ route, navigation }) {
       <WebAuthLayout
         title={'Create your account.\nStart in seconds.'}
         subtitle="Sign up to book verified dentists, chat with your doctor, and manage your dental care."
+        onBack={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login', { role })}
       >
         <Text style={styles.webHeading}>Create Your Account</Text>
         <Text style={styles.webSubheading}>Sign up to get started</Text>

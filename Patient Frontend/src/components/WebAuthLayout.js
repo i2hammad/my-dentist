@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import useResponsive from '../hooks/useResponsive';
 
@@ -13,7 +13,7 @@ const HIGHLIGHTS = [
   ['gift', 'Earn reward points on every visit'],
 ];
 
-export default function WebAuthLayout({ children, title, subtitle }) {
+export default function WebAuthLayout({ children, title, subtitle, onBack }) {
   const { isWide } = useResponsive();
   if (!isWide) return children;
 
@@ -47,7 +47,15 @@ export default function WebAuthLayout({ children, title, subtitle }) {
 
       {/* Form panel */}
       <ScrollView style={styles.formPanel} contentContainerStyle={styles.formScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.formCard}>{children}</View>
+        <View style={styles.formCard}>
+          {onBack && (
+            <TouchableOpacity style={styles.backLink} onPress={onBack}>
+              <Ionicons name="arrow-back" size={18} color="#475569" />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          )}
+          {children}
+        </View>
       </ScrollView>
     </View>
   );
@@ -55,6 +63,8 @@ export default function WebAuthLayout({ children, title, subtitle }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, flexDirection: 'row', backgroundColor: '#EEF2F9' },
+  backLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18, alignSelf: 'flex-start' },
+  backText: { fontSize: 14, fontWeight: '600', color: '#475569' },
 
   brandPanel: {
     flex: 1, backgroundColor: '#0052FF', padding: 56, justifyContent: 'center',

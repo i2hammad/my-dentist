@@ -188,31 +188,44 @@ export default function DoctorHomeScreen({ route, navigation }) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {/* Top Navbar */}
       <View style={styles.navbar}>
-        <View style={{flex: 1}} />
-        <TouchableOpacity 
-          style={styles.navIconBtn}
-          onPress={() => navigation.navigate('Notifications')}
-        >
-          <Ionicons name="notifications-outline" size={24} color="#0A1551" />
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navIconBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#0A1551" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navAvatarContainer} onPress={() => navigation.navigate('DoctorTabs', { screen: 'Profile' })}>
-          {profile?.photo ? (
-            <Image source={photoUri} style={styles.navAvatar} />
-          ) : (
-            <View style={[styles.navAvatar, { backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }]}>
-              <Ionicons name="person" size={20} color="#64748B" />
-            </View>
-          )}
-          <View style={styles.navOnlineDot} />
-        </TouchableOpacity>
+        {/* Brand + greeting */}
+        <View style={styles.navBrandRow}>
+          <View style={styles.navLogo}>
+            <Ionicons name="medical" size={18} color="#FFFFFF" />
+          </View>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.navGreeting}>Welcome back 👋</Text>
+            <Text style={styles.navDocName} numberOfLines={1}>Dr. {profile?.fullName || 'Doctor'}</Text>
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.navActions}>
+          <TouchableOpacity
+            style={styles.navIconBtn}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Ionicons name="notifications-outline" size={22} color="#0A1551" />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navIconBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={22} color="#0A1551" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navAvatarContainer} onPress={() => navigation.navigate('DoctorTabs', { screen: 'Profile' })}>
+            {profile?.photo ? (
+              <Image source={photoUri} style={styles.navAvatar} />
+            ) : (
+              <View style={[styles.navAvatar, { backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="person" size={20} color="#64748B" />
+              </View>
+            )}
+            <View style={styles.navOnlineDot} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
@@ -333,10 +346,15 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
   /* Navbar */
-  navbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF' },
+  navbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  navBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  navLogo: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#0052FF', justifyContent: 'center', alignItems: 'center' },
+  navGreeting: { fontSize: 11, color: '#94A3B8', fontWeight: '600' },
+  navDocName: { fontSize: 15, color: '#0A1551', fontWeight: '800' },
+  navActions: { flexDirection: 'row', alignItems: 'center' },
   navBackBtn: { padding: 4 },
-  navIconBtn: { padding: 6, marginLeft: 8, position: 'relative' },
-  badge: { position: 'absolute', top: 4, right: 4, backgroundColor: '#EF4444', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFF' },
+  navIconBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginLeft: 8, position: 'relative' },
+  badge: { position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FFF' },
   badgeText: { color: '#FFF', fontSize: 8, fontWeight: 'bold' },
   navAvatarContainer: { position: 'relative', marginLeft: 12 },
   navAvatar: { width: 32, height: 32, borderRadius: 16 },

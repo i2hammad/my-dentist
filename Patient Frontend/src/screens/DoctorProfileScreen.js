@@ -10,7 +10,7 @@ import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
-import { SkeletonDoctorDetail } from '../components/Skeleton';
+import { SkeletonDoctorDetail, ShimmerImage } from '../components/Skeleton';
 import { drName } from '../utils/doctorName';
 
 // Used only by a couple of static StyleSheet entries below (half-width cards).
@@ -932,7 +932,7 @@ Thank you for visiting!
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {clinicPhotos.length > 0 ? (
                   clinicPhotos.map(item => (
-                    <Image key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.galleryImage} />
+                    <ShimmerImage key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.galleryImage} />
                   ))
                 ) : (
                   <Text style={styles.emptyText}>No clinic photos uploaded.</Text>
@@ -945,11 +945,11 @@ Thank you for visiting!
                     <View key={item._id} style={styles.beforeAfterCard}>
                       {item.beforeImage && item.afterImage ? (
                         <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <Image source={{ uri: imgUrl(item.beforeImage) }} style={styles.beforeAfterImg} />
-                          <Image source={{ uri: imgUrl(item.afterImage) }} style={styles.beforeAfterImg} />
+                          <ShimmerImage source={{ uri: imgUrl(item.beforeImage) }} style={styles.beforeAfterImg} />
+                          <ShimmerImage source={{ uri: imgUrl(item.afterImage) }} style={styles.beforeAfterImg} />
                         </View>
                       ) : (
-                        <Image source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={[styles.beforeAfterImg, { width: 180 }]} />
+                        <ShimmerImage source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={[styles.beforeAfterImg, { width: 180 }]} />
                       )}
                       {item.title ? <Text style={{ fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 4 }}>{item.title}</Text> : null}
                     </View>
@@ -962,7 +962,7 @@ Thank you for visiting!
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {certificates.length > 0 ? (
                   certificates.map(item => (
-                    <Image key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.certificateImg} />
+                    <ShimmerImage key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.certificateImg} />
                   ))
                 ) : (
                   <Text style={styles.emptyText}>No certificates uploaded.</Text>

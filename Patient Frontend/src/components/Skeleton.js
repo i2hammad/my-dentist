@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Easing } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Animated, StyleSheet, Easing, Image } from 'react-native';
 
 // Lightweight shimmer skeleton for React Native loading states.
 function Shimmer({ style }) {
@@ -15,6 +15,27 @@ function Shimmer({ style }) {
     return () => loop.stop();
   }, [opacity]);
   return <Animated.View style={[styles.block, style, { opacity }]} />;
+}
+
+/**
+ * ShimmerImage — an Image that shows a shimmer placeholder until it finishes
+ * loading (or errors). Drop-in replacement for <Image> with a remote uri.
+ * Pass the same `style` you'd give the Image (it sizes both layers).
+ */
+export function ShimmerImage({ source, style, resizeMode = 'cover', ...rest }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <View style={[style, { overflow: 'hidden', position: 'relative' }]}>
+      <Image
+        source={source}
+        style={StyleSheet.absoluteFill}
+        resizeMode={resizeMode}
+        onLoadEnd={() => setLoaded(true)}
+        {...rest}
+      />
+      {!loaded && <Shimmer style={[StyleSheet.absoluteFill, { borderRadius: 0 }]} />}
+    </View>
+  );
 }
 
 export function SkeletonLine({ width = '100%', height = 12, style }) {

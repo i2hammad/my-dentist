@@ -11,6 +11,7 @@ import storage from '../config/storage';
 import { useNotifications } from '../context/NotificationContext';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { SkeletonRowList } from '../components/Skeleton';
+import webContent from '../config/webLayout';
 
 export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
@@ -244,7 +245,7 @@ export default function NotificationsScreen({ navigation }) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {/* Header */}
-      <AnimatedHeader style={styles.header}>
+      <AnimatedHeader style={[styles.header, webContent]}>
         <PressableScale
           style={styles.backBtn}
           hitSlop={10}
@@ -268,7 +269,7 @@ export default function NotificationsScreen({ navigation }) {
           data={notifications}
           keyExtractor={item => item._id}
           renderItem={renderNotification}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, webContent]}
           showsVerticalScrollIndicator={false}
         />
       )}

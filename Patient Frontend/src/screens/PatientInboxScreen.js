@@ -11,6 +11,7 @@ import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { SkeletonRowList } from '../components/Skeleton';
+import webContent from '../config/webLayout';
 
 export default function PatientInboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -124,7 +125,7 @@ export default function PatientInboxScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <AnimatedHeader style={styles.header}>
+      <AnimatedHeader style={[styles.header, webContent]}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <PressableScale style={{ marginRight: 12, padding: 4 }} hitSlop={8} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#0A1551" />
@@ -141,7 +142,7 @@ export default function PatientInboxScreen({ navigation }) {
         </PressableScale>
       </AnimatedHeader>
 
-      <View style={styles.searchWrap}>
+      <View style={[styles.searchWrap, webContent]}>
         <Ionicons name="search-outline" size={18} color="#94A3B8" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
@@ -172,7 +173,7 @@ export default function PatientInboxScreen({ navigation }) {
           data={filtered}
           keyExtractor={(item, index) => item.otherUser?._id?.toString() || item._id?.toString() || String(index)}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={[{ paddingBottom: 20 }, webContent]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />

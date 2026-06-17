@@ -17,6 +17,7 @@ import imgUrl from '../config/imgUrl';
 import { useIsFocused } from '@react-navigation/native';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { SkeletonTreatmentList } from '../components/Skeleton';
+import webContent, { isWeb } from '../config/webLayout';
 
 function StatusBadge({ status }) {
   const map = {
@@ -174,7 +175,8 @@ export default function CosmeticScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      {/* Header */}
+      {/* Header — hidden on web (the top navbar already shows the section) */}
+      {!isWeb && (
       <AnimatedHeader style={styles.blueHeader}>
         <View style={styles.headerRow}>
           <PressableScale onPress={() => navigation.navigate('Home')} style={styles.backBtn} hitSlop={10}>
@@ -184,11 +186,12 @@ export default function CosmeticScreen({ navigation }) {
           <View style={{ width: 24 }} />
         </View>
       </AnimatedHeader>
+      )}
 
       {/* Body */}
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, webContent]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.introCard}>

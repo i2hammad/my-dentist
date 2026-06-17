@@ -549,8 +549,34 @@ body { text-rendering: optimizeLegibility; }
 .doc-result:hover { box-shadow: var(--shadow-sm); }
 .doc-result.big { border-radius: var(--r-lg); }
 
-/* STEPS — gradient number, connector line on desktop */
-.step .num { background: var(--grad-mint); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; opacity: 1; }
+/* ── STEPS — numbered cards with connector line + hover lift ── */
+.steps { position: relative; gap: 24px; }
+/* dashed connector running behind the cards (desktop only) */
+.steps::before {
+  content: ''; position: absolute; top: 52px; left: 14%; right: 14%; height: 2px; z-index: 0;
+  background: repeating-linear-gradient(90deg, rgba(0,82,255,.3) 0 8px, transparent 8px 16px);
+}
+.step {
+  position: relative; z-index: 1; padding: 30px 26px 28px;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s, border-color .25s;
+}
+.step:hover { transform: translateY(-6px); box-shadow: var(--shadow-sm); border-color: rgba(0,82,255,.28); }
+/* circular gradient number badge instead of the faded big numeral */
+.step .num {
+  width: 56px; height: 56px; border-radius: 18px;
+  display: grid; place-items: center;
+  font-size: 24px; font-weight: 800; line-height: 1;
+  color: #fff !important; -webkit-text-fill-color: #fff;
+  background: var(--grad-brand);
+  box-shadow: 0 12px 26px -12px rgba(0,82,255,.6);
+  margin-bottom: 18px;
+}
+.step:hover .num { transform: rotate(-6deg) scale(1.05); }
+.step .num { transition: transform .25s; }
+.step h3 { margin-top: 0; }
+@media (max-width: 860px) { .steps::before { display: none; } }
 
 /* FOR DOCTORS panel — glow + glass list */
 .docs-panel { border-radius: var(--r-lg); }

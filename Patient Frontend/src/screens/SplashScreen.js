@@ -76,10 +76,6 @@ export default function SplashScreen({ navigation }) {
     };
   }, []);
 
-  const handleSkip = () => {
-    navigation.replace('RoleSelection');
-  };
-
   // ── Web / large-screen splash: branded, centered card on a gradient ──
   if (isWide) {
     return (
@@ -103,10 +99,6 @@ export default function SplashScreen({ navigation }) {
             <ActivityIndicator size="small" color="#2563EB" />
             <Text style={styles.webLoaderText}>Getting things ready…</Text>
           </View>
-
-          <TouchableOpacity style={styles.webSkipButton} onPress={handleSkip}>
-            <Text style={styles.webSkipText}>Skip to Login</Text>
-          </TouchableOpacity>
         </View>
 
         <Text style={styles.webFooter}>© 2026 My Dentist PK</Text>
@@ -123,10 +115,6 @@ export default function SplashScreen({ navigation }) {
         resizeMode="contain"
       />
       <ActivityIndicator size="small" color="#2563EB" style={styles.loader} />
-
-      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipText}>Skip to Login</Text>
-      </TouchableOpacity>
     </View>
   );
 }

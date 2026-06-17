@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
+import { openWhatsApp } from '../../../utils/support';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
@@ -27,9 +28,10 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
   const calculateEarnings = () => {
     try {
       const totalAmount = bills.reduce((sum, b) => sum + (b.amount || 0), 0);
-      // Calculate points (10% of earnings)
-      const calcPoints = Math.floor(totalAmount * 0.1);
-      
+      // Points are the doctor's real accumulated reward points (earned from
+      // completed visits & reviews), not a guess from bill totals.
+      const calcPoints = profile?.rewardPoints || 0;
+
       // This month logic
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
@@ -61,6 +63,38 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
   };
 
   const doctorName = profile?.fullName || '';
+  const points = profile?.rewardPoints || 0;
+  const isPopular = profile?.isPopular;
+
+  // Pay PKR 100,000 → admin manually grants the blue paid badge.
+  const handlePaidPopular = () => {
+    if (isPopular && profile?.popularType === 'paid') {
+      Alert.alert('Already Popular', 'You already have the paid (blue) popular badge.');
+      return;
+    }
+    Alert.alert(
+      'Get Popular (Paid)',
+      'Become a Popular Doctor for top visibility in patient search by paying PKR 100,000. Our team will verify your payment and activate your blue Popular badge.\n\nContact support to proceed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Contact Support', onPress: () => openWhatsApp(`Hello, I'm Dr. ${doctorName}. I want the PAID Popular Doctor badge (PKR 100,000). Please guide me on payment.`) },
+      ]
+    );
+  };
+
+  // Earn 20,000 points → green badge is granted automatically by the backend.
+  const handleRedeemPopular = () => {
+    if (isPopular && profile?.popularType === 'earned') {
+      Alert.alert('You are Popular!', 'You have reached 20,000 points — your green Popular badge is active and you rank at the top of search.');
+      return;
+    }
+    const remaining = Math.max(0, 20000 - points);
+    Alert.alert(
+      'Earn the Popular Badge',
+      `Reach 20,000 points to automatically unlock the green Popular badge and rank at the top of patient search.\n\nYour points: ${points.toLocaleString()}\nRemaining: ${remaining.toLocaleString()}\n\nEarn points from completed appointments and patient reviews.`,
+      [{ text: 'Got it' }]
+    );
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -73,23 +107,23 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
 
       {/* Promotional Banners */}
       <View style={styles.promosRow}>
-        <View style={styles.promoCard}>
+        <TouchableOpacity style={styles.promoCard} activeOpacity={0.85} onPress={handlePaidPopular}>
           <View style={styles.promoTagBlue}><Ionicons name="star" size={10} color="#FFF" /><Text style={styles.promoTagText}>POPULAR</Text></View>
           <Image source={{uri: `https://ui-avatars.com/api/?name=${doctorName.replace(' ', '+')}&background=EFF6FF&color=0052FF&size=100`}} style={styles.promoAvatar} />
           <View style={{flex: 1, paddingLeft: 10}}>
             <Text style={styles.promoText}>Get popular doctor banner{'\n'}by paying PKR 100,000</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#0A1551" />
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.promoCard}>
+        <TouchableOpacity style={styles.promoCard} activeOpacity={0.85} onPress={handleRedeemPopular}>
           <View style={styles.promoTagGreen}><Ionicons name="star" size={10} color="#FFF" /><Text style={styles.promoTagText}>POPULAR</Text></View>
           <Image source={{uri: `https://ui-avatars.com/api/?name=${doctorName.replace(' ', '+')}&background=F0FDF4&color=16A34A&size=100`}} style={styles.promoAvatar} />
           <View style={{flex: 1, paddingLeft: 10}}>
-            <Text style={styles.promoText}>Get popular doctor banner{'\n'}by redeem 20,000 points</Text>
+            <Text style={styles.promoText}>Get popular doctor banner{'\n'}by earning 20,000 points</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#0A1551" />
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Points Layout */}

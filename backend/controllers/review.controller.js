@@ -190,13 +190,22 @@ const createReview = async (req, res) => {
       helpfulBy: []
     });
 
-    // Create reward for submitting a review
+    // Create reward for submitting a review (patient earns points)
     const reward = await Reward.create({
       patientId: patientProfile._id,
       type: 'review',
       points: 50,
       description: 'Points earned for submitting a review'
     });
+
+    // Doctor also earns points for receiving a review — feeds the green
+    // "popular" badge at 20k points.
+    try {
+      const { addDoctorPoints } = require('../utils/popular');
+      await addDoctorPoints(doctorProfile._id, 50);
+    } catch (e) {
+      console.error('Doctor review points error (non-fatal):', e.message);
+    }
 
     // Create notification for the doctor
     await Notification.create({

@@ -425,6 +425,28 @@ const completeAppointment = async (req, res) => {
     }
     await appointment.save();
 
+    // ── Award reward points on visit completion ──
+    try {
+      const AppSettings = require('../models/AppSettings');
+      const settings = await AppSettings.findOne({ key: 'global' });
+      const patientPts = settings?.rewardPointsPerAppointment ?? 50;
+
+      // Patient earns loyalty points for completing the visit.
+      const Reward = require('../models/Reward');
+      await Reward.create({
+        patientId: appointment.patientId._id,
+        type: 'visit',
+        points: patientPts,
+        description: `Completed appointment with Dr. ${appointment.doctorId.fullName}`,
+      });
+
+      // Doctor earns points too — drives the green "popular" badge at 20k.
+      const { addDoctorPoints } = require('../utils/popular');
+      await addDoctorPoints(appointment.doctorId._id, patientPts);
+    } catch (e) {
+      console.error('Award points error (non-fatal):', e.message);
+    }
+
     // Notify patient
     await Notification.create({
       userId: appointment.patientId.userId,

@@ -18,10 +18,10 @@ const { width } = Dimensions.get('window');
 
 // ─── No Default Facilities ────────────────────────────────────────────────────────
 
-// ─── Clinic Tier Helper ────────────────────────────────────────────────────────
+// ─── Clinic Tier Helper ─── Standard 1-15 · Modern 16-30 · Elite 31+ ──────────
 const getClinicTier = (score) => {
-  if (score >= 26) return { label: 'Elite Clinic',    color: '#D97706', bg: '#FEF3C7', desc: 'Top-tier dental facility with advanced technology & premium hygiene.' };
-  if (score >= 11) return { label: 'Modern Clinic',   color: '#0052FF', bg: '#EFF6FF', desc: 'Well-equipped modern clinic with quality standards.' };
+  if (score >= 31) return { label: 'Elite Clinic',    color: '#D97706', bg: '#FEF3C7', desc: 'Top-tier dental facility with advanced technology & premium hygiene.' };
+  if (score >= 16) return { label: 'Modern Clinic',   color: '#0052FF', bg: '#EFF6FF', desc: 'Well-equipped modern clinic with quality standards.' };
   if (score >= 1)  return { label: 'Standard Clinic', color: '#64748B', bg: '#F1F5F9', desc: 'Basic dental care with standard safety protocols.' };
   return              { label: 'Unrated',            color: '#94A3B8', bg: '#F8FAFC', desc: 'Facility score not yet available.' };
 };
@@ -61,6 +61,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const [treatments, setTreatments] = useState([]);
   const [gallery, setGallery]       = useState([]);
   const [reviews, setReviews]       = useState([]);
+  const [reviewStats, setReviewStats] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
 
   const [appointments, setAppointments] = useState([]);
@@ -194,13 +195,18 @@ export default function DoctorProfileScreen({ route, navigation }) {
         console.log('Error fetching gallery:', e?.message);
       }
 
-      // Fetch reviews
+      // Fetch reviews (paginated list)
       try {
         const revRes = await axios.get(`${API_BASE_URL}/api/reviews/doctor/${docId}`);
         if (revRes.data?.success) setReviews(revRes.data.data || []);
       } catch (e) {
         console.log('Error fetching reviews:', e?.message);
       }
+      // Fetch aggregate stats (true average/count/recommend over ALL reviews)
+      try {
+        const statsRes = await axios.get(`${API_BASE_URL}/api/reviews/doctor/${docId}/stats`);
+        if (statsRes.data?.success) setReviewStats(statsRes.data.data);
+      } catch (e) { /* fall back to client-side calc */ }
 
       if (token) {
         // Fetch appointments
@@ -584,14 +590,19 @@ Thank you for visiting!
   const totalOutstanding  = bills.filter(b => b.status === 'unpaid').reduce((s, b) => s + b.amount, 0);
   const unpaidBill        = bills.find(b => b.status === 'unpaid');
 
-  // Reviews Stats
-  const avgRating   = reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : '0.0';
-  const recommendPct = reviews.length ? Math.round((reviews.filter(r => r.rating >= 4).length / reviews.length) * 100) : 0;
+  // Reviews Stats — prefer backend aggregate (all reviews); fall back to the
+  // fetched page if the stats endpoint is unavailable.
+  const avgRating   = reviewStats
+    ? (reviewStats.avgRating || 0).toFixed(1)
+    : (reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : '0.0');
+  const recommendPct = reviewStats
+    ? (reviewStats.recommendPercentage || 0)
+    : (reviews.length ? Math.round((reviews.filter(r => r.rating >= 4).length / reviews.length) * 100) : 0);
   const starCounts  = [5, 4, 3, 2, 1].map(s => ({
     star: s,
-    count: reviews.filter(r => r.rating === s).length,
+    count: reviewStats?.ratingDistribution ? (reviewStats.ratingDistribution[s] || 0) : reviews.filter(r => r.rating === s).length,
   }));
-  const totalReviewCount = reviews.length;
+  const totalReviewCount = reviewStats ? (reviewStats.totalReviews || 0) : reviews.length;
 
   // Facilities (using doctor.services from database)
   const facilityList = (doctor.services && doctor.services.length > 0)
@@ -998,9 +1009,9 @@ Thank you for visiting!
                 {/* Tier levels bar */}
                 <View style={styles.tierLevels}>
                   {[
-                    { label: 'Standard', range: '1–10', color: '#94A3B8' },
-                    { label: 'Modern',   range: '11–25', color: '#0052FF' },
-                    { label: 'Elite',    range: '26+',   color: '#D97706' },
+                    { label: 'Standard', range: '1–15', color: '#94A3B8' },
+                    { label: 'Modern',   range: '16–30', color: '#0052FF' },
+                    { label: 'Elite',    range: '31+',   color: '#D97706' },
                   ].map(lvl => (
                     <View key={lvl.label} style={[styles.tierLevel, { borderTopColor: lvl.color, borderTopWidth: 3 }]}>
                       <Text style={[styles.tierLevelName, { color: lvl.color }]}>{lvl.label}</Text>

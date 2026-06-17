@@ -90,7 +90,15 @@ export default function ReviewsTab({ profile }) {
         }
         const statsRes = await axios.get(`${API_BASE_URL}/api/reviews/doctor/${profile._id}/stats`);
         if (statsRes.data?.success) {
-          setStats(statsRes.data.data || { average: 0, count: 0, distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } });
+          const s = statsRes.data.data || {};
+          // Map backend fields (avgRating/totalReviews/ratingDistribution/recommendPercentage)
+          // to the shape this screen uses.
+          setStats({
+            average: s.avgRating || 0,
+            count: s.totalReviews || 0,
+            distribution: s.ratingDistribution || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+            recommend: s.recommendPercentage || 0,
+          });
         }
       } else {
         setReviews([]);
@@ -184,7 +192,7 @@ export default function ReviewsTab({ profile }) {
               <View style={styles.ratingSummaryRow}>
                 {/* Big Rating */}
                 <View style={styles.avgRatingCol}>
-                  <Text style={styles.bigRatingText}>{stats.average?.toFixed(1) || '4.9'}</Text>
+                  <Text style={styles.bigRatingText}>{(stats.average || 0).toFixed(1)}</Text>
                   <View style={styles.starsRowBig}>
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Ionicons key={i} name={i < Math.round(stats.average) ? 'star' : 'star-outline'} size={18} color="#F59E0B" />
@@ -217,7 +225,7 @@ export default function ReviewsTab({ profile }) {
                 {/* Recommendation — full-width row below the bars */}
                 <View style={styles.recommendCol}>
                   <Ionicons name="thumbs-up" size={20} color="#0052FF" />
-                  <Text style={styles.recommendPctText}>{stats.count > 0 ? (stats.average >= 4 ? '98%' : '90%') : '0%'}</Text>
+                  <Text style={styles.recommendPctText}>{stats.count > 0 ? `${stats.recommend}%` : '0%'}</Text>
                   <Text style={styles.recommendText}>Patients Recommend</Text>
                 </View>
               </View>

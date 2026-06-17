@@ -13,5 +13,12 @@ export const webContent = isWeb
   ? { width: '100%', maxWidth: WEB_CONTENT_MAX_WIDTH, alignSelf: 'center' }
   : null;
 
+// Narrower cap for forms (login, profile, setup) — reads better than the wide
+// content width for single-column forms.
+export const WEB_FORM_MAX_WIDTH = 720;
+export const webForm = isWeb
+  ? { width: '100%', maxWidth: WEB_FORM_MAX_WIDTH, alignSelf: 'center' }
+  : null;
+
 export { isWeb };
 export default webContent;

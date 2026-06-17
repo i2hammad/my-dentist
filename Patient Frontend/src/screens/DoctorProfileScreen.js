@@ -1816,7 +1816,7 @@ const styles = StyleSheet.create({
   coverImage:      { width: '100%', height: '100%', resizeMode: 'cover' },
   headerIcons:     { position: 'absolute', top: Platform.OS === 'android' ? 40 : 20, left: 20, right: 20, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10, elevation: 10 },
   iconCircle:      { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.8)', justifyContent: 'center', alignItems: 'center' },
-  onlineBadgeTop:  { position: 'absolute', bottom: 45, left: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  onlineBadgeTop:  { position: 'absolute', bottom: 16, right: 20, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', zIndex: 12, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4 },
   onlineDot:       { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   onlineText:      { fontSize: 12, fontWeight: 'bold' },
 

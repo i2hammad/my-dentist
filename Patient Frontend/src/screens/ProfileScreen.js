@@ -11,7 +11,7 @@ import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 import { SkeletonProfile } from '../components/Skeleton';
-import webContent from '../config/webLayout';
+import { webForm } from '../config/webLayout';
 
 export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -244,18 +244,20 @@ export default function ProfileScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* Top Blue Header */}
       <View style={styles.blueHeader}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
-        <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
-          <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={[styles.blueHeaderInner, webForm]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
+          <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
+            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.cardContainer}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, webContent]}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, webForm]}>
             {loading ? (
               <SkeletonProfile fields={5} />
             ) : (
@@ -473,8 +475,8 @@ export default function ProfileScreen({ navigation }) {
 
         {/* Bottom Fixed Save Button */}
         <View style={styles.bottomBar}>
-          <TouchableOpacity 
-            style={[styles.saveButton, saving && { opacity: 0.7 }]} 
+          <TouchableOpacity
+            style={[styles.saveButton, webForm, saving && { opacity: 0.7 }]}
             onPress={handleSaveChanges}
             disabled={saving}
           >
@@ -501,12 +503,14 @@ const styles = StyleSheet.create({
   },
   blueHeader: {
     backgroundColor: '#0066FF',
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
+  blueHeaderInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
   },
   backButton: {
     padding: 4,

@@ -214,11 +214,11 @@ export default function ReviewsTab({ profile }) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Recommendation */}
+                {/* Recommendation — full-width row below the bars */}
                 <View style={styles.recommendCol}>
-                  <Text style={styles.recommendPctText}>{stats.average >= 4 ? '98%' : '100%'}</Text>
+                  <Ionicons name="thumbs-up" size={20} color="#0052FF" />
+                  <Text style={styles.recommendPctText}>{stats.count > 0 ? (stats.average >= 4 ? '98%' : '90%') : '0%'}</Text>
                   <Text style={styles.recommendText}>Patients Recommend</Text>
-                  <Ionicons name="thumbs-up" size={24} color="#0052FF" style={{marginTop: 8}} />
                 </View>
               </View>
 
@@ -391,21 +391,21 @@ const styles = StyleSheet.create({
   serviceText: { fontSize: 11, color: '#0A1551', fontWeight: '500', marginLeft: 8, flex: 1 },
   
   /* Ratings Summary */
-  ratingSummaryRow: { flexDirection: 'row', gap: 20, flexWrap: 'wrap', marginBottom: 24, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  avgRatingCol: { alignItems: 'center', minWidth: 100 },
+  ratingSummaryRow: { flexDirection: 'row', columnGap: 16, rowGap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 24, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  avgRatingCol: { alignItems: 'center', width: 110 },
   bigRatingText: { fontSize: 42, fontWeight: '900', color: '#0A1551' },
   starsRowBig: { flexDirection: 'row', gap: 2, marginVertical: 6 },
   reviewsCountText: { fontSize: 12, color: '#0A1551', fontWeight: '600' },
-  distCol: { flex: 1, justifyContent: 'center', minWidth: 200 },
+  distCol: { flex: 1, justifyContent: 'center', minWidth: 160 },
   distRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
   distStarsText: { fontSize: 12, color: '#0A1551', fontWeight: '600', width: 24 },
   progressBarBg: { flex: 1, height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#0052FF', borderRadius: 3 },
   distCountText: { fontSize: 12, color: '#0A1551', fontWeight: '600', width: 30, textAlign: 'right' },
   viewAllReviewsText: { fontSize: 12, color: '#0052FF', fontWeight: '600', textAlign: 'center', marginTop: 8 },
-  recommendCol: { alignItems: 'center', justifyContent: 'center', minWidth: 100 },
-  recommendPctText: { fontSize: 24, fontWeight: 'bold', color: '#0052FF' },
-  recommendText: { fontSize: 11, color: '#0A1551', fontWeight: '600', textAlign: 'center' },
+  recommendCol: { alignItems: 'center', justifyContent: 'center', width: '100%', flexDirection: 'row', gap: 8, marginTop: 4 },
+  recommendPctText: { fontSize: 22, fontWeight: 'bold', color: '#0052FF' },
+  recommendText: { fontSize: 12, color: '#0A1551', fontWeight: '600' },
   
   /* Reviews List */
   reviewsList: { gap: 16 },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity, Dimensions, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import { actionMenu } from '../../../utils/confirmAlert';
@@ -12,6 +13,7 @@ const { width } = Dimensions.get('window');
 const isWide = width >= 768;
 
 export default function ReviewsTab({ profile }) {
+  const insets = useSafeAreaInsets();
   const [reviews, setReviews] = useState([]);
   const [stats, setStats] = useState({ average: 0, count: 0, distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } });
   const [loading, setLoading] = useState(true);
@@ -348,7 +350,7 @@ export default function ReviewsTab({ profile }) {
       {/* Reply modal */}
       <Modal visible={!!replyTarget} transparent animationType="slide" onRequestClose={() => setReplyTarget(null)}>
         <View style={styles.replyOverlay}>
-          <View style={styles.replyModal}>
+          <View style={[styles.replyModal, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.replyModalHead}>
               <Text style={styles.replyModalTitle}>Reply to {replyTarget?.patientId?.fullName || 'Patient'}</Text>
               <TouchableOpacity onPress={() => setReplyTarget(null)}><Ionicons name="close" size={22} color="#64748B" /></TouchableOpacity>
@@ -372,7 +374,7 @@ export default function ReviewsTab({ profile }) {
       {/* Facility selection modal — choose only from available facilities */}
       <Modal visible={showFacilityPicker} transparent animationType="slide" onRequestClose={() => setShowFacilityPicker(false)}>
         <View style={styles.fpOverlay}>
-          <View style={styles.fpModal}>
+          <View style={[styles.fpModal, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.fpHead}>
               <Text style={styles.fpTitle}>Select Facilities & Services</Text>
               <TouchableOpacity onPress={() => setShowFacilityPicker(false)}><Ionicons name="close" size={22} color="#64748B" /></TouchableOpacity>

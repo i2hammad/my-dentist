@@ -1453,7 +1453,7 @@ Thank you for visiting!
         onRequestClose={() => setShowBillDetailModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+          <View style={[styles.modalContent, { maxHeight: '85%', paddingBottom: insets.bottom + 20 }]}>
             {selectedBillDetail && (() => {
               const b = selectedBillDetail;
               const isPaid = b.status === 'paid';
@@ -1559,7 +1559,7 @@ Thank you for visiting!
         onRequestClose={() => setShowPaymentModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Checkout / Pay Invoice</Text>
               <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
@@ -1672,7 +1672,7 @@ Thank you for visiting!
         onRequestClose={() => setShowAddMethodModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Payment Method</Text>
               <TouchableOpacity onPress={() => setShowAddMethodModal(false)}>
@@ -1745,7 +1745,7 @@ Thank you for visiting!
         onRequestClose={() => setShowReviewModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Write a Review</Text>
               <TouchableOpacity onPress={() => setShowReviewModal(false)}>

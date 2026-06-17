@@ -5,8 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
+import useResponsive from '../hooks/useResponsive';
+import WebAuthLayout from '../components/WebAuthLayout';
 
 export default function RegisterScreen({ route, navigation }) {
+  const { isWide } = useResponsive();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -90,29 +93,8 @@ export default function RegisterScreen({ route, navigation }) {
     }
   };
 
-  return (
-    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
-
-        {/* Header Text */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Create Your Account</Text>
-          <Text style={styles.subtitle}>Sign up to get started</Text>
-        </View>
-
-
-
-        {/* Form Fields */}
-        <View style={styles.form}>
+  const formBody = (
+    <View style={styles.form}>
           
           {/* Email Address */}
           <Text style={styles.label}>Email Address</Text>
@@ -215,6 +197,43 @@ export default function RegisterScreen({ route, navigation }) {
           </TouchableOpacity>
 
         </View>
+  );
+
+  // ── Wide web: split-panel layout with a brand hero ──
+  if (isWide) {
+    return (
+      <WebAuthLayout
+        title={'Create your account.\nStart in seconds.'}
+        subtitle="Sign up to book verified dentists, chat with your doctor, and manage your dental care."
+      >
+        <Text style={styles.webHeading}>Create Your Account</Text>
+        <Text style={styles.webSubheading}>Sign up to get started</Text>
+        {formBody}
+      </WebAuthLayout>
+    );
+  }
+
+  // ── Mobile: original layout ──
+  return (
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* Back Button */}
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+        </TouchableOpacity>
+
+        {/* Header Text */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Create Your Account</Text>
+          <Text style={styles.subtitle}>Sign up to get started</Text>
+        </View>
+
+        {formBody}
       </ScrollView>
     </KeyboardAvoidingView>
     </SafeAreaView>
@@ -222,6 +241,8 @@ export default function RegisterScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
+  webHeading: { fontSize: 26, fontWeight: '800', color: '#0A1551', marginBottom: 4 },
+  webSubheading: { fontSize: 15, color: '#64748B', marginBottom: 20 },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

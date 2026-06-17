@@ -91,7 +91,7 @@ export default function RegisterScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <KeyboardAvoidingView 
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -230,6 +230,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 32,
   },
   backButton: {
     width: 40,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -19,6 +19,19 @@ export default function LoginScreen({ route, navigation }) {
       setRole(route.params.role);
     }
   }, [route.params?.role]);
+
+  const handleForgotPassword = async () => {
+    const target = (email || '').trim().toLowerCase();
+    if (!target || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+      return Alert.alert('Enter your email', 'Please type your registered email above first, then tap “Forgot Password”.');
+    }
+    try {
+      await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, { email: target });
+      Alert.alert('Password Sent', `A new password has been emailed to ${target}. Please check your inbox and log in.`);
+    } catch (e) {
+      Alert.alert('Password Sent', `If an account exists for ${target}, a new password has been emailed to it.`);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) return alert('Please enter both email and password.');
@@ -159,7 +172,7 @@ export default function LoginScreen({ route, navigation }) {
               <Text style={styles.rememberMeText}>Remember Me</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.forgotPassword}>
+            <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword}>
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>

@@ -8,6 +8,8 @@ import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import { detectCoords } from '../utils/geo';
+import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 
 export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -19,6 +21,7 @@ export default function ProfileScreen({ navigation }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [city, setCity] = useState('');
   const [location, setLocation] = useState('');
+  const [detectingLoc, setDetectingLoc] = useState(false);
   const [gender, setGender] = useState('Select your gender');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [profileImage, setProfileImage] = useState(null);
@@ -389,13 +392,29 @@ export default function ProfileScreen({ navigation }) {
                   placeholder="Add your precise location"
                   placeholderTextColor="#94A3B8"
                 />
-                <TouchableOpacity style={styles.preciseLocationBtn}>
-                  <Ionicons name="locate" size={16} color="#FFFFFF" />
-                  <Text style={styles.preciseLocationTxt}>Precise Location</Text>
+                <TouchableOpacity style={styles.preciseLocationBtn} onPress={() => detectCoords(setLocation, setDetectingLoc)} disabled={detectingLoc}>
+                  {detectingLoc ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="locate" size={16} color="#FFFFFF" />}
+                  <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Locating…' : 'Precise Location'}</Text>
                 </TouchableOpacity>
               </View>
 
             </View>
+
+            {/* Support & Help */}
+            <View style={styles.supportCard}>
+              <Text style={styles.supportTitle}>Support & Help</Text>
+              <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I am a patient on My Dentist PK and need support.')}>
+                <View style={[styles.supportIcon, { backgroundColor: '#DCFCE7' }]}><Ionicons name="logo-whatsapp" size={22} color="#25D366" /></View>
+                <View style={{ flex: 1 }}><Text style={styles.supportLabel}>WhatsApp Support</Text><Text style={styles.supportValue}>{SUPPORT_WHATSAPP}</Text></View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist PK — Patient Support')}>
+                <View style={[styles.supportIcon, { backgroundColor: '#DBEAFE' }]}><Ionicons name="mail-outline" size={22} color="#2563EB" /></View>
+                <View style={{ flex: 1 }}><Text style={styles.supportLabel}>Email Support</Text><Text style={styles.supportValue}>{SUPPORT_EMAIL}</Text></View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
             <View style={{ height: 20 }} />
           </ScrollView>
         </View>
@@ -586,6 +605,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 4,
   },
+  supportCard: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginTop: 8 },
+  supportTitle: { fontSize: 15, fontWeight: '700', color: '#0A1551', marginBottom: 6 },
+  supportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  supportIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  supportLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
+  supportValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
   bottomBar: {
     backgroundColor: '#F8FAFC',
     padding: 20,

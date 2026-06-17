@@ -8,6 +8,7 @@ import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import { detectCoords } from '../utils/geo';
 
 export default function PatientSetupScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -19,6 +20,7 @@ export default function PatientSetupScreen({ navigation }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [city, setCity] = useState('');
   const [location, setLocation] = useState('');
+  const [detectingLoc, setDetectingLoc] = useState(false);
   const [gender, setGender] = useState('Select your gender');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [profileImage, setProfileImage] = useState(null);
@@ -389,9 +391,9 @@ export default function PatientSetupScreen({ navigation }) {
                   placeholder="Add your precise location"
                   placeholderTextColor="#94A3B8"
                 />
-                <TouchableOpacity style={styles.preciseLocationBtn}>
-                  <Ionicons name="locate" size={16} color="#FFFFFF" />
-                  <Text style={styles.preciseLocationTxt}>Precise Location</Text>
+                <TouchableOpacity style={styles.preciseLocationBtn} onPress={() => detectCoords(setLocation, setDetectingLoc)} disabled={detectingLoc}>
+                  {detectingLoc ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="locate" size={16} color="#FFFFFF" />}
+                  <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Locating…' : 'Precise Location'}</Text>
                 </TouchableOpacity>
               </View>
 

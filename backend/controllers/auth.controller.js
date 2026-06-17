@@ -203,25 +203,38 @@ const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     if (!user) {
       // Don't reveal if email exists for security
       return res.status(200).json({
         success: true,
-        message: 'If an account with that email exists, password reset instructions have been sent'
+        message: 'If an account with that email exists, a new password has been emailed to it.'
       });
     }
 
-    // In production: generate reset token, save to DB, send email
-    // For now, simulate email sending
-    // const resetToken = crypto.randomBytes(32).toString('hex');
-    // user.resetPasswordToken = resetToken;
-    // user.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
-    // await user.save();
+    // Generate a new temporary password, save it (pre-save hook hashes it),
+    // and email it to the registered address.
+    const crypto = require('crypto');
+    const newPassword = 'Dent' + crypto.randomBytes(4).toString('hex'); // e.g. Dent3f9a1c20
+    user.password = newPassword;
+    await user.save();
+
+    const { sendEmail } = require('../utils/mailer');
+    await sendEmail({
+      to: user.email,
+      subject: 'My Dentist PK — Your New Password',
+      text: `Your password has been reset.\n\nNew password: ${newPassword}\n\nPlease log in and change it from your profile for security.`,
+      html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#2563EB">My Dentist PK</h2>
+        <p>Your password has been reset as requested.</p>
+        <p style="font-size:16px">New password: <b style="background:#EFF6FF;padding:4px 10px;border-radius:6px">${newPassword}</b></p>
+        <p style="color:#64748B;font-size:13px">For your security, please log in and change this password from your profile.</p>
+      </div>`,
+    });
 
     res.status(200).json({
       success: true,
-      message: 'If an account with that email exists, password reset instructions have been sent'
+      message: 'A new password has been emailed to your registered email address.'
     });
   } catch (error) {
     console.error('Forgot password error:', error);

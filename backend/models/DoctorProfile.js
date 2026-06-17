@@ -101,18 +101,18 @@ const doctorProfileSchema = new mongoose.Schema(
       default: ['English', 'Urdu'],
     },
     clinicTiming: {
-      days: {
-        type: String,
-        default: 'Mon - Sat',
-      },
-      startTime: {
-        type: String,
-        default: '10:00 AM',
-      },
-      endTime: {
-        type: String,
-        default: '08:00 PM',
-      },
+      // Legacy single range (kept for backward compatibility).
+      days: { type: String, default: 'Mon - Sat' },
+      startTime: { type: String, default: '10:00 AM' },
+      endTime: { type: String, default: '08:00 PM' },
+      // Morning & evening session ranges.
+      morningStart: { type: String, default: '' },
+      morningEnd: { type: String, default: '' },
+      eveningStart: { type: String, default: '' },
+      eveningEnd: { type: String, default: '' },
+      // Available working days + clinic off days (e.g. ['Sunday']).
+      availableDays: { type: [String], default: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] },
+      offDays: { type: [String], default: ['Sun'] },
     },
     onlineStatus: {
       type: String,

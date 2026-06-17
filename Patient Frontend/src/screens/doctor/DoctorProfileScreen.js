@@ -43,6 +43,10 @@ export default function DoctorProfileScreen({ navigation }) {
     licenseCert: '',
     idFront: '',
     idBack: '',
+    morningStart: '', morningEnd: '',
+    eveningStart: '', eveningEnd: '',
+    availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    offDays: ['Sun'],
   });
 
   useEffect(() => {
@@ -75,6 +79,12 @@ export default function DoctorProfileScreen({ navigation }) {
           licenseCert: p.licenseCert || '',
           idFront: p.idFront || '',
           idBack: p.idBack || '',
+          morningStart: p.clinicTiming?.morningStart || '',
+          morningEnd: p.clinicTiming?.morningEnd || '',
+          eveningStart: p.clinicTiming?.eveningStart || '',
+          eveningEnd: p.clinicTiming?.eveningEnd || '',
+          availableDays: p.clinicTiming?.availableDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+          offDays: p.clinicTiming?.offDays || ['Sun'],
         });
       }
     } catch (error) {
@@ -95,6 +105,15 @@ export default function DoctorProfileScreen({ navigation }) {
   };
 
   const setField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const toggleDay = (day) => setFormData(prev => {
+    const isAvail = (prev.availableDays || []).includes(day);
+    if (isAvail) {
+      return { ...prev, availableDays: prev.availableDays.filter(d => d !== day), offDays: [...new Set([...(prev.offDays || []), day])] };
+    }
+    return { ...prev, offDays: (prev.offDays || []).filter(d => d !== day), availableDays: [...new Set([...(prev.availableDays || []), day])] };
+  });
 
   const pickDocument = async (field) => {
     try {
@@ -170,6 +189,13 @@ export default function DoctorProfileScreen({ navigation }) {
       if (formData.licenseCert) payload.licenseCert = formData.licenseCert;
       if (formData.idFront) payload.idFront = formData.idFront;
       if (formData.idBack) payload.idBack = formData.idBack;
+      payload.clinicTiming = {
+        days: (formData.availableDays || []).join(', '),
+        morningStart: formData.morningStart, morningEnd: formData.morningEnd,
+        eveningStart: formData.eveningStart, eveningEnd: formData.eveningEnd,
+        availableDays: formData.availableDays || [],
+        offDays: formData.offDays || [],
+      };
 
       await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, payload, {
         headers: { Authorization: `Bearer ${token}` }
@@ -278,6 +304,45 @@ export default function DoctorProfileScreen({ navigation }) {
               />
             </View>
           </View>
+        </View>
+
+        {/* Clinic Timings */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={[styles.sectionIconBg, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="time-outline" size={18} color="#D97706" />
+            </View>
+            <Text style={styles.sectionTitle}>Clinic Timings</Text>
+          </View>
+
+          <Text style={styles.timingLabel}>Morning Session</Text>
+          <View style={styles.timeRow}>
+            <TextInput style={styles.timeInput} value={formData.morningStart} onChangeText={t => setField('morningStart', t)} placeholder="From e.g. 9:00 AM" placeholderTextColor="#94A3B8" />
+            <Text style={styles.timeDash}>—</Text>
+            <TextInput style={styles.timeInput} value={formData.morningEnd} onChangeText={t => setField('morningEnd', t)} placeholder="To e.g. 1:00 PM" placeholderTextColor="#94A3B8" />
+          </View>
+
+          <Text style={styles.timingLabel}>Evening Session</Text>
+          <View style={styles.timeRow}>
+            <TextInput style={styles.timeInput} value={formData.eveningStart} onChangeText={t => setField('eveningStart', t)} placeholder="From e.g. 5:00 PM" placeholderTextColor="#94A3B8" />
+            <Text style={styles.timeDash}>—</Text>
+            <TextInput style={styles.timeInput} value={formData.eveningEnd} onChangeText={t => setField('eveningEnd', t)} placeholder="To e.g. 9:00 PM" placeholderTextColor="#94A3B8" />
+          </View>
+
+          <Text style={styles.timingLabel}>Available Days <Text style={{ color: '#94A3B8', fontWeight: '400' }}>(tap to toggle — greyed = clinic off)</Text></Text>
+          <View style={styles.daysWrap}>
+            {DAYS.map(day => {
+              const avail = (formData.availableDays || []).includes(day);
+              return (
+                <TouchableOpacity key={day} onPress={() => toggleDay(day)} style={[styles.dayChip, avail ? styles.dayChipOn : styles.dayChipOff]}>
+                  <Text style={[styles.dayChipText, avail ? styles.dayChipTextOn : styles.dayChipTextOff]}>{day}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {(formData.offDays || []).length > 0 && (
+            <Text style={styles.offDayNote}>Clinic off: {formData.offDays.join(', ')}</Text>
+          )}
         </View>
       </ScrollView>
 
@@ -489,4 +554,16 @@ const styles = StyleSheet.create({
   supportIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   supportLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   supportValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
+  timingLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginTop: 14, marginBottom: 8 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timeInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#FFFFFF' },
+  timeDash: { color: '#94A3B8', fontWeight: '700' },
+  daysWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  dayChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  dayChipOn: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  dayChipOff: { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' },
+  dayChipText: { fontSize: 13, fontWeight: '600' },
+  dayChipTextOn: { color: '#FFFFFF' },
+  dayChipTextOff: { color: '#94A3B8' },
+  offDayNote: { marginTop: 10, fontSize: 12, color: '#DC2626', fontWeight: '600' },
 });

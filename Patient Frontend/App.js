@@ -4,6 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, BackHandler } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { NotificationProvider } from './src/context/NotificationContext';
+import './src/config/alertOverride'; // route Alert.alert through the branded dialog
+import AppDialog from './src/components/AppDialog';
 
 // Mock deprecated/removed BackHandler.removeEventListener to prevent older packages from crashing the app
 if (BackHandler && !BackHandler.removeEventListener) {
@@ -53,6 +55,7 @@ export default function App() {
       <SafeAreaProvider>
         <NotificationProvider>
           <AppNavigator />
+          <AppDialog />
           <StatusBar style="dark" translucent backgroundColor="transparent" />
         </NotificationProvider>
       </SafeAreaProvider>

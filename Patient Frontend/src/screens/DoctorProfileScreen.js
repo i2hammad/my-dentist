@@ -838,26 +838,34 @@ Thank you for visiting!
           </View>
         )}
 
-        {/* Tabs with icons above text */}
-        <View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
-            {tabs.map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Ionicons
-                  name={TAB_ICONS[tab] || 'ellipse-outline'}
-                  size={18}
-                  color={activeTab === tab ? '#0052FF' : '#94A3B8'}
-                  style={{ marginBottom: 4 }}
-                />
-                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        {/* Tabs with icons above text. On web they wrap (no clipping); on
+            mobile they scroll horizontally. */}
+        {(() => {
+          const tabButtons = tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Ionicons
+                name={TAB_ICONS[tab] || 'ellipse-outline'}
+                size={18}
+                color={activeTab === tab ? '#0052FF' : '#94A3B8'}
+                style={{ marginBottom: 4 }}
+              />
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+            </TouchableOpacity>
+          ));
+          return isWide ? (
+            <View style={styles.tabsWrap}>{tabButtons}</View>
+          ) : (
+            <View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+                {tabButtons}
+              </ScrollView>
+            </View>
+          );
+        })()}
 
         {/* Tab Content */}
         <View style={styles.tabContentContainer}>
@@ -1843,6 +1851,7 @@ const styles = StyleSheet.create({
 
   // Tabs
   tabsScroll:         { marginTop: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  tabsWrap:           { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 2, paddingHorizontal: 20, marginTop: 8, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   tabsContent:        { paddingHorizontal: 20 },
   tabItem:            { paddingVertical: 10, paddingHorizontal: 4, marginRight: 16, borderBottomWidth: 2, borderBottomColor: 'transparent', alignItems: 'center' },
   tabItemActive:      { borderBottomColor: '#0052FF' },

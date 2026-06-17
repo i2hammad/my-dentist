@@ -49,7 +49,7 @@ const billSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ['paid', 'unpaid'],
+        values: ['paid', 'unpaid', 'draft'],
         message: '{VALUE} is not a valid bill status',
       },
       default: 'unpaid',

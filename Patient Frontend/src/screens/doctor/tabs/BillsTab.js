@@ -182,7 +182,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     }
   };
 
-  const handleDownloadReceipt = () => {
+  const handleDownloadReceipt = async () => {
     if (!currentInvoice && !selectedPatient) {
       Alert.alert('No Bill Selected', 'Please select a patient and create a bill before downloading a receipt.');
       return;
@@ -190,6 +190,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     const invoice = currentInvoice || {
       invoiceNumber: 'INV-PENDING',
       date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       patientName: selectedPatient?.name || '',
       patientPhone: selectedPatient?.phone || '',
       treatments: items,
@@ -229,72 +230,75 @@ Payment Status: ${invoice.status.toUpperCase()}
 Thank you for visiting!
 `;
 
-    if (Platform.OS === 'web') {
-      // Trigger local HTML file download
-      const htmlContent = `
+    // Thermal 57mm receipt layout — sized for 57mm roll printers, also
+    // "Save as PDF" from the browser print dialog.
+    const thermalHtml = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Receipt ${invoice.invoiceNumber}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <style>
-          body { font-family: 'Courier New', Courier, monospace; padding: 25px; max-width: 400px; margin: auto; border: 1px dashed #0052ff; border-radius: 10px; background-color: #fafafa; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .clinic { font-size: 20px; font-weight: bold; color: #0052ff; }
-          .meta { font-size: 12px; color: #555; margin-top: 4px; }
-          .divider { border-top: 1px dashed #888; margin: 15px 0; }
-          .row { display: flex; justify-content: space-between; font-size: 13px; margin: 6px 0; }
+          @page { size: 57mm auto; margin: 0; }
+          * { box-sizing: border-box; }
+          body { font-family: 'Courier New', Courier, monospace; width: 57mm; margin: 0 auto; padding: 6px 8px; color: #000; font-size: 11px; }
+          .center { text-align: center; }
+          .clinic { font-size: 14px; font-weight: bold; }
+          .meta { font-size: 10px; margin-top: 2px; }
+          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .row { display: flex; justify-content: space-between; margin: 3px 0; }
           .bold { font-weight: bold; }
-          .footer { text-align: center; font-size: 12px; margin-top: 30px; font-weight: bold; }
+          .footer { text-align: center; margin-top: 12px; font-size: 10px; }
+          @media screen { body { border: 1px dashed #999; margin-top: 16px; border-radius: 6px; } }
         </style>
       </head>
       <body>
-        <div class="header">
+        <div class="center">
           <div class="clinic">${clinic.toUpperCase()}</div>
-          <div class="meta">Dr. ${docName} (${spec})</div>
-          <div class="meta">Invoice: ${invoice.invoiceNumber}</div>
-          <div class="meta">Date: ${invoice.date}</div>
+          <div class="meta">Dr. ${docName}</div>
+          <div class="meta">${spec}</div>
         </div>
         <div class="divider"></div>
-        <div class="row"><span class="bold">Patient:</span><span>${invoice.patientName}</span></div>
-        <div class="row"><span class="bold">Phone:</span><span>${invoice.patientPhone}</span></div>
-        <div class="row"><span class="bold">Method:</span><span>${(invoice.paymentMethod || 'cash').toUpperCase()}</span></div>
+        <div class="row"><span>Invoice:</span><span>${invoice.invoiceNumber}</span></div>
+        <div class="row"><span>Date:</span><span>${invoice.date}</span></div>
+        <div class="row"><span>Time:</span><span>${invoice.time || ''}</span></div>
+        <div class="row"><span>Patient:</span><span>${invoice.patientName}</span></div>
+        ${invoice.patientPhone ? `<div class="row"><span>Phone:</span><span>${invoice.patientPhone}</span></div>` : ''}
         <div class="divider"></div>
-        <div class="bold" style="font-size: 13px; margin-bottom: 8px;">Treatments:</div>
-        ${invoice.treatments.map((it, idx) => `
-          <div class="row"><span>${idx + 1}. ${it.name}</span><span>PKR ${it.price}</span></div>
-        `).join('')}
+        <div class="bold">Treatments</div>
+        ${invoice.treatments.map((it, idx) => `<div class="row"><span>${idx + 1}. ${it.name}</span><span>${it.price}</span></div>`).join('')}
         <div class="divider"></div>
-        <div class="row"><span>Total Amount:</span><span>PKR ${invoice.total}</span></div>
-        <div class="row"><span>Discount:</span><span style="color: green;">- PKR ${invoice.discount}</span></div>
-        <div class="row bold"><span>Paid Amount:</span><span>PKR ${invoice.paid}</span></div>
-        <div class="divider"></div>
-        <div class="row bold" style="color: ${invoice.outstanding > 0 ? 'red' : 'green'}">
-          <span>Outstanding:</span><span>PKR ${invoice.outstanding}</span>
-        </div>
+        <div class="row"><span>Total:</span><span>PKR ${invoice.total}</span></div>
+        <div class="row"><span>Discount:</span><span>- ${invoice.discount}</span></div>
+        <div class="row bold"><span>Paid:</span><span>PKR ${invoice.paid}</span></div>
+        <div class="row bold"><span>Outstanding:</span><span>PKR ${invoice.outstanding}</span></div>
         <div class="row bold"><span>Status:</span><span>${invoice.status.toUpperCase()}</span></div>
-        <div class="footer">
-          Thank you for visiting!<br>Please visit again.
-        </div>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
+        <div class="footer">Thank you for visiting!<br/>Powered by My Dentist PK</div>
+        <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); }</script>
       </body>
-      </html>
-      `;
+      </html>`;
 
-      const element = document.createElement("a");
-      const file = new Blob([htmlContent], { type: 'text/html' });
-      element.href = URL.createObjectURL(file);
-      element.download = `receipt-${invoice.invoiceNumber}.html`;
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
+    if (Platform.OS === 'web') {
+      // Open the thermal receipt in a new window and trigger print → user can
+      // pick a 57mm thermal printer or "Save as PDF".
+      const w = window.open('', '_blank', 'width=320,height=600');
+      if (w) { w.document.write(thermalHtml); w.document.close(); }
+      else { window.alert('Please allow pop-ups to print/save the receipt.'); }
     } else {
-      // Trigger native share menu
-      Share.share({
-        message: receiptText,
-        title: `Receipt ${invoice.invoiceNumber}`
-      });
+      // Native: try expo-print → PDF + share; fall back to text share.
+      try {
+        const Print = require('expo-print');
+        const Sharing = require('expo-sharing');
+        const { uri } = await Print.printToFileAsync({ html: thermalHtml, width: 162 }); // ~57mm @ 72dpi
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Receipt ${invoice.invoiceNumber}` });
+        } else {
+          await Share.share({ url: uri, message: receiptText, title: `Receipt ${invoice.invoiceNumber}` });
+        }
+      } catch (e) {
+        // expo-print/sharing not installed — fall back to plain text share.
+        Share.share({ message: receiptText, title: `Receipt ${invoice.invoiceNumber}` });
+      }
     }
   };
 

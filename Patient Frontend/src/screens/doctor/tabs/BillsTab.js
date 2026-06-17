@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
+import { openWhatsApp } from '../../../utils/support';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
@@ -514,7 +515,7 @@ Thank you for visiting!
                 <Text style={styles.supportTitle}>Need help with billing?</Text>
                 <Text style={styles.supportDesc}>Contact our support team for setup assistance.</Text>
               </View>
-              <TouchableOpacity style={styles.contactBtn}>
+              <TouchableOpacity style={styles.contactBtn} onPress={() => openWhatsApp('Hello, I need help with billing on My Dentist PK.')}>
                 <Text style={styles.contactBtnText}>Support</Text>
               </TouchableOpacity>
             </View>

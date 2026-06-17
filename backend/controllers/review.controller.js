@@ -171,14 +171,22 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Check if patient has a completed appointment with this doctor
+    // Only allow a review if the patient has a COMPLETED appointment (treatment
+    // done) with this doctor.
     const completedAppointment = await Appointment.findOne({
       patientId: patientProfile._id,
       doctorId,
       status: 'completed'
     });
 
-    const isVerifiedPatient = !!completedAppointment;
+    if (!completedAppointment) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only review a doctor after a completed treatment with them.'
+      });
+    }
+
+    const isVerifiedPatient = true;
 
     const review = await Review.create({
       patientId: patientProfile._id,

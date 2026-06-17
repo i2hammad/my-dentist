@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   SquaresFour, ShieldCheck, Tooth, Users, Heartbeat,
   Image, Star, CalendarBlank, Receipt, Gift, SignOut, Bell, MagnifyingGlass,
-  Gear, CaretDown, UserCircle, Megaphone,
+  Gear, CaretDown, UserCircle, Megaphone, List, X,
 } from '@phosphor-icons/react';
 import { useAuth } from '../lib/auth.jsx';
 import { imgUrl } from '../lib/api';
@@ -30,6 +30,7 @@ export default function Layout() {
   const role = admin?.profile?.adminRole === 'super_admin' ? 'Super Admin' : 'Admin';
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const menuRef = useRef(null);
   useEffect(() => {
     const onClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
@@ -41,11 +42,13 @@ export default function Layout() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {navOpen && <div className="sidebar-overlay" onClick={() => setNavOpen(false)} />}
+      <aside className={'sidebar' + (navOpen ? ' open' : '')}>
+        <button className="sidebar-close" onClick={() => setNavOpen(false)} aria-label="Close menu"><X size={20} /></button>
         <div className="brand">My Dentist <span className="dot">PK</span></div>
         <nav style={{ flex: 1 }}>
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end}
+            <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setNavOpen(false)}
               className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
               <span className="ic"><n.Icon size={18} /></span>{n.label}
             </NavLink>
@@ -58,6 +61,7 @@ export default function Layout() {
 
       <div className="main">
         <header className="topbar">
+          <button className="hamburger" onClick={() => setNavOpen(true)} aria-label="Open menu"><List size={22} /></button>
           <div className="search"><MagnifyingGlass size={16} className="search-ic" weight="regular" /><input placeholder="Search anything…" /></div>
           <div className="spacer" />
           <Bell size={20} className="muted" />
@@ -65,7 +69,7 @@ export default function Layout() {
             {admin?.profile?.profileImage
               ? <img src={imgUrl(admin.profile.profileImage)} alt="" />
               : <div className="avatar" />}
-            <div>
+            <div className="chip-text">
               <div style={{ fontWeight: 700, fontSize: 13 }}>{name}</div>
               <div className="muted" style={{ fontSize: 12 }}>{role}</div>
             </div>

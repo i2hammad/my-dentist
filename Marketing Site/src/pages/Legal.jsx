@@ -1,5 +1,6 @@
 // Terms, Privacy, and Support pages for My Dentist PK.
-import { Tooth, ArrowLeft, EnvelopeSimple, Phone, ChatCircleDots, ArrowRight } from '@phosphor-icons/react';
+import { ArrowLeft, EnvelopeSimple, Phone, ChatCircleDots, ArrowRight } from '@phosphor-icons/react';
+import appLogo from '../assets/app-logo.png';
 
 const BRAND = 'My Dentist PK';
 const SUPPORT_EMAIL = 'support@mydentistpk.com';
@@ -10,7 +11,7 @@ function LegalShell({ title, updated, children }) {
     <div className="legal">
       <nav className="nav">
         <div className="wrap">
-          <a className="logo" href="#/"><span className="mark"><Tooth size={18} weight="fill" /></span> {BRAND}</a>
+          <a className="logo" href="#/"><span className="mark"><img src={appLogo} alt="" /></span> {BRAND}</a>
           <div className="nav-cta" style={{ marginLeft: 'auto' }}>
             <a className="btn btn-ghost" href="#/"><ArrowLeft size={16} weight="bold" /> Back to home</a>
           </div>

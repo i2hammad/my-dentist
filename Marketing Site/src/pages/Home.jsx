@@ -6,12 +6,14 @@ import {
   AppleLogo, GooglePlayLogo, SealCheck,
 } from '@phosphor-icons/react';
 import { getDoctors, imgUrl, APP_URL, BRAND } from '../lib/api';
+import appLogo from '../assets/app-logo.png';
+import heroDentalBooking from '../assets/hero-dental-booking.png';
 
 const CITIES = ['Lahore', 'Karachi', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Quetta'];
 const SPECIALTIES = [
-  ['Orthodontist', '🦷'], ['Implant Specialist', '⚙️'], ['Cosmetic Dentist', '✨'],
-  ['Periodontist', '🩺'], ['Endodontist', '🔬'], ['Pediatric Dentist', '🧒'],
-  ['Oral Surgeon', '🪥'], ['General Dentist', '😁'],
+  ['Orthodontist', 'Braces & aligners'], ['Implant Specialist', 'Dental implants'], ['Cosmetic Dentist', 'Smile makeovers'],
+  ['Periodontist', 'Gum care'], ['Endodontist', 'Root canal'], ['Pediatric Dentist', 'Kids dentistry'],
+  ['Oral Surgeon', 'Surgical care'], ['General Dentist', 'Checkups & cleaning'],
 ];
 const SPEC_ICONS = { Orthodontist: Tooth, 'Implant Specialist': Stethoscope, 'Cosmetic Dentist': Sparkle };
 
@@ -24,7 +26,7 @@ const FEATURES = [
   [ShieldCheck, 'PMDC Verified', 'Every dentist is verified and tier-rated, so you always know who you’re trusting.'],
 ];
 
-const Mark = () => <span className="mark"><Tooth size={18} weight="fill" /></span>;
+const Mark = () => <span className="mark"><img src={appLogo} alt="" /></span>;
 
 export default function Home() {
   const [city, setCity] = useState('');
@@ -73,34 +75,56 @@ export default function Home() {
 
       {/* HERO — search first */}
       <header className="hero-search" id="home">
-        <div className="wrap">
-          <span className="eyebrow rise d1"><Sparkle size={14} weight="fill" /> Pakistan’s trusted dental booking platform</span>
-          <h1 className="rise d2 serif">Find &amp; book the<br />best <em>dentists</em> near you.</h1>
-          <p className="hero-sub rise d3">Search 300+ verified dental specialists across Pakistan. Compare clinics, read reviews, and book in seconds.</p>
+        <img className="hero-photo" src={heroDentalBooking} alt="" />
+        <div className="hero-shade" />
+        <div className="wrap hero-wrap">
+          <div className="hero-copy">
+            <span className="eyebrow rise d1"><Sparkle size={14} weight="fill" /> Pakistan's trusted dental booking platform</span>
+            <h1 className="rise d2 serif">Find and book the right dentist near you.</h1>
+            <p className="hero-sub rise d3">Search verified dental specialists, compare clinics, read reviews, and reserve an appointment in seconds.</p>
 
-          <form className="searchbar rise d4" onSubmit={runSearch}>
-            <div className="sb-field">
-              <MapPin size={20} weight="fill" className="sb-ic" />
-              <select value={city} onChange={(e) => setCity(e.target.value)}>
-                <option value="">All Cities</option>
-                {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="sb-divider" />
-            <div className="sb-field grow">
-              <MagnifyingGlass size={20} weight="bold" className="sb-ic" />
-              <input placeholder="Search specialty (e.g. Orthodontist) or condition" value={query} onChange={(e) => setQuery(e.target.value)} />
-            </div>
-            <button className="btn btn-primary sb-btn" type="submit">{searching ? 'Searching…' : <>Search <ArrowRight size={17} weight="bold" /></>}</button>
-          </form>
+            <form className="searchbar rise d4" onSubmit={runSearch}>
+              <div className="sb-field">
+                <MapPin size={20} weight="fill" className="sb-ic" />
+                <select value={city} onChange={(e) => setCity(e.target.value)} aria-label="Select city">
+                  <option value="">All Cities</option>
+                  {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="sb-divider" />
+              <div className="sb-field grow">
+                <MagnifyingGlass size={20} weight="bold" className="sb-ic" />
+                <input placeholder="Search specialty or condition" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+              <button className="btn btn-primary sb-btn" type="submit">{searching ? 'Searching...' : <>Search <ArrowRight size={17} weight="bold" /></>}</button>
+            </form>
 
-          <div className="quick-specs rise d5">
-            <span>Popular:</span>
-            {['Orthodontist', 'Implant Specialist', 'Cosmetic Dentist', 'Endodontist'].map((s) => (
-              <button key={s} onClick={() => { setQuery(s); setTimeout(runSearch, 0); }}>{s}</button>
-            ))}
+            <div className="quick-specs rise d5">
+              <span>Popular:</span>
+              {['Orthodontist', 'Implant Specialist', 'Cosmetic Dentist', 'Endodontist'].map((s, index) => (
+                <button className={`pastel-chip pastel-${index + 1}`} key={s} onClick={() => { setQuery(s); setTimeout(runSearch, 0); }}>{s}</button>
+              ))}
+            </div>
           </div>
 
+          <aside className="hero-panel rise d5" aria-label="Booking highlights">
+            <div className="panel-card active">
+              <span className="panel-kicker">Next available</span>
+              <strong>Today, 6:30 PM</strong>
+              <p>Verified orthodontist in Lahore</p>
+            </div>
+            <div className="panel-row">
+              <div><strong>4.8</strong><span>Avg rating</span></div>
+              <div><strong>12k+</strong><span>Appointments</span></div>
+            </div>
+            <div className="panel-card">
+              <span className="panel-kicker">Clinic trust</span>
+              <p><SealCheck size={16} weight="fill" /> PMDC verified dentists and transparent fees.</p>
+            </div>
+          </aside>
+        </div>
+
+        <div className="wrap">
           {/* inline search results */}
           {results && (
             <div className="search-results rise">
@@ -134,12 +158,17 @@ export default function Home() {
             <h2>Find the right specialist for your needs.</h2>
           </div>
           <div className="spec-grid">
-            {SPECIALTIES.map(([name]) => {
+            {SPECIALTIES.map(([name, desc], index) => {
               const Icon = SPEC_ICONS[name] || Tooth;
               return (
-                <a className="spec-tile" key={name} href={APP_URL}>
+                <a
+                  className={`spec-tile pastel-${(index % 6) + 1}`}
+                  key={name}
+                  href={APP_URL}
+                  style={{ '--tile-image': `url(${heroDentalBooking})` }}
+                >
                   <div className="spec-ic"><Icon size={26} weight="fill" /></div>
-                  <span>{name}</span>
+                  <span><strong>{name}</strong><small>{desc}</small></span>
                   <CaretRight size={16} className="spec-arrow" />
                 </a>
               );

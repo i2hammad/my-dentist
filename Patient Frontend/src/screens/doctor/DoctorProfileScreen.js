@@ -344,9 +344,8 @@ export default function DoctorProfileScreen({ navigation }) {
             <Text style={styles.offDayNote}>Clinic off: {formData.offDays.join(', ')}</Text>
           )}
         </View>
-      </ScrollView>
 
-        {/* Support & Help */}
+        {/* Support & Help (inside the scroll so all profile details stay reachable) */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <View style={[styles.sectionIconBg, { backgroundColor: '#DCFCE7' }]}>
@@ -378,6 +377,7 @@ export default function DoctorProfileScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </TouchableOpacity>
         </View>
+      </ScrollView>
 
       {/* Save footer */}
       <View style={styles.footer}>

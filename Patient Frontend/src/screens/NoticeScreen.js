@@ -1,11 +1,12 @@
 ﻿import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import storage from '../config/storage';
 
 export default function NoticeScreen({ navigation, route }) {
   const [agreed, setAgreed] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleContinue = async () => {
     if (!agreed) {
@@ -82,29 +83,30 @@ export default function NoticeScreen({ navigation, route }) {
         <Text style={styles.englishText}>
           Your privacy is important to us.
         </Text>
+      </View>
+      </ScrollView>
 
-        {/* Checkbox Section */}
-        <TouchableOpacity 
-          style={[styles.checkboxRow, agreed && styles.checkboxRowActive]} 
+      {/* Pinned footer — checkbox + Continue, just above the gesture bar */}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+        <TouchableOpacity
+          style={[styles.checkboxRow, agreed && styles.checkboxRowActive]}
           onPress={() => setAgreed(!agreed)}
           activeOpacity={0.8}
         >
           <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
             {agreed && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
           </View>
-          <Text style={[styles.checkboxLabel, agreed && styles.checkboxLabelActive]}>I Agree</Text>
+          <Text style={[styles.checkboxLabel, agreed && styles.checkboxLabelActive]}>I Agree to the above terms</Text>
         </TouchableOpacity>
 
-        {/* Continue Button */}
-        <TouchableOpacity 
-          style={[styles.button, !agreed && styles.buttonDisabled]} 
+        <TouchableOpacity
+          style={[styles.button, !agreed && styles.buttonDisabled]}
           onPress={handleContinue}
           disabled={!agreed}
         >
-          <Text style={styles.buttonText}>Continue</Text>
+          <Text style={styles.buttonText}>Agree & Continue</Text>
         </TouchableOpacity>
       </View>
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -131,9 +133,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 24,
     justifyContent: 'center',
-    minHeight: '100%',
+    flexGrow: 1,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 40,
+    paddingBottom: 24,
+  },
+  footer: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
   },
   card: {
     backgroundColor: '#FFFFFF',

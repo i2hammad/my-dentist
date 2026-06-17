@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
@@ -46,6 +47,7 @@ const Tab = createBottomTabNavigator();
 // bar moves to the left as a sidebar; on phones it stays at the bottom.
 function useTabBarOptions() {
   const { isWide } = useResponsive();
+  const insets = useSafeAreaInsets();
   if (isWide) {
     return {
       tabBarPosition: 'left',
@@ -62,12 +64,23 @@ function useTabBarOptions() {
       tabBarLabelStyle: { fontSize: 14, fontWeight: '600' },
     };
   }
+  // Add the device's bottom safe-area inset (gesture nav bar) so labels aren't
+  // clipped in edge-to-edge mode. Min 8 ensures spacing on devices with no inset.
+  const bottomInset = Math.max(insets.bottom, 8);
   return {
     tabBarPosition: 'bottom',
     tabBarActiveTintColor: '#0052FF',
     tabBarInactiveTintColor: '#94A3B8',
-    tabBarStyle: { paddingBottom: Platform.OS === 'ios' ? 20 : 24, paddingTop: 6, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-    tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+    tabBarStyle: {
+      height: 58 + bottomInset,
+      paddingBottom: bottomInset,
+      paddingTop: 8,
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#E2E8F0',
+    },
+    tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
+    tabBarIconStyle: { marginTop: 2 },
   };
 }
 

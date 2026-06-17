@@ -180,7 +180,7 @@ function CredentialRow({ icon, label, value }) {
   return (
     <View style={styles.credRow}>
       <Ionicons name={icon} size={16} color="#0052FF" />
-      <Text style={styles.credLabel}>{label}</Text>
+      <Text style={styles.credLabel} numberOfLines={1}>{label}</Text>
       <Text style={styles.credValue}>{value}</Text>
     </View>
   );
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   aboutText: { fontSize: 12, color: '#475569', lineHeight: 18 },
   aboutRight: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
   credRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  credLabel: { fontSize: 11, fontWeight: '600', color: '#0A1551', marginLeft: 6, width: 75, marginTop: 1 },
+  credLabel: { fontSize: 11, fontWeight: '600', color: '#0A1551', marginLeft: 6, width: 104, marginTop: 1 },
   credValue: { fontSize: 11, color: '#475569', flex: 1, marginTop: 1 },
   perfRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   perfCard: { flex: 1, minWidth: '46%', backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },

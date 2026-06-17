@@ -219,11 +219,11 @@ export default function PatientSetupScreen({ navigation }) {
       <View style={styles.blueHeader}>
         <View style={[styles.blueHeaderInner, webForm]}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={24} color="#0F172A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
           <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
-            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+            <Ionicons name="log-out-outline" size={24} color="#DC2626" />
           </TouchableOpacity>
         </View>
       </View>
@@ -445,12 +445,14 @@ export default function PatientSetupScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0066FF',
+    backgroundColor: '#FFFFFF',
   },
   blueHeader: {
-    backgroundColor: '#0066FF',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
     paddingTop: Platform.OS === 'android' ? 40 : 10,
-    paddingBottom: 20,
+    paddingBottom: 14,
   },
   blueHeaderInner: {
     flexDirection: 'row',
@@ -462,19 +464,17 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
-    color: '#FFFFFF',
+    color: '#0A1551',
     fontSize: 20,
     fontWeight: 'bold',
   },
   container: {
     flex: 1,
-    backgroundColor: '#0066FF',
+    backgroundColor: '#F8FAFC',
   },
   cardContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
     overflow: 'hidden',
   },
   scrollContent: {

@@ -9,6 +9,7 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
+import { webForm } from '../config/webLayout';
 
 export default function PatientSetupScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -216,18 +217,20 @@ export default function PatientSetupScreen({ navigation }) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {/* Top Blue Header */}
       <View style={styles.blueHeader}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
-        <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
-          <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={[styles.blueHeaderInner, webForm]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
+          <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
+            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.cardContainer}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, webForm]}>
             
             {/* Profile Avatar */}
             <View style={styles.avatarWrapper}>
@@ -404,8 +407,8 @@ export default function PatientSetupScreen({ navigation }) {
 
         {/* Bottom Fixed Save Button */}
         <View style={styles.bottomBar}>
-          <TouchableOpacity 
-            style={[styles.saveButton, saving && { opacity: 0.7 }]} 
+          <TouchableOpacity
+            style={[styles.saveButton, webForm, saving && { opacity: 0.7 }]}
             onPress={handleSaveChanges}
             disabled={saving}
           >
@@ -431,12 +434,14 @@ const styles = StyleSheet.create({
   },
   blueHeader: {
     backgroundColor: '#0066FF',
+    paddingTop: Platform.OS === 'android' ? 40 : 10,
+    paddingBottom: 20,
+  },
+  blueHeaderInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 40 : 10,
-    paddingBottom: 20,
   },
   backButton: {
     padding: 4,

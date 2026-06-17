@@ -117,30 +117,43 @@ export default function DoctorRegisterScreen({ navigation }) {
   const [locationCoords, setLocationCoords] = useState('');
   const [detectingLoc, setDetectingLoc] = useState(false);
 
-  // Detect precise GPS coordinates via the device/browser geolocation API.
-  const detectLocation = () => {
-    const geo = (typeof navigator !== 'undefined' && navigator.geolocation) ? navigator.geolocation : null;
-    if (!geo) {
-      const msg = 'Location services are not available on this device. Please enter coordinates manually (latitude, longitude).';
-      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Unavailable', msg);
-      return;
-    }
+  // Detect precise GPS coordinates. Native uses expo-location (with permission
+  // prompt); web uses the browser geolocation API.
+  const detectLocation = async () => {
     setDetectingLoc(true);
-    geo.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setLocationCoords(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+    try {
+      if (Platform.OS !== 'web') {
+        const Location = require('expo-location');
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setDetectingLoc(false);
+          Alert.alert('Permission needed', 'Location permission was denied. You can enter coordinates manually instead.');
+          return;
+        }
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        setLocationCoords(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
         setDetectingLoc(false);
-      },
-      (err) => {
+        return;
+      }
+      // Web
+      const geo = (typeof navigator !== 'undefined' && navigator.geolocation) ? navigator.geolocation : null;
+      if (!geo) {
         setDetectingLoc(false);
-        const msg = err?.code === 1
-          ? 'Location permission denied. Please allow location access, or enter coordinates manually.'
-          : 'Could not get your location. Please try again or enter coordinates manually.';
-        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Location', msg);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+        window.alert('Location services are not available. Please enter coordinates manually.');
+        return;
+      }
+      geo.getCurrentPosition(
+        (pos) => { setLocationCoords(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`); setDetectingLoc(false); },
+        (err) => {
+          setDetectingLoc(false);
+          window.alert(err?.code === 1 ? 'Location permission denied. Enter coordinates manually.' : 'Could not get your location. Enter coordinates manually.');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    } catch (e) {
+      setDetectingLoc(false);
+      Alert.alert('Location', 'Could not get your location. Please enter coordinates manually.');
+    }
   };
   const [clinicName, setClinicName] = useState('');
   const [clinicAddress, setClinicAddress] = useState('');

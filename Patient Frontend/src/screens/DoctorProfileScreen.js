@@ -3,13 +3,14 @@ import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
   Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
+import { SkeletonDoctorDetail } from '../components/Skeleton';
 
 // Used only by a couple of static StyleSheet entries below (half-width cards).
 // Component layout uses the live useResponsive() hook instead.
@@ -37,8 +38,24 @@ const getTreatmentIcon = (name = '') => {
   return { icon: 'medical-outline', color: '#0052FF' };
 };
 
+// Readable clinic timing: prefers morning/evening sessions + days, falls back
+// to the legacy single range.
+function formatClinicTiming(t) {
+  if (!t) return 'Mon – Sat, 10:00 AM – 08:00 PM';
+  if (typeof t === 'string') return t;
+  const parts = [];
+  const days = (t.availableDays && t.availableDays.length) ? t.availableDays.join(', ') : (t.days || '');
+  if (days) parts.push(days);
+  if (t.morningStart && t.morningEnd) parts.push(`Morning ${t.morningStart} – ${t.morningEnd}`);
+  if (t.eveningStart && t.eveningEnd) parts.push(`Evening ${t.eveningStart} – ${t.eveningEnd}`);
+  if (!t.morningStart && !t.eveningStart && t.startTime && t.endTime) parts.push(`${t.startTime} – ${t.endTime}`);
+  if (t.offDays && t.offDays.length) parts.push(`Off: ${t.offDays.join(', ')}`);
+  return parts.length ? parts.join('\n') : 'Not specified';
+}
+
 export default function DoctorProfileScreen({ route, navigation }) {
   const { isWide } = useResponsive();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading]       = useState(!route.params?.doctor);
   const [doctor, setDoctor]         = useState(route.params?.doctor || null);
   const [treatments, setTreatments] = useState([]);
@@ -542,11 +559,7 @@ Thank you for visiting!
   };
 
   if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#0052FF" />
-      </View>
-    );
+    return <SkeletonDoctorDetail topInset={insets.top} />;
   }
 
   if (!doctor) {
@@ -656,7 +669,7 @@ Thank you for visiting!
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.container}>
+    <SafeAreaView edges={isWide ? ['top'] : []} style={styles.container}>
       <ScrollView
         contentContainerStyle={[
           { paddingBottom: 150 },
@@ -676,7 +689,7 @@ Thank you for visiting!
           <View style={isWide ? styles.webMain : undefined}>
         {/* Cover Image — only shown on About tab (phone only; desktop uses left rail) */}
         {activeTab === 'About' && !isWide && (
-          <View style={styles.coverContainer}>
+          <View style={[styles.coverContainer, { height: 180 + insets.top }]}>
             {doctor.photo || doctor.avatar ? (
               <Image
                 source={{ uri: imgUrl(doctor.photo || doctor.avatar) }}
@@ -685,7 +698,7 @@ Thank you for visiting!
             ) : (
               <View style={[styles.coverImage, { backgroundColor: '#E2E8F0' }]} />
             )}
-            <View style={styles.headerIcons}>
+            <View style={[styles.headerIcons, { top: insets.top + 12 }]}>
               <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
                 <Ionicons name="arrow-back" size={24} color="#0F172A" />
               </TouchableOpacity>
@@ -709,7 +722,7 @@ Thank you for visiting!
 
         {/* Compact Header — shown on all non-About tabs (phone only) */}
         {activeTab !== 'About' && !isWide && (
-          <View style={styles.compactHeader}>
+          <View style={[styles.compactHeader, { paddingTop: insets.top + 12 }]}>
             <TouchableOpacity style={styles.compactBackBtn} onPress={() => navigation.goBack()}>
               <Ionicons name="arrow-back" size={22} color="#0F172A" />
             </TouchableOpacity>
@@ -870,13 +883,7 @@ Thank you for visiting!
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}><Ionicons name="time-outline" size={18} color="#0052FF" /></View>
                   <Text style={styles.infoLabel}>Clinic Timing</Text>
-                  <Text style={[styles.infoValue, { flex: 1 }]}>
-                    {typeof doctor.clinicTiming === 'string' 
-                      ? doctor.clinicTiming 
-                      : (doctor.clinicTiming?.days 
-                        ? `${doctor.clinicTiming.days}, ${doctor.clinicTiming.startTime} – ${doctor.clinicTiming.endTime}` 
-                        : 'Mon – Sat, 10:00 AM – 08:00 PM')}
-                  </Text>
+                  <Text style={[styles.infoValue, { flex: 1 }]}>{formatClinicTiming(doctor.clinicTiming)}</Text>
                   <Ionicons name="chevron-down" size={16} color="#94A3B8" />
                 </View>
               </View>

@@ -17,6 +17,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
+import { SkeletonList } from '../components/Skeleton';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
@@ -435,10 +436,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* ── DOCTOR LIST ── */}
         {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#0052FF" />
-            <Text style={styles.loadingText}>Loading doctors…</Text>
-          </View>
+          <SkeletonList count={4} />
         ) : filteredDoctors.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="sad-outline" size={48} color="#CBD5E1" />

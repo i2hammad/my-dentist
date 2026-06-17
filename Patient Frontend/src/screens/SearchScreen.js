@@ -6,6 +6,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
+import { SkeletonList } from '../components/Skeleton';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
 
@@ -251,7 +252,7 @@ export default function SearchScreen({ navigation, route }) {
         </View>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#0066FF" style={{ marginTop: 50 }} />
+          <SkeletonList count={4} />
         ) : (
           <FlatList
             key={`cols-${columns}`}

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
+import { SkeletonList } from '../components/Skeleton';
 import { useIsFocused } from '@react-navigation/native';
 import API_BASE_URL from '../config/api';
 
@@ -123,7 +124,7 @@ export default function AppointmentsScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2563EB" style={{ marginTop: 50 }} />
+        <SkeletonList count={3} />
       ) : (
         <FlatList
           data={activeData}

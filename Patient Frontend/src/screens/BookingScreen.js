@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
@@ -13,6 +14,30 @@ export default function BookingScreen({ route, navigation }) {
   const [treatmentType, setTreatmentType] = useState('Consultation');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [customDateLabel, setCustomDateLabel] = useState('');
+  const [customTimeLabel, setCustomTimeLabel] = useState('');
+
+  const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const onPickDate = (event, picked) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (event?.type === 'dismissed' || !picked) return;
+    const iso = picked.toISOString().split('T')[0];
+    setSelectedDate(iso);
+    setCustomDateLabel(`${picked.getDate()} ${monthShort[picked.getMonth()]} ${picked.getFullYear()}`);
+  };
+  const onPickTime = (event, picked) => {
+    setShowTimePicker(Platform.OS === 'ios');
+    if (event?.type === 'dismissed' || !picked) return;
+    const hh = String(picked.getHours()).padStart(2, '0');
+    const mm = String(picked.getMinutes()).padStart(2, '0');
+    setSelectedTime(`${hh}:${mm}`);
+    const h12 = picked.getHours() % 12 || 12;
+    const ampm = picked.getHours() < 12 ? 'AM' : 'PM';
+    setCustomTimeLabel(`${h12}:${mm} ${ampm}`);
+  };
 
   // Generate next 7 days dynamically
   const generateDates = () => {
@@ -124,10 +149,10 @@ export default function BookingScreen({ route, navigation }) {
       <Text style={styles.sectionTitle}>Select Date</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
         {dates.map((date, index) => (
-          <TouchableOpacity 
-            key={index} 
+          <TouchableOpacity
+            key={index}
             style={[styles.chip, selectedDate === date.iso && styles.chipSelected]}
-            onPress={() => setSelectedDate(date.iso)}
+            onPress={() => { setSelectedDate(date.iso); setCustomDateLabel(''); }}
           >
             <Text style={[styles.chipText, selectedDate === date.iso && styles.chipTextSelected]}>
               {date.label}
@@ -135,15 +160,22 @@ export default function BookingScreen({ route, navigation }) {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      <TouchableOpacity style={styles.pickBtn} onPress={() => setShowDatePicker(true)}>
+        <Ionicons name="calendar-outline" size={18} color="#0052FF" />
+        <Text style={styles.pickBtnText}>{customDateLabel ? `Selected: ${customDateLabel}` : 'Pick a custom date'}</Text>
+      </TouchableOpacity>
+      {showDatePicker && (
+        <DateTimePicker value={selectedDate ? new Date(selectedDate) : new Date()} mode="date" minimumDate={new Date()} display="default" onChange={onPickDate} />
+      )}
 
       {/* Time Selection */}
       <Text style={styles.sectionTitle}>Select Time</Text>
       <View style={styles.gridContainer}>
         {times.map((time, index) => (
-          <TouchableOpacity 
-            key={index} 
+          <TouchableOpacity
+            key={index}
             style={[styles.timeChip, selectedTime === time.value && styles.chipSelected]}
-            onPress={() => setSelectedTime(time.value)}
+            onPress={() => { setSelectedTime(time.value); setCustomTimeLabel(''); }}
           >
             <Text style={[styles.chipText, selectedTime === time.value && styles.chipTextSelected]}>
               {time.label}
@@ -151,6 +183,13 @@ export default function BookingScreen({ route, navigation }) {
           </TouchableOpacity>
         ))}
       </View>
+      <TouchableOpacity style={styles.pickBtn} onPress={() => setShowTimePicker(true)}>
+        <Ionicons name="time-outline" size={18} color="#0052FF" />
+        <Text style={styles.pickBtnText}>{customTimeLabel ? `Selected: ${customTimeLabel}` : 'Pick a custom time'}</Text>
+      </TouchableOpacity>
+      {showTimePicker && (
+        <DateTimePicker value={new Date()} mode="time" is24Hour={false} display="default" onChange={onPickTime} />
+      )}
 
       {/* Notes */}
       <Text style={styles.sectionTitle}>Notes (optional)</Text>
@@ -256,6 +295,8 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginBottom: 12,
   },
+  pickBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#0052FF', backgroundColor: '#EFF6FF', marginTop: 4, marginBottom: 20 },
+  pickBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 13.5 },
   horizontalScroll: {
     marginBottom: 24,
   },

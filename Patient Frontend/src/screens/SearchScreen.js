@@ -275,7 +275,7 @@ export default function SearchScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#0052FF',
   },
   blueHeader: {
     backgroundColor: '#0052FF',

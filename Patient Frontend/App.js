@@ -53,7 +53,7 @@ export default function App() {
       <SafeAreaProvider>
         <NotificationProvider>
           <AppNavigator />
-          <StatusBar style="dark" translucent={false} backgroundColor="#FFFFFF" />
+          <StatusBar style="dark" translucent backgroundColor="transparent" />
         </NotificationProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

@@ -11,7 +11,7 @@ import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 import { SkeletonProfile } from '../components/Skeleton';
-import { webForm } from '../config/webLayout';
+import { webForm, isWeb } from '../config/webLayout';
 
 export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -249,9 +249,14 @@ export default function ProfileScreen({ navigation }) {
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
-          <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
-            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Logout lives in the top navbar on web; keep it here on mobile only */}
+          {isWeb ? (
+            <View style={{ width: 32 }} />
+          ) : (
+            <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
+              <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

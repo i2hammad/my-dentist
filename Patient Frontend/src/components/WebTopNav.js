@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
+import storage from '../config/storage';
 
 // Top navigation bar used on the WEB build (all widths) in place of the bottom
 // tab bar. Renders: brand (left) · tab links (center) · notifications + profile
@@ -17,6 +18,13 @@ export default function WebTopNav({ state, descriptors, navigation }) {
   // patient-only quick actions (appointments/inbox/notifications stack routes).
   const isPatient = state.routes.some((r) => r.name === 'Home');
   const goStack = (name) => navigation.navigate(name);
+
+  // Log out: clear the token and reset the root stack to RoleSelection.
+  const handleLogout = async () => {
+    try { await storage.removeItem('userToken'); } catch {}
+    const root = navigation.getParent() || navigation;
+    root.reset({ index: 0, routes: [{ name: 'RoleSelection' }] });
+  };
 
   const onPress = (route, isFocused) => {
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -109,6 +117,9 @@ export default function WebTopNav({ state, descriptors, navigation }) {
               </Pressable>
             );
           })()}
+          <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+          </Pressable>
         </View>
       </View>
     </View>
@@ -148,6 +159,7 @@ const styles = StyleSheet.create({
 
   right: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   iconBtn: { position: 'relative', padding: 8, borderRadius: 10 },
+  logoutBtn: { padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#FEE2E2', backgroundColor: '#FEF2F2', marginLeft: 2 },
   profileBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,

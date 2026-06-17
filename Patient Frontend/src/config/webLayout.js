@@ -20,5 +20,14 @@ export const webForm = isWeb
   ? { width: '100%', maxWidth: WEB_FORM_MAX_WIDTH, alignSelf: 'center' }
   : null;
 
+// Two-column form helpers (web only). `webFieldGrid` on the wrapping container
+// + `webHalf` on each field makes fields sit side-by-side on wide web; both are
+// null on native so the mobile single-column layout is preserved.
+export const webFieldGrid = isWeb
+  ? { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }
+  : null;
+export const webHalf = isWeb ? { width: '48%' } : null;
+export const webFull = isWeb ? { width: '100%' } : null;
+
 export { isWeb };
 export default webContent;

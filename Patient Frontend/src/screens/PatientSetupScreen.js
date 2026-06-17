@@ -9,7 +9,7 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
-import { webForm } from '../config/webLayout';
+import { webForm, webFieldGrid, webHalf, webFull } from '../config/webLayout';
 
 export default function PatientSetupScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -264,11 +264,13 @@ export default function PatientSetupScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Form Fields */}
+              {/* Form Fields — two columns on web, single column on mobile */}
+              <View style={[styles.fieldGrid, webFieldGrid]}>
+              <View style={[styles.fieldItem, webHalf]}>
               <Text style={styles.label}>Full Name</Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={fullName}
                   onChangeText={setFullName}
@@ -276,11 +278,13 @@ export default function PatientSetupScreen({ navigation }) {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
+              </View>
 
+              <View style={[styles.fieldItem, webHalf]}>
               <Text style={styles.label}>Mobile Number</Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="call-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={mobileNumber}
                   onChangeText={setMobileNumber}
@@ -289,7 +293,9 @@ export default function PatientSetupScreen({ navigation }) {
                   placeholderTextColor="#94A3B8"
                 />
               </View>
+              </View>
 
+              <View style={[styles.fieldItem, webHalf]}>
               <Text style={styles.label}>Date of Birth</Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="calendar-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
@@ -330,10 +336,12 @@ export default function PatientSetupScreen({ navigation }) {
                   onChange={handleDateChange}
                 />
               )}
+              </View>
 
+              <View style={[styles.fieldItem, webHalf]}>
               <Text style={styles.label}>Gender</Text>
-              <TouchableOpacity 
-                style={styles.inputContainer} 
+              <TouchableOpacity
+                style={styles.inputContainer}
                 onPress={() => setShowGenderDropdown(!showGenderDropdown)}
                 activeOpacity={0.8}
               >
@@ -357,9 +365,11 @@ export default function PatientSetupScreen({ navigation }) {
                   ))}
                 </View>
               )}
+              </View>
 
+              <View style={[styles.fieldItem, webHalf]}>
               <Text style={styles.label}>City</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.inputContainer}
                 onPress={() => setShowCityDropdown(!showCityDropdown)}
               >
@@ -383,11 +393,13 @@ export default function PatientSetupScreen({ navigation }) {
                   ))}
                 </View>
               )}
+              </View>
 
+              <View style={[styles.fieldItem, webFull]}>
               <Text style={styles.label}>Location / Address</Text>
               <View style={[styles.inputContainer, { paddingRight: 6 }]}>
                 <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={location}
                   onChangeText={setLocation}
@@ -399,6 +411,9 @@ export default function PatientSetupScreen({ navigation }) {
                   <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Locating…' : 'Precise Location'}</Text>
                 </TouchableOpacity>
               </View>
+              </View>
+
+              </View>{/* /fieldGrid */}
 
             </View>
             <View style={{ height: 20 }} />
@@ -538,6 +553,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
   },
+  fieldGrid: {},
+  fieldItem: {},
   label: {
     fontSize: 13,
     fontWeight: 'bold',

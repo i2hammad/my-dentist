@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
+import PromoBanner from '../../components/PromoBanner';
 
 export default function DoctorAppointmentsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('upcoming');
@@ -152,6 +153,7 @@ export default function DoctorAppointmentsScreen({ navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+        <PromoBanner />
         {displayList.length > 0 ? (
           displayList.map(item => renderAppointmentCard(item, activeTab === 'past'))
         ) : (

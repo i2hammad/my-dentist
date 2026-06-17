@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "patient-app",
+    "name": "My Dentist PK",
     "slug": "patient-app",
     "scheme": "mydentist",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-logo.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,

@@ -180,26 +180,36 @@ export default function DoctorRegisterScreen({ navigation }) {
     }
   };
 
-  const handleSaveProfile = async () => {
-    // Basic validation
-    if (!mobile || !email || !fullName || !specialisation || !about || !clinicName || !clinicAddress || !city || !gender || !experience || !clinicContact) {
-      const msg = 'Please fill in all text fields before continuing.';
-      if (Platform.OS === 'web') {
-        window.alert(msg);
-      } else {
-        Alert.alert('Missing Fields', msg);
+  const handleSaveProfile = async (skip = false) => {
+    // When skipping, only a name is required so the profile isn't a placeholder;
+    // the rest (and verification docs) can be completed later from Profile.
+    if (skip) {
+      if (!fullName) {
+        const msg = 'Please at least enter your full name to continue.';
+        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Name required', msg);
+        return;
       }
-      return;
-    }
+    } else {
+      // Basic validation
+      if (!mobile || !email || !fullName || !specialisation || !about || !clinicName || !clinicAddress || !city || !gender || !experience || !clinicContact) {
+        const msg = 'Please fill in all text fields before continuing — or tap “Skip for now” to finish later.';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('Missing Fields', msg);
+        }
+        return;
+      }
 
-    if (!avatar || !licenseCert || !idFront || !idBack) {
-      const msg = 'Please upload all required images and certificates (Profile Pic, License, ID Front, ID Back).';
-      if (Platform.OS === 'web') {
-        window.alert(msg);
-      } else {
-        Alert.alert('Missing Documents', msg);
+      if (!avatar || !licenseCert || !idFront || !idBack) {
+        const msg = 'Please upload all required images and certificates (Profile Pic, License, ID Front, ID Back) — or tap “Skip for now” to finish later.';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('Missing Documents', msg);
+        }
+        return;
       }
-      return;
     }
 
     try {
@@ -232,10 +242,11 @@ export default function DoctorRegisterScreen({ navigation }) {
         }
       }
 
-      // 3. Update Doctor profile
+      // 3. Update Doctor profile. specialization must be non-empty (required by
+      // the model) — default it when skipping so the save doesn't fail.
       const payload = {
         fullName,
-        specialization: specialisation,
+        specialization: specialisation || 'General',
         experience: experience === '30+' ? 30 : Number(experience) || 0,
         clinicName,
         address: clinicAddress,
@@ -554,7 +565,7 @@ export default function DoctorRegisterScreen({ navigation }) {
         {/* ====== Register Button ====== */}
         <TouchableOpacity
           style={styles.registerButton}
-          onPress={handleSaveProfile}
+          onPress={() => handleSaveProfile(false)}
           disabled={submitting}
           activeOpacity={0.85}
         >
@@ -566,6 +577,16 @@ export default function DoctorRegisterScreen({ navigation }) {
               <Text style={styles.registerButtonText}>Save Profile & Continue</Text>
             </View>
           )}
+        </TouchableOpacity>
+
+        {/* Skip — finish details/documents later */}
+        <TouchableOpacity
+          style={styles.skipButton}
+          onPress={() => handleSaveProfile(true)}
+          disabled={submitting}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.skipButtonText}>Skip for now — complete later</Text>
         </TouchableOpacity>
 
         {/* Security Note */}
@@ -786,6 +807,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14.5,
     fontWeight: 'bold',
+  },
+  skipButton: {
+    marginTop: 12,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  skipButtonText: {
+    color: '#475569',
+    fontSize: 14.5,
+    fontWeight: '600',
   },
 
   // Security Note

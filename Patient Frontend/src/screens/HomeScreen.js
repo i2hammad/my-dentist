@@ -29,16 +29,17 @@ const FILTER_TABS = [
   { key: 'Standard', label: 'Standard Clinic',   icon: 'shield-outline' },
 ];
 
+// Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
 function filterDoctors(doctors, tab) {
   if (tab === 'Nearby')   return doctors;
-  if (tab === 'Elite')    return doctors.filter(d => (d.facilityScore || 0) >= 26);
+  if (tab === 'Elite')    return doctors.filter(d => (d.facilityScore || 0) >= 31);
   if (tab === 'Modern')   return doctors.filter(d => {
     const s = d.facilityScore || 0;
-    return s >= 11 && s <= 25;
+    return s >= 16 && s <= 30;
   });
   if (tab === 'Standard') return doctors.filter(d => {
     const s = d.facilityScore || 0;
-    return s >= 1 && s <= 10;
+    return s >= 1 && s <= 15;
   });
   return doctors;
 }
@@ -282,7 +283,7 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.blueHeader}>
         {/* Row 1 */}
         <View style={styles.headerRow1}>
-          <Text style={styles.headerTitle}>My Dentist</Text>
+          <Text style={styles.headerTitle}>My Dentist PK</Text>
           <View style={styles.headerRight}>
             {/* Appointments Icon */}
             <TouchableOpacity 

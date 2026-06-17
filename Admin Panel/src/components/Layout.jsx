@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   SquaresFour, ShieldCheck, Tooth, Users, Heartbeat,
   Image, Star, CalendarBlank, Receipt, Gift, SignOut, Bell, MagnifyingGlass,
-  Gear, CaretDown, UserCircle,
+  Gear, CaretDown, UserCircle, Megaphone,
 } from '@phosphor-icons/react';
 import { useAuth } from '../lib/auth.jsx';
 import { imgUrl } from '../lib/api';
@@ -19,6 +19,7 @@ const NAV = [
   { to: '/appointments', label: 'Appointments', Icon: CalendarBlank },
   { to: '/bills', label: 'Bills & Bill History', Icon: Receipt },
   { to: '/rewards', label: 'Rewards & Payments', Icon: Gift },
+  { to: '/campaigns', label: 'Promotions', Icon: Megaphone },
   { to: '/settings', label: 'Settings', Icon: Gear },
 ];
 
@@ -41,7 +42,7 @@ export default function Layout() {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="brand">My<span className="dot">Dentist</span></div>
+        <div className="brand">My Dentist <span className="dot">PK</span></div>
         <nav style={{ flex: 1 }}>
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end}

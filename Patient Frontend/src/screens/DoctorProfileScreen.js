@@ -260,7 +260,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
       const docId = doctor._id || doctor.userId;
       const shareUrl = `mydentist://doctor/${docId}`;
       await Share.share({
-        message: `Check out Dr. ${doctor.fullName}'s profile on MyDentist: ${shareUrl}`,
+        message: `Check out Dr. ${doctor.fullName}'s profile on My Dentist PK: ${shareUrl}`,
         url: shareUrl,
         title: `Dr. ${doctor.fullName}'s Profile`
       });
@@ -588,17 +588,93 @@ Thank you for visiting!
   const facilityScore = doctor.facilityScore || 0;
   const tier = getClinicTier(facilityScore);
 
+  // ── Desktop left rail: doctor identity + sticky booking card.
+  // Reuses the same data/handlers as the phone layout but is always visible
+  // on wide screens (not gated to the About tab).
+  const photoUri = (doctor.photo || doctor.avatar) ? `${API_BASE_URL}${doctor.photo || doctor.avatar}` : null;
+  const leftRail = (
+    <View style={styles.webRail}>
+      <View style={styles.webRailCard}>
+        {photoUri
+          ? <Image source={{ uri: photoUri }} style={styles.webRailPhoto} />
+          : <View style={[styles.webRailPhoto, styles.avatarPlaceholder]}><Ionicons name="person" size={48} color="#0052FF" /></View>}
+        <View style={styles.nameRow}>
+          <Text style={styles.doctorName}>Dr. {doctor.fullName}</Text>
+          {doctor.pmdcVerified && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 6 }} />}
+        </View>
+        <Text style={styles.doctorSpecialty}>{doctor.specialization} • {doctor.qualification || 'BDS'}</Text>
+        <View style={styles.ratingRow}>
+          <Ionicons name="star" size={14} color="#F59E0B" />
+          <Text style={styles.ratingText}>{avgRating} <Text style={{ color: '#64748B', fontWeight: 'normal' }}>({totalReviewCount} Reviews)</Text></Text>
+        </View>
+        {doctor.isPopular && (
+          <View style={[styles.popularPill, { backgroundColor: doctor.popularType === 'paid' ? '#DBEAFE' : '#DCFCE7', marginTop: 8 }]}>
+            <Ionicons name="star" size={11} color={doctor.popularType === 'paid' ? '#1D4ED8' : '#15803D'} />
+            <Text style={[styles.popularPillText, { color: doctor.popularType === 'paid' ? '#1D4ED8' : '#15803D' }]}>Popular</Text>
+          </View>
+        )}
+        {doctor.clinicName && (
+          <View style={[styles.clinicTag, { marginTop: 10 }]}>
+            <Ionicons name="ribbon-outline" size={14} color="#0052FF" style={{ marginRight: 4 }} />
+            <Text style={styles.clinicText}>{doctor.clinicName}</Text>
+          </View>
+        )}
+        {doctor.address && (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={14} color="#64748B" />
+            <Text style={styles.distanceText}>{doctor.address}, {doctor.city || ''}</Text>
+          </View>
+        )}
+        {doctor.consultationFee ? (
+          <View style={styles.webFeeRow}>
+            <Text style={styles.webFeeLabel}>Consultation Fee</Text>
+            <Text style={styles.webFeeValue}>Rs. {doctor.consultationFee}</Text>
+          </View>
+        ) : null}
+        <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
+          <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+          <Text style={styles.bookBtnTxt}>Book Appointment</Text>
+        </TouchableOpacity>
+        <View style={styles.webRailActions}>
+          <TouchableOpacity style={styles.webRailAction} onPress={() => {
+            const docUserId = doctor.userId?._id || doctor.userId;
+            if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
+            navigation.navigate('Chat', { userId: docUserId, userName: `Dr. ${doctor.fullName || 'Doctor'}` });
+          }}>
+            <Ionicons name="chatbubble-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Chat</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.webRailAction} onPress={handleOpenMap}>
+            <Ionicons name="navigate-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Directions</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.webRailAction, saved && { backgroundColor: '#0052FF', borderColor: '#0052FF' }]} onPress={toggleSaved}>
+            <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={18} color={saved ? '#FFFFFF' : '#0052FF'} /><Text style={[styles.actionBtnText, saved && { color: '#FFFFFF' }]}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
       <ScrollView
         contentContainerStyle={[
           { paddingBottom: 150 },
-          isWide && { width: '100%', maxWidth: 900, alignSelf: 'center' },
+          isWide && styles.webScrollContent,
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Cover Image — only shown on About tab */}
-        {activeTab === 'About' && (
+        {isWide && (
+          <View style={styles.webTopBar}>
+            <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
+        )}
+        <View style={isWide ? styles.webGrid : undefined}>
+          {isWide && leftRail}
+          <View style={isWide ? styles.webMain : undefined}>
+        {/* Cover Image — only shown on About tab (phone only; desktop uses left rail) */}
+        {activeTab === 'About' && !isWide && (
           <View style={styles.coverContainer}>
             {doctor.photo || doctor.avatar ? (
               <Image
@@ -630,8 +706,8 @@ Thank you for visiting!
           </View>
         )}
 
-        {/* Compact Header — shown on all non-About tabs */}
-        {activeTab !== 'About' && (
+        {/* Compact Header — shown on all non-About tabs (phone only) */}
+        {activeTab !== 'About' && !isWide && (
           <View style={styles.compactHeader}>
             <TouchableOpacity style={styles.compactBackBtn} onPress={() => navigation.goBack()}>
               <Ionicons name="arrow-back" size={22} color="#0F172A" />
@@ -659,8 +735,8 @@ Thank you for visiting!
           </View>
         )}
 
-        {/* Floating Doctor Card — only on About tab */}
-        {activeTab === 'About' && (
+        {/* Floating Doctor Card — only on About tab (phone only) */}
+        {activeTab === 'About' && !isWide && (
           <View style={styles.floatingCard}>
             {doctor.photo || doctor.avatar ? (
               <Image source={{ uri: `${API_BASE_URL}${doctor.photo || doctor.avatar}` }} style={styles.doctorAvatar} />
@@ -699,8 +775,8 @@ Thank you for visiting!
           </View>
         )}
 
-        {/* Chat / Directions / Save action buttons — only on About tab */}
-        {activeTab === 'About' && (
+        {/* Chat / Directions / Save action buttons — only on About tab (phone only) */}
+        {activeTab === 'About' && !isWide && (
           <View style={styles.actionRow}>
             <TouchableOpacity 
               style={styles.actionBtn} 
@@ -1333,18 +1409,22 @@ Thank you for visiting!
           )}
 
         </View>
+          </View>{/* /webMain */}
+        </View>{/* /webGrid */}
       </ScrollView>
 
-      {/* Fixed Bottom Button */}
-      <View style={styles.bottomFixed}>
-        <TouchableOpacity
-          style={styles.bookBtn}
-          onPress={() => navigation.navigate('Booking', { doctor })}
-        >
-          <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.bookBtnTxt}>Book Appointment</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Fixed Bottom Button — phone only (desktop has the rail's Book button) */}
+      {!isWide && (
+        <View style={styles.bottomFixed}>
+          <TouchableOpacity
+            style={styles.bookBtn}
+            onPress={() => navigation.navigate('Booking', { doctor })}
+          >
+            <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.bookBtnTxt}>Book Appointment</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Bill Detail Modal */}
       <Modal
@@ -1991,4 +2071,23 @@ const styles = StyleSheet.create({
   starRatingContainer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 15 },
   submitReviewBtn: { backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10 },
   submitReviewBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+
+  // ── Popular badge pill ──
+  popularPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, gap: 3 },
+  popularPillText: { fontSize: 11, fontWeight: '700' },
+
+  // ── Web / desktop two-column layout ──
+  webScrollContent: { width: '100%', maxWidth: 1160, alignSelf: 'center', paddingHorizontal: 24 },
+  webTopBar: { paddingTop: 18, paddingBottom: 6 },
+  webGrid: { flexDirection: 'row', alignItems: 'flex-start', gap: 28 },
+  webRail: { width: 340, flexShrink: 0, position: 'sticky', top: 20 },
+  webMain: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
+  webRailCard: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', padding: 24, alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } },
+  webRailPhoto: { width: 120, height: 120, borderRadius: 24, marginBottom: 14, backgroundColor: '#E2E8F0' },
+  webFeeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  webFeeLabel: { color: '#64748B', fontSize: 14 },
+  webFeeValue: { color: '#0F172A', fontSize: 18, fontWeight: '700' },
+  webBookBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 14, width: '100%', marginTop: 16 },
+  webRailActions: { flexDirection: 'row', gap: 8, width: '100%', marginTop: 12 },
+  webRailAction: { flex: 1, flexDirection: 'column', alignItems: 'center', gap: 3, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0' },
 });

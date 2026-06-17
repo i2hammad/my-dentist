@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
+import PromoBanner from '../../components/PromoBanner';
 
 export default function DoctorPatientsScreen({ navigation }) {
   const [patients, setPatients] = useState([]);
@@ -82,6 +83,7 @@ export default function DoctorPatientsScreen({ navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+        <PromoBanner />
         {patients.length > 0 ? (
           patients.map(p => (
             <View key={p.id} style={styles.patientCard}>

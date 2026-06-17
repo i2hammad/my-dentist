@@ -7,6 +7,7 @@ import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import storage from '../../config/storage';
 import confirmAlert from '../../utils/confirmAlert';
+import PromoBanner from '../../components/PromoBanner';
 import API_BASE_URL from '../../config/api';
 import { useNotifications } from '../../context/NotificationContext';
 
@@ -180,6 +181,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        <PromoBanner />
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarLargeContainer}>

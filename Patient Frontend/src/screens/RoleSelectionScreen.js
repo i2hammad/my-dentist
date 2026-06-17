@@ -47,11 +47,11 @@ export default function RoleSelectionScreen({ navigation }) {
         {/* Logo + App Name */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/dentist_logo_new.jpg')}
+            source={require('../../assets/app-logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>MyDentist</Text>
+          <Text style={styles.appName}>My Dentist PK</Text>
           <Text style={styles.subtitle}>
             Welcome! Please select how you would like to continue
           </Text>

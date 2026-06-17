@@ -167,7 +167,7 @@ export default function SearchScreen({ navigation, route }) {
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View>
-              <Text style={styles.headerTitle}>My Dentist</Text>
+              <Text style={styles.headerTitle}>My Dentist PK</Text>
               <TouchableOpacity style={styles.locationDropdown}>
                 <Ionicons name="location" size={14} color="#FFFFFF" />
                 <Text style={styles.locationText}>Islamabad, Pakistan</Text>

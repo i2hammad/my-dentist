@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
+import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../utils/support';
 
 const { width } = Dimensions.get('window');
 
@@ -280,6 +281,39 @@ export default function DoctorProfileScreen({ navigation }) {
         </View>
       </ScrollView>
 
+        {/* Support & Help */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={[styles.sectionIconBg, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="help-buoy-outline" size={18} color="#16A34A" />
+            </View>
+            <Text style={styles.sectionTitle}>Support & Help</Text>
+          </View>
+          <Text style={styles.supportHint}>In case of any query, problem or support — reach us directly.</Text>
+
+          <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I am a doctor on My Dentist PK and need support.')}>
+            <View style={[styles.supportIcon, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.supportLabel}>WhatsApp Support</Text>
+              <Text style={styles.supportValue}>{SUPPORT_WHATSAPP}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist PK — Doctor Support')}>
+            <View style={[styles.supportIcon, { backgroundColor: '#DBEAFE' }]}>
+              <Ionicons name="mail-outline" size={22} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.supportLabel}>Email Support</Text>
+              <Text style={styles.supportValue}>{SUPPORT_EMAIL}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+
       {/* Save footer */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
@@ -450,4 +484,9 @@ const styles = StyleSheet.create({
   modalOptionActive: { backgroundColor: '#EFF6FF' },
   modalOptionText: { fontSize: 15, color: '#334155' },
   modalOptionTextActive: { color: '#0052FF', fontWeight: '600' },
+  supportHint: { fontSize: 13, color: '#64748B', marginBottom: 12, marginTop: 2 },
+  supportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  supportIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  supportLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
+  supportValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
 });

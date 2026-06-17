@@ -97,7 +97,7 @@ export default function LoginScreen({ route, navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <Image 
-            source={require('../../assets/dentist_logo_new.jpg')} 
+            source={require('../../assets/app-logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />

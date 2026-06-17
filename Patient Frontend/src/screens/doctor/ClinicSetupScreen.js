@@ -112,9 +112,10 @@ const CATEGORIES = [
 
 const TOTAL_FACILITIES = CATEGORIES.reduce((sum, cat) => sum + cat.items.length, 0);
 
+// Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
 function getGrade(count) {
-  if (count >= 26) return { label: 'Elite Clinic', color: '#F59E0B', tier: 'elite' };
-  if (count >= 11) return { label: 'Modern Clinic', color: '#0052FF', tier: 'modern' };
+  if (count >= 31) return { label: 'Elite Clinic', color: '#F59E0B', tier: 'elite' };
+  if (count >= 16) return { label: 'Modern Clinic', color: '#0052FF', tier: 'modern' };
   if (count >= 1) return { label: 'Standard Clinic', color: '#64748B', tier: 'standard' };
   return { label: 'No Grade', color: '#CBD5E1', tier: 'none' };
 }
@@ -254,15 +255,15 @@ export default function ClinicSetupScreen({ navigation }) {
         <Text style={styles.legendTitle}>Grade Legend</Text>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-          <Text style={styles.legendText}>Elite (26+)</Text>
+          <Text style={styles.legendText}>Elite (31+)</Text>
         </View>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: '#0052FF' }]} />
-          <Text style={styles.legendText}>Modern (11–25)</Text>
+          <Text style={styles.legendText}>Modern (16–30)</Text>
         </View>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: '#64748B' }]} />
-          <Text style={styles.legendText}>Standard (1–10)</Text>
+          <Text style={styles.legendText}>Standard (1–15)</Text>
         </View>
       </View>
     </View>

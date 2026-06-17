@@ -20,6 +20,7 @@ import DoctorProfileScreen from '../screens/DoctorProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import ChatScreen from '../screens/ChatScreen';
 import PatientInboxScreen from '../screens/PatientInboxScreen';
+import PromoScreen from '../screens/PromoScreen';
 
 // Doctor Screens
 import DoctorHomeScreen from '../screens/doctor/DoctorHomeScreen';
@@ -160,6 +161,7 @@ export default function AppNavigator() {
         <Stack.Screen name="DoctorRegister" component={DoctorRegisterScreen} />
         <Stack.Screen name="ClinicSetup" component={ClinicSetupScreen} />
         <Stack.Screen name="DoctorProfile" component={DoctorProfileScreen} />
+        <Stack.Screen name="Promo" component={PromoScreen} />
         <Stack.Screen name="Booking" component={BookingScreen} />
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="PatientInbox" component={PatientInboxScreen} />

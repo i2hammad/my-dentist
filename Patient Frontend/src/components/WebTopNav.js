@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useNavigationState } from '@react-navigation/native';
 import { useNotifications } from '../context/NotificationContext';
 import storage from '../config/storage';
 
@@ -31,24 +30,14 @@ const HIDDEN_ON = new Set([
   'DoctorRegister', 'ClinicSetup',
 ]);
 
-export default function WebTopNav() {
-  const navigation = useNavigation();
+// Driven by props from AppNavigator (which owns the navigation ref) so this can
+// render OUTSIDE the navigator context without crashing.
+export default function WebTopNav({ navRef, navInfo }) {
   const { unreadChatCount = 0, unreadCount = 0 } = useNotifications() || {};
-
-  // The active root route + (for tab navigators) the focused tab name.
-  const navInfo = useNavigationState((state) => {
-    if (!state) return { root: null, tab: null };
-    const route = state.routes[state.index];
-    let tab = null;
-    if (route.state && Array.isArray(route.state.routes)) {
-      const inner = route.state.routes[route.state.index ?? 0];
-      tab = inner?.name || null;
-    }
-    return { root: route.name, tab };
-  });
 
   const rootRoute = navInfo?.root;
   if (!rootRoute || HIDDEN_ON.has(rootRoute)) return null;
+  const navigate = (...args) => { try { navRef?.navigate?.(...args); } catch {} };
 
   // Determine role. Doctor context = under DoctorTabs or on a doctor-only stack.
   const isDoctorContext = rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup';
@@ -59,13 +48,13 @@ export default function WebTopNav() {
   // Active highlight: the focused tab if we're on the tabs route, else the root.
   const activeName = navInfo.tab || rootRoute;
 
-  const goTab = (t) => navigation.navigate(t.tabsRoute, { screen: t.name });
-  const goStack = (name) => navigation.navigate(name);
-  const goProfile = () => navigation.navigate(profileTabsRoute, { screen: 'Profile' });
+  const goTab = (t) => navigate(t.tabsRoute, { screen: t.name });
+  const goStack = (name) => navigate(name);
+  const goProfile = () => navigate(profileTabsRoute, { screen: 'Profile' });
 
   const handleLogout = async () => {
     try { await storage.removeItem('userToken'); } catch {}
-    navigation.reset({ index: 0, routes: [{ name: 'RoleSelection' }] });
+    try { navRef?.reset?.({ index: 0, routes: [{ name: 'RoleSelection' }] }); } catch {}
   };
 
   const isActive = (name) => activeName === name;

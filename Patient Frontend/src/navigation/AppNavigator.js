@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -149,12 +149,36 @@ const linking = {
   },
 };
 
+// Extract the active root route name + (if it's a tab navigator) the focused
+// tab name from a navigation state object.
+function readNavInfo(state) {
+  if (!state) return { root: null, tab: null };
+  const route = state.routes[state.index];
+  let tab = null;
+  if (route.state && Array.isArray(route.state.routes)) {
+    const inner = route.state.routes[route.state.index ?? 0];
+    tab = inner?.name || null;
+  }
+  return { root: route.name, tab };
+}
+
 // Root Navigator
 export default function AppNavigator() {
+  const navRef = useNavigationContainerRef();
+  const [navInfo, setNavInfo] = React.useState({ root: null, tab: null });
+  const syncNavInfo = React.useCallback(() => {
+    try { setNavInfo(readNavInfo(navRef.getRootState())); } catch {}
+  }, [navRef]);
+
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer
+      ref={navRef}
+      linking={linking}
+      onReady={isWeb ? syncNavInfo : undefined}
+      onStateChange={isWeb ? syncNavInfo : undefined}
+    >
       <View style={{ flex: 1 }}>
-        {isWeb && <WebTopNav />}
+        {isWeb && <WebTopNav navRef={navRef} navInfo={navInfo} />}
         <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />

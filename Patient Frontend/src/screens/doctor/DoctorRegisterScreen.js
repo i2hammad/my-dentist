@@ -520,25 +520,6 @@ export default function DoctorRegisterScreen({ navigation }) {
             />
           </View>
 
-          {/* Location Coordinates */}
-          <Text style={styles.label}>Location Coordinates</Text>
-          <View style={styles.inputContainer}>
-            <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              value={locationCoords}
-              onChangeText={setLocationCoords}
-              placeholder="e.g. 31.5204, 74.3587"
-              placeholderTextColor="#94A3B8"
-            />
-            <TouchableOpacity
-              style={styles.locateBtn}
-              onPress={detectLocation}
-            >
-              {detectingLoc ? <ActivityIndicator size="small" color="#0052FF" /> : <Ionicons name="locate" size={20} color="#0052FF" />}
-            </TouchableOpacity>
-          </View>
-
           {/* Clinic / Hospital Name */}
           <Text style={styles.label}>Clinic / Hospital Name</Text>
           <View style={styles.inputContainer}>
@@ -563,6 +544,42 @@ export default function DoctorRegisterScreen({ navigation }) {
               placeholder="Full clinic address"
               placeholderTextColor="#94A3B8"
             />
+          </View>
+
+          {/* Precise Location — pinpoint coordinates */}
+          <View style={styles.locCard}>
+            <View style={styles.locCardHead}>
+              <View style={styles.locIconWrap}>
+                <Ionicons name="navigate" size={18} color="#0052FF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.locTitle}>Precise Location</Text>
+                <Text style={styles.locDesc}>Tap the button to pinpoint your exact clinic location on the map.</Text>
+              </View>
+            </View>
+
+            {locationCoords ? (
+              <View style={styles.locPinRow}>
+                <Ionicons name="location" size={16} color="#16A34A" />
+                <Text style={styles.locPinText} numberOfLines={1}>{locationCoords}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={styles.locActionBtn}
+              onPress={detectLocation}
+              disabled={detectingLoc}
+              activeOpacity={0.85}
+            >
+              {detectingLoc ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="locate" size={18} color="#FFFFFF" />
+              )}
+              <Text style={styles.locActionTxt}>
+                {detectingLoc ? 'Locating…' : (locationCoords ? 'Update Precise Location' : 'Get Precise Location')}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* City */}
@@ -768,6 +785,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // Precise location card (between Address and City)
+  locCard: {
+    backgroundColor: '#F8FAFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    padding: 14,
+    marginBottom: 6,
+  },
+  locCardHead: { flexDirection: 'row', alignItems: 'center' },
+  locIconWrap: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1, borderColor: '#BFDBFE',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  locTitle: { fontSize: 14, fontWeight: '700', color: '#0A1551' },
+  locDesc: { fontSize: 11.5, color: '#64748B', marginTop: 2, lineHeight: 16 },
+  locPinRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1, borderColor: '#BBF7D0',
+    borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10,
+    marginTop: 12,
+  },
+  locPinText: { flex: 1, marginLeft: 8, fontSize: 12.5, fontWeight: '600', color: '#15803D' },
+  locActionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0052FF',
+    borderRadius: 12, paddingVertical: 12,
+    marginTop: 12,
+    shadowColor: '#0052FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 3,
+  },
+  locActionTxt: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', marginLeft: 8 },
 
   // Dropdown
   dropdownText: {

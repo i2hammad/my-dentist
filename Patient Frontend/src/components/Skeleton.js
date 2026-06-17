@@ -51,6 +51,32 @@ export function SkeletonList({ count = 4 }) {
   );
 }
 
+// A list-row skeleton: circular avatar + name/time row + subtitle line.
+// Matches conversation rows (Inbox) and notification rows.
+export function SkeletonRow() {
+  return (
+    <View style={styles.listRow}>
+      <SkeletonCircle size={52} />
+      <View style={{ flex: 1, marginLeft: 14 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <SkeletonLine width="46%" height={13} />
+          <SkeletonLine width={40} height={10} />
+        </View>
+        <SkeletonLine width="80%" height={11} style={{ marginTop: 10 }} />
+      </View>
+    </View>
+  );
+}
+
+// N stacked list-row skeletons.
+export function SkeletonRowList({ count = 7 }) {
+  return (
+    <View style={{ paddingTop: 6 }}>
+      {Array.from({ length: count }).map((_, i) => <SkeletonRow key={i} />)}
+    </View>
+  );
+}
+
 // A treatment-screen doctor card skeleton: 80px square photo + info + bottom row.
 // Matches the DoctorCard layout used in Cosmetic/Implants/Orthodontics screens.
 export function SkeletonTreatmentCard() {
@@ -166,4 +192,5 @@ const styles = StyleSheet.create({
   tRow: { flexDirection: 'row', alignItems: 'flex-start' },
   tCard: { backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 12, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 },
   tDivider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
+  listRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F5F7FA' },
 });

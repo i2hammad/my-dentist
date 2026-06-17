@@ -10,6 +10,7 @@ import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
 import { useNotifications } from '../context/NotificationContext';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
+import { SkeletonRowList } from '../components/Skeleton';
 
 export default function NotificationsScreen({ navigation }) {
   const [notifications, setNotifications] = useState([]);
@@ -256,9 +257,7 @@ export default function NotificationsScreen({ navigation }) {
       </AnimatedHeader>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0052FF" />
-        </View>
+        <SkeletonRowList count={8} />
       ) : notifications.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="notifications-off-outline" size={64} color="#CBD5E1" />

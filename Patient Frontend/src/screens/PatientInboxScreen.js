@@ -10,6 +10,7 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
+import { SkeletonRowList } from '../components/Skeleton';
 
 export default function PatientInboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -157,9 +158,7 @@ export default function PatientInboxScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0052FF" />
-        </View>
+        <SkeletonRowList count={7} />
       ) : filtered.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="chatbubbles-outline" size={56} color="#E2E8F0" />

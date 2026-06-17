@@ -329,7 +329,7 @@ export default function HomeScreen({ navigation }) {
                   style={styles.profilePhoto}
                 />
               ) : (
-                <Ionicons name="person-circle-outline" size={40} color="#FFFFFF" />
+                <Ionicons name="person" size={22} color="#FFFFFF" />
               )}
             </TouchableOpacity>
           </View>
@@ -524,13 +524,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: 'rgba(255,255,255,0.6)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   profilePhoto: {
-    width: 40,
-    height: 40,
+    width: '100%',
+    height: '100%',
     borderRadius: 20,
   },
   locationRow: {

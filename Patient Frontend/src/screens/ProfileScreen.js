@@ -667,8 +667,9 @@ const styles = StyleSheet.create({
   referBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 15 },
   bottomBar: {
     backgroundColor: '#F8FAFC',
-    padding: 20,
-    paddingBottom: 20, // Bottom safe area is handled separately now
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8, // gesture-bar inset is added by the SafeAreaView below
   },
   saveButton: {
     backgroundColor: '#0066FF',

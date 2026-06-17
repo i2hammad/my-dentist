@@ -5,9 +5,80 @@ import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
 import { openWhatsApp } from '../../../utils/support';
+import { drName } from '../../../utils/doctorName';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
+
+// Build the printable receipt HTML for either a thermal (57mm roll) or a
+// normal (A4/Letter) printer. `autoPrint` injects a window.print() for web.
+function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'thermal', autoPrint = false }) {
+  const isThermal = type === 'thermal';
+  const rows = invoice.treatments
+    .map((it, idx) => `<div class="row"><span>${idx + 1}. ${it.name}</span><span>${it.price}</span></div>`)
+    .join('');
+  const autoPrintScript = autoPrint
+    ? `<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); }</script>`
+    : '';
+
+  const thermalCss = `
+    @page { size: 57mm auto; margin: 0; }
+    body { font-family: 'Courier New', Courier, monospace; width: 57mm; margin: 0 auto; padding: 6px 8px; color: #000; font-size: 11px; }
+    .clinic { font-size: 14px; font-weight: bold; }
+    .meta { font-size: 10px; margin-top: 2px; }
+    @media screen { body { border: 1px dashed #999; margin-top: 16px; border-radius: 6px; } }
+  `;
+  const normalCss = `
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Arial, Helvetica, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; color: #0F172A; font-size: 14px; }
+    .clinic { font-size: 24px; font-weight: 800; color: #0052FF; }
+    .meta { font-size: 13px; margin-top: 4px; color: #475569; }
+    .row { font-size: 14px !important; margin: 6px 0 !important; }
+    .divider { border-top: 1px solid #CBD5E1 !important; }
+  `;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Receipt ${invoice.invoiceNumber}</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <style>
+        * { box-sizing: border-box; }
+        .center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+        .row { display: flex; justify-content: space-between; margin: 3px 0; }
+        .bold { font-weight: bold; }
+        .footer { text-align: center; margin-top: 12px; font-size: 10px; }
+        ${isThermal ? thermalCss : normalCss}
+      </style>
+    </head>
+    <body>
+      <div class="center">
+        <div class="clinic">${clinic.toUpperCase()}</div>
+        <div class="meta">${docName}</div>
+        <div class="meta">${spec}</div>
+      </div>
+      <div class="divider"></div>
+      <div class="row"><span>Invoice:</span><span>${invoice.invoiceNumber}</span></div>
+      <div class="row"><span>Date:</span><span>${invoice.date}</span></div>
+      <div class="row"><span>Time:</span><span>${invoice.time || ''}</span></div>
+      <div class="row"><span>Patient:</span><span>${invoice.patientName}</span></div>
+      ${invoice.patientPhone ? `<div class="row"><span>Phone:</span><span>${invoice.patientPhone}</span></div>` : ''}
+      <div class="divider"></div>
+      <div class="bold">Treatments</div>
+      ${rows}
+      <div class="divider"></div>
+      <div class="row"><span>Total:</span><span>PKR ${invoice.total}</span></div>
+      <div class="row"><span>Discount:</span><span>- ${invoice.discount}</span></div>
+      <div class="row bold"><span>Paid:</span><span>PKR ${invoice.paid}</span></div>
+      <div class="row bold"><span>Outstanding:</span><span>PKR ${invoice.outstanding}</span></div>
+      <div class="row bold"><span>Status:</span><span>${invoice.status.toUpperCase()}</span></div>
+      <div class="footer">Thank you for visiting!<br/>Powered by My Dentist PK</div>
+      ${autoPrintScript}
+    </body>
+    </html>`;
+}
 
 export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [] }) {
   const [subTab, setSubTab] = useState('previous'); // previous, current, print
@@ -31,6 +102,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
   // Active / Specimen Invoice for Printing
   const [currentInvoice, setCurrentInvoice] = useState(null);
+  // Printer type for the receipt layout: 'thermal' (57mm roll) or 'normal' (A4/Letter).
+  const [printerType, setPrinterType] = useState('thermal');
   // Draft being edited (id) — null when creating fresh.
   const [editingBillId, setEditingBillId] = useState(null);
 
@@ -235,14 +308,14 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       paymentMethod: paymentMethod
     };
 
-    const docName = profile?.fullName || 'Dentist';
+    const docName = drName(profile?.fullName, 'Dentist');
     const clinic = profile?.clinicName || 'Dentist Clinic';
     const spec = profile?.specialization || 'General Doctor';
 
     // Formatted text for native sharing on mobile
     const receiptText = `
 === ${clinic.toUpperCase()} ===
-Doctor: Dr. ${docName} (${spec})
+Doctor: ${docName} (${spec})
 Invoice: ${invoice.invoiceNumber}
 Date: ${invoice.date}
 Payment Method: ${(invoice.paymentMethod || 'cash').toUpperCase()}
@@ -262,75 +335,76 @@ Payment Status: ${invoice.status.toUpperCase()}
 Thank you for visiting!
 `;
 
-    // Thermal 57mm receipt layout — sized for 57mm roll printers, also
-    // "Save as PDF" from the browser print dialog.
-    const thermalHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt ${invoice.invoiceNumber}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>
-          @page { size: 57mm auto; margin: 0; }
-          * { box-sizing: border-box; }
-          body { font-family: 'Courier New', Courier, monospace; width: 57mm; margin: 0 auto; padding: 6px 8px; color: #000; font-size: 11px; }
-          .center { text-align: center; }
-          .clinic { font-size: 14px; font-weight: bold; }
-          .meta { font-size: 10px; margin-top: 2px; }
-          .divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .row { display: flex; justify-content: space-between; margin: 3px 0; }
-          .bold { font-weight: bold; }
-          .footer { text-align: center; margin-top: 12px; font-size: 10px; }
-          @media screen { body { border: 1px dashed #999; margin-top: 16px; border-radius: 6px; } }
-        </style>
-      </head>
-      <body>
-        <div class="center">
-          <div class="clinic">${clinic.toUpperCase()}</div>
-          <div class="meta">Dr. ${docName}</div>
-          <div class="meta">${spec}</div>
-        </div>
-        <div class="divider"></div>
-        <div class="row"><span>Invoice:</span><span>${invoice.invoiceNumber}</span></div>
-        <div class="row"><span>Date:</span><span>${invoice.date}</span></div>
-        <div class="row"><span>Time:</span><span>${invoice.time || ''}</span></div>
-        <div class="row"><span>Patient:</span><span>${invoice.patientName}</span></div>
-        ${invoice.patientPhone ? `<div class="row"><span>Phone:</span><span>${invoice.patientPhone}</span></div>` : ''}
-        <div class="divider"></div>
-        <div class="bold">Treatments</div>
-        ${invoice.treatments.map((it, idx) => `<div class="row"><span>${idx + 1}. ${it.name}</span><span>${it.price}</span></div>`).join('')}
-        <div class="divider"></div>
-        <div class="row"><span>Total:</span><span>PKR ${invoice.total}</span></div>
-        <div class="row"><span>Discount:</span><span>- ${invoice.discount}</span></div>
-        <div class="row bold"><span>Paid:</span><span>PKR ${invoice.paid}</span></div>
-        <div class="row bold"><span>Outstanding:</span><span>PKR ${invoice.outstanding}</span></div>
-        <div class="row bold"><span>Status:</span><span>${invoice.status.toUpperCase()}</span></div>
-        <div class="footer">Thank you for visiting!<br/>Powered by My Dentist PK</div>
-        <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); }</script>
-      </body>
-      </html>`;
+    const html = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: true });
 
     if (Platform.OS === 'web') {
-      // Open the thermal receipt in a new window and trigger print → user can
-      // pick a 57mm thermal printer or "Save as PDF".
-      const w = window.open('', '_blank', 'width=320,height=600');
-      if (w) { w.document.write(thermalHtml); w.document.close(); }
+      // Open the receipt in a new window and trigger the browser print dialog →
+      // the user can search/pick any connected printer (thermal or normal) or "Save as PDF".
+      const w = window.open('', '_blank', 'width=380,height=640');
+      if (w) { w.document.write(html); w.document.close(); }
       else { window.alert('Please allow pop-ups to print/save the receipt.'); }
     } else {
-      // Native: try expo-print → PDF + share; fall back to text share.
+      // Native: expo-print → PDF + share sheet.
       try {
         const Print = require('expo-print');
         const Sharing = require('expo-sharing');
-        const { uri } = await Print.printToFileAsync({ html: thermalHtml, width: 162 }); // ~57mm @ 72dpi
+        const opts = printerType === 'thermal' ? { html, width: 162 } : { html }; // 162px ≈ 57mm @72dpi
+        const { uri } = await Print.printToFileAsync(opts);
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Receipt ${invoice.invoiceNumber}` });
         } else {
           await Share.share({ url: uri, message: receiptText, title: `Receipt ${invoice.invoiceNumber}` });
         }
       } catch (e) {
-        // expo-print/sharing not installed — fall back to plain text share.
         Share.share({ message: receiptText, title: `Receipt ${invoice.invoiceNumber}` });
       }
+    }
+  };
+
+  // Open the system print dialog so the doctor can search + select a connected
+  // printer (thermal roll or a normal A4/Letter printer). On Android the print
+  // dialog lists every connected/print-service printer and lets them pick paper.
+  const handlePrint = async () => {
+    if (!currentInvoice && !selectedPatient) {
+      Alert.alert('No Bill Selected', 'Please select a patient and create a bill before printing.');
+      return;
+    }
+    const invoice = currentInvoice || {
+      invoiceNumber: 'INV-PENDING',
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      patientName: selectedPatient?.name || '',
+      patientPhone: selectedPatient?.phone || '',
+      treatments: items,
+      total: totalAmount,
+      discount: discountVal,
+      paid: paidVal,
+      payable: finalAmount,
+      outstanding: outstandingVal,
+      status: paidVal >= finalAmount ? 'paid' : 'unpaid',
+      paymentMethod,
+    };
+    const docName = drName(profile?.fullName, 'Dentist');
+    const clinic = profile?.clinicName || 'Dentist Clinic';
+    const spec = profile?.specialization || 'General Doctor';
+    const html = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: Platform.OS === 'web' });
+
+    if (Platform.OS === 'web') {
+      const w = window.open('', '_blank', 'width=380,height=640');
+      if (w) { w.document.write(html); w.document.close(); }
+      else { window.alert('Please allow pop-ups to print the receipt.'); }
+      return;
+    }
+    try {
+      const Print = require('expo-print');
+      // printAsync opens the native OS print dialog → search & select any
+      // connected printer (thermal/normal), choose copies, paper size, etc.
+      await Print.printAsync({ html });
+    } catch (e) {
+      Alert.alert(
+        'Printing unavailable',
+        'No printer dialog could be opened. Make sure a printer is connected/paired, or use “Save / Share PDF” instead.'
+      );
     }
   };
 
@@ -709,7 +783,36 @@ Thank you for visiting!
         {subTab === 'print' && (
           <View>
             <Text style={styles.pageTitle}>Receipt Specimen</Text>
-            <Text style={styles.pageSubtitle}>Review and download/share the generated patient receipt.</Text>
+            <Text style={styles.pageSubtitle}>Choose your printer type, then search & select a connected printer to print — or save/share as PDF.</Text>
+
+            {/* Printer type selector */}
+            <Text style={styles.printerLabel}>Printer Type</Text>
+            <View style={styles.printerTypeRow}>
+              <TouchableOpacity
+                style={[styles.printerTypeBtn, printerType === 'thermal' && styles.printerTypeBtnActive]}
+                onPress={() => setPrinterType('thermal')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="receipt-outline" size={20} color={printerType === 'thermal' ? '#0052FF' : '#64748B'} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={[styles.printerTypeTitle, printerType === 'thermal' && { color: '#0052FF' }]}>Thermal (57mm)</Text>
+                  <Text style={styles.printerTypeSub}>Roll / POS receipt printer</Text>
+                </View>
+                {printerType === 'thermal' && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 'auto' }} />}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.printerTypeBtn, printerType === 'normal' && styles.printerTypeBtnActive]}
+                onPress={() => setPrinterType('normal')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="print-outline" size={20} color={printerType === 'normal' ? '#0052FF' : '#64748B'} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={[styles.printerTypeTitle, printerType === 'normal' && { color: '#0052FF' }]}>Normal (A4)</Text>
+                  <Text style={styles.printerTypeSub}>Inkjet / laser A4 printer</Text>
+                </View>
+                {printerType === 'normal' && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 'auto' }} />}
+              </TouchableOpacity>
+            </View>
 
             <View style={[styles.splitLayout, { alignItems: 'center' }]}>
               
@@ -718,7 +821,7 @@ Thank you for visiting!
                 <View style={styles.receiptInner}>
                   <Ionicons name="medical-outline" size={32} color="#0052FF" style={{alignSelf: 'center'}} />
                   <Text style={styles.rTitle}>{profile?.clinicName?.toUpperCase() || 'MY DENTIST CLINIC'}</Text>
-                  <Text style={styles.rSub}>Dr. {profile?.fullName || 'Doctor'}</Text>
+                  <Text style={styles.rSub}>{drName(profile?.fullName)}</Text>
                   <Text style={styles.rSub}>{profile?.specialization || 'Dental Specialist'}</Text>
                   
                   <Text style={styles.rDivider}>----------------------------------------</Text>
@@ -757,11 +860,21 @@ Thank you for visiting!
                 </View>
               </View>
 
-              {/* Download / Share Action Button */}
-              <TouchableOpacity style={[styles.printNowBtn, { width: 320, marginTop: 20 }]} onPress={handleDownloadReceipt}>
-                <Ionicons name="download-outline" size={18} color="#FFF" style={{marginRight: 8}} />
-                <Text style={styles.printNowText}>{Platform.OS === 'web' ? 'Download PDF/HTML Receipt' : 'Share Receipt'}</Text>
+              {/* Print: opens the OS print dialog to search & select a printer */}
+              <TouchableOpacity style={[styles.printNowBtn, { width: 320, marginTop: 20 }]} onPress={handlePrint}>
+                <Ionicons name="search-outline" size={18} color="#FFF" style={{marginRight: 8}} />
+                <Text style={styles.printNowText}>Search & Select Printer</Text>
               </TouchableOpacity>
+
+              {/* Save / Share as PDF */}
+              <TouchableOpacity style={[styles.printNowBtnGhost, { width: 320, marginTop: 12 }]} onPress={handleDownloadReceipt}>
+                <Ionicons name="download-outline" size={18} color="#0052FF" style={{marginRight: 8}} />
+                <Text style={styles.printNowTextGhost}>{Platform.OS === 'web' ? 'Save / Download PDF' : 'Save / Share PDF'}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.printerHint}>
+                Tip: connect your printer over Wi-Fi/Bluetooth or a print service first. The print dialog lists all connected thermal & normal printers.
+              </Text>
 
             </View>
           </View>
@@ -902,8 +1015,17 @@ const styles = StyleSheet.create({
   draftBtnText: { color: '#0052FF', fontSize: 12.5, fontWeight: 'bold' },
 
   /* Print / Share Receipt */
-  printNowBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 40, backgroundColor: '#0052FF', borderRadius: 8 },
-  printNowText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
+  printNowBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 46, backgroundColor: '#0052FF', borderRadius: 10 },
+  printNowText: { color: '#FFF', fontSize: 13.5, fontWeight: 'bold' },
+  printNowBtnGhost: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 44, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' },
+  printNowTextGhost: { color: '#0052FF', fontSize: 13, fontWeight: '700' },
+  printerHint: { fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 14, maxWidth: 340, lineHeight: 16 },
+  printerLabel: { fontSize: 13, fontWeight: '700', color: '#0A1551', marginTop: 8, marginBottom: 8 },
+  printerTypeRow: { flexDirection: isWide ? 'row' : 'column', gap: 10, marginBottom: 8 },
+  printerTypeBtn: { flex: isWide ? 1 : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#FFF' },
+  printerTypeBtnActive: { borderColor: '#0052FF', backgroundColor: '#F5F9FF' },
+  printerTypeTitle: { fontSize: 13.5, fontWeight: '700', color: '#0F172A' },
+  printerTypeSub: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
 
   receiptPaper: { width: 320, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
   receiptInner: { padding: 20, backgroundColor: '#FFF', borderRadius: 12 },

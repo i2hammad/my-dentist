@@ -691,9 +691,15 @@ Thank you for visiting!
       >
         {isWide && (
           <View style={styles.webTopBar}>
-            <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-              <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <TouchableOpacity style={styles.webBackBtn} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
+              <Text style={styles.webBackText}>Back</Text>
             </TouchableOpacity>
+            <View style={styles.webCrumb}>
+              <Text style={styles.webCrumbMuted}>Doctors</Text>
+              <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
+              <Text style={styles.webCrumbActive} numberOfLines={1}>{drName(doctor.fullName)}</Text>
+            </View>
           </View>
         )}
         <View style={isWide ? styles.webGrid : undefined}>
@@ -1805,7 +1811,7 @@ Thank you for visiting!
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: '#FFFFFF' },
+  container:       { flex: 1, backgroundColor: Platform.OS === 'web' ? '#F1F5F9' : '#FFFFFF' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText:       { fontSize: 16, color: '#64748B', marginBottom: 12 },
   backBtn:         { backgroundColor: '#0052FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
@@ -2098,7 +2104,12 @@ const styles = StyleSheet.create({
 
   // ── Web / desktop two-column layout ──
   webScrollContent: { width: '100%', maxWidth: 1160, alignSelf: 'center', paddingHorizontal: 24 },
-  webTopBar: { paddingTop: 18, paddingBottom: 6 },
+  webTopBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 18, paddingBottom: 14 },
+  webBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
+  webBackText: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  webCrumb: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  webCrumbMuted: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
+  webCrumbActive: { fontSize: 14, color: '#0052FF', fontWeight: '700' },
   webGrid: { flexDirection: 'row', alignItems: 'flex-start', gap: 28 },
   webRail: { width: 340, flexShrink: 0, position: 'sticky', top: 20 },
   webMain: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },

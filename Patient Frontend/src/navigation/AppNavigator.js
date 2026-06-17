@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -40,26 +40,20 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
 import WebTopNav from '../components/WebTopNav';
 
-// On web, render a top navigation bar (brand + tabs + profile) in place of the
-// bottom/left tab bar. Native keeps the default bottom tabs.
+// On web, a single root-level top navbar (WebTopNav, rendered above the stack)
+// handles all navigation, so the per-navigator tab bars are hidden. Native keeps
+// the default bottom tabs.
 const isWeb = Platform.OS === 'web';
-const webTabBar = isWeb ? (props) => <WebTopNav {...props} /> : undefined;
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Tab bar styling shared by patient + doctor navigators. On web a custom top
-// navbar (WebTopNav) is used, so the scene must sit at the TOP position to fill
-// the full width below it. On phones the bar stays at the bottom.
+// Tab bar styling shared by patient + doctor navigators.
 function useTabBarOptions() {
   const insets = useSafeAreaInsets();
   if (isWeb) {
-    // The custom WebTopNav handles rendering; 'top' makes the scene full-width.
-    return {
-      tabBarPosition: 'top',
-      tabBarActiveTintColor: '#0052FF',
-      tabBarInactiveTintColor: '#64748B',
-    };
+    // Hide the in-navigator tab bar entirely — the root WebTopNav replaces it.
+    return { tabBarStyle: { display: 'none' } };
   }
   // Add the device's bottom safe-area inset (gesture nav bar) so labels aren't
   // clipped in edge-to-edge mode. Min 8 ensures spacing on devices with no inset.
@@ -86,7 +80,6 @@ function MainTabNavigator() {
   const tabBarOptions = useTabBarOptions();
   return (
     <Tab.Navigator
-      tabBar={webTabBar}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
@@ -120,7 +113,6 @@ function DoctorTabNavigator() {
 
   return (
     <Tab.Navigator
-      tabBar={webTabBar}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
@@ -161,6 +153,9 @@ const linking = {
 export default function AppNavigator() {
   return (
     <NavigationContainer linking={linking}>
+      <View style={{ flex: 1 }}>
+        {isWeb && <WebTopNav />}
+        <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Notice" component={NoticeScreen} />
@@ -182,6 +177,8 @@ export default function AppNavigator() {
         <Stack.Screen name="Appointments" component={AppointmentsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
       </Stack.Navigator>
+        </View>
+      </View>
     </NavigationContainer>
   );
 }

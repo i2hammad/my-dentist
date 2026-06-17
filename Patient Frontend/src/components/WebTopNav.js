@@ -1,87 +1,98 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useNavigationState } from '@react-navigation/native';
 import { useNotifications } from '../context/NotificationContext';
 import storage from '../config/storage';
 
-// Top navigation bar used on the WEB build (all widths) in place of the bottom
-// tab bar. Renders: brand (left) · tab links (center) · notifications + profile
-// (right). Native keeps the default bottom tabs — this is only wired on web.
-//
-// Used as a custom `tabBar` for the patient/doctor tab navigators. The label +
-// icon come from each route's descriptor options. The right-hand profile button
-// activates the route named "Profile" so it stays in sync with the tabs.
-export default function WebTopNav({ state, descriptors, navigation }) {
+// Root-level top navigation bar for the WEB build. Rendered once ABOVE the stack
+// navigator so it stays fixed on every logged-in screen (home, treatment tabs,
+// doctor profile, chat, booking, etc.). Native never renders this — phones keep
+// the bottom tabs.
+
+// Tab definitions per role. `tab` routes navigate into the role's tab navigator;
+// `stack` routes are pushed on the root stack.
+const PATIENT_TABS = [
+  { name: 'Home', label: 'Home', icon: 'home', tabsRoute: 'MainTabs' },
+  { name: 'Implants', label: 'Implants', icon: 'medkit', tabsRoute: 'MainTabs' },
+  { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs' },
+  { name: 'Orthodontics', label: 'Orthodontics', icon: 'options', tabsRoute: 'MainTabs' },
+];
+const DOCTOR_TABS = [
+  { name: 'DoctorHome', label: 'Home', icon: 'home', tabsRoute: 'DoctorTabs' },
+  { name: 'Appointments', label: 'Appointments', icon: 'calendar', tabsRoute: 'DoctorTabs' },
+  { name: 'Patients', label: 'Patients', icon: 'people', tabsRoute: 'DoctorTabs' },
+  { name: 'Inbox', label: 'Inbox', icon: 'chatbubbles', tabsRoute: 'DoctorTabs' },
+];
+
+// Routes where the navbar should NOT appear (auth / onboarding flow).
+const HIDDEN_ON = new Set([
+  'Splash', 'Notice', 'RoleSelection', 'Login', 'Register', 'PatientSetup',
+  'DoctorRegister', 'ClinicSetup',
+]);
+
+export default function WebTopNav() {
+  const navigation = useNavigation();
   const { unreadChatCount = 0, unreadCount = 0 } = useNotifications() || {};
 
-  // Is this the patient navigator? (has a Home tab). Doctors don't get the
-  // patient-only quick actions (appointments/inbox/notifications stack routes).
-  const isPatient = state.routes.some((r) => r.name === 'Home');
-  const goStack = (name) => navigation.navigate(name);
+  // The active root route + (for tab navigators) the focused tab name.
+  const navInfo = useNavigationState((state) => {
+    if (!state) return { root: null, tab: null };
+    const route = state.routes[state.index];
+    let tab = null;
+    if (route.state && Array.isArray(route.state.routes)) {
+      const inner = route.state.routes[route.state.index ?? 0];
+      tab = inner?.name || null;
+    }
+    return { root: route.name, tab };
+  });
 
-  // Log out: clear the token and reset the root stack to RoleSelection.
+  const rootRoute = navInfo?.root;
+  if (!rootRoute || HIDDEN_ON.has(rootRoute)) return null;
+
+  // Determine role. Doctor context = under DoctorTabs or on a doctor-only stack.
+  const isDoctorContext = rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup';
+  const isPatient = !isDoctorContext;
+  const tabs = isPatient ? PATIENT_TABS : DOCTOR_TABS;
+  const profileTabsRoute = isPatient ? 'MainTabs' : 'DoctorTabs';
+
+  // Active highlight: the focused tab if we're on the tabs route, else the root.
+  const activeName = navInfo.tab || rootRoute;
+
+  const goTab = (t) => navigation.navigate(t.tabsRoute, { screen: t.name });
+  const goStack = (name) => navigation.navigate(name);
+  const goProfile = () => navigation.navigate(profileTabsRoute, { screen: 'Profile' });
+
   const handleLogout = async () => {
     try { await storage.removeItem('userToken'); } catch {}
-    const root = navigation.getParent() || navigation;
-    root.reset({ index: 0, routes: [{ name: 'RoleSelection' }] });
+    navigation.reset({ index: 0, routes: [{ name: 'RoleSelection' }] });
   };
 
-  const onPress = (route, isFocused) => {
-    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-  };
-
-  // Split the profile tab out to the right cluster; the rest stay centered.
-  const profileRoute = state.routes.find((r) => r.name === 'Profile');
-  const navRoutes = state.routes.filter((r) => r.name !== 'Profile');
-
-  const iconFor = (descriptor, route, focused) => {
-    const opt = descriptor.options;
-    if (typeof opt.tabBarIcon === 'function') {
-      return opt.tabBarIcon({ focused, color: focused ? '#0052FF' : '#64748B', size: 20 });
-    }
-    return <Ionicons name="ellipse-outline" size={20} color={focused ? '#0052FF' : '#64748B'} />;
-  };
-  const labelFor = (descriptor, route) => {
-    const opt = descriptor.options;
-    if (typeof opt.tabBarLabel === 'string') return opt.tabBarLabel;
-    if (typeof opt.title === 'string') return opt.title;
-    return route.name;
-  };
+  const isActive = (name) => activeName === name;
 
   return (
     <View style={styles.bar}>
       <View style={styles.inner}>
         {/* Brand */}
-        <Pressable
-          style={styles.brand}
-          onPress={() => navigation.navigate(navRoutes[0]?.name || state.routes[0].name)}
-        >
+        <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
           <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
         </Pressable>
 
         {/* Tab links */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.links}>
-          {navRoutes.map((route) => {
-            const descriptor = descriptors[route.key];
-            const isFocused = state.routes[state.index].key === route.key;
+          {tabs.map((t) => {
+            const active = isActive(t.name);
             return (
-              <Pressable
-                key={route.key}
-                onPress={() => onPress(route, isFocused)}
-                style={[styles.link, isFocused && styles.linkActive]}
-              >
-                {iconFor(descriptor, route, isFocused)}
-                <Text style={[styles.linkText, isFocused && styles.linkTextActive]}>
-                  {labelFor(descriptor, route)}
-                </Text>
+              <Pressable key={t.name} onPress={() => goTab(t)} style={[styles.link, active && styles.linkActive]}>
+                <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={20} color={active ? '#0052FF' : '#64748B'} />
+                <Text style={[styles.linkText, active && styles.linkTextActive]}>{t.label}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
 
-        {/* Right cluster: quick actions + profile */}
+        {/* Right cluster: quick actions (patient) + profile + logout */}
         <View style={styles.right}>
           {isPatient && (
             <>
@@ -102,21 +113,13 @@ export default function WebTopNav({ state, descriptors, navigation }) {
               </Pressable>
             </>
           )}
-          {profileRoute && (() => {
-            const descriptor = descriptors[profileRoute.key];
-            const isFocused = state.routes[state.index].key === profileRoute.key;
-            const badge = descriptor.options.tabBarBadge;
-            return (
-              <Pressable
-                onPress={() => onPress(profileRoute, isFocused)}
-                style={[styles.profileBtn, isFocused && styles.profileBtnActive]}
-              >
-                <Ionicons name="person-circle-outline" size={24} color={isFocused ? '#0052FF' : '#334155'} />
-                <Text style={[styles.profileText, isFocused && styles.linkTextActive]}>Profile</Text>
-                {badge ? <View style={styles.badge}><Text style={styles.badgeText}>{badge}</Text></View> : null}
-              </Pressable>
-            );
-          })()}
+          <Pressable
+            onPress={goProfile}
+            style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
+          >
+            <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
+            <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
+          </Pressable>
           <Pressable style={styles.logoutBtn} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={22} color="#DC2626" />
           </Pressable>

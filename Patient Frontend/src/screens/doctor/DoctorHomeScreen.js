@@ -8,6 +8,7 @@ import { BackHandler } from 'react-native';
 import storage from '../../config/storage';
 import confirmAlert from '../../utils/confirmAlert';
 import PromoBanner from '../../components/PromoBanner';
+import { openWhatsApp } from '../../utils/support';
 import API_BASE_URL from '../../config/api';
 import imgUrl from '../../config/imgUrl';
 import { useNotifications } from '../../context/NotificationContext';
@@ -143,6 +144,39 @@ export default function DoctorHomeScreen({ route, navigation }) {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0052FF" />
       </View>
+    );
+  }
+
+  // ── Gate: blocked or pending admin approval ──
+  if (profile && (profile.isBlocked || profile.approvalStatus === 'rejected' || profile.approvalStatus === 'pending')) {
+    const blocked = profile.isBlocked;
+    const rejected = profile.approvalStatus === 'rejected';
+    return (
+      <SafeAreaView edges={['top']} style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', padding: 30 }]}>
+        <View style={{ alignItems: 'center', maxWidth: 360 }}>
+          <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: blocked ? '#FEE2E2' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+            <Ionicons name={blocked ? 'lock-closed' : rejected ? 'close-circle' : 'hourglass'} size={42} color={blocked ? '#DC2626' : rejected ? '#DC2626' : '#D97706'} />
+          </View>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#0A1551', textAlign: 'center', marginBottom: 10 }}>
+            {blocked ? 'Account Blocked' : rejected ? 'Application Not Approved' : 'Pending Approval'}
+          </Text>
+          <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+            {blocked
+              ? (profile.blockReason || 'Your account has been blocked due to outstanding dues. Please clear your commission dues and contact support to be unblocked.')
+              : rejected
+              ? 'Your profile was not approved. Please contact support for details or to re-apply.'
+              : 'Your profile is under review. An admin will approve your account shortly — you’ll get full access once approved.'}
+          </Text>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#25D366', paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999 }}
+            onPress={() => openWhatsApp(`Hello, I'm Dr. ${profile.fullName || ''}. Regarding my account ${blocked ? '(blocked)' : '(approval)'} — please assist.`)}>
+            <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Contact Support</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ marginTop: 16 }} onPress={handleLogout}>
+            <Text style={{ color: '#64748B', fontWeight: '600' }}>Log out</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 

@@ -157,6 +157,27 @@ const doctorProfileSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Admin approval: a new doctor's profile is inactive until an admin approves.
+    approvalStatus: {
+      type: String,
+      enum: { values: ['pending', 'approved', 'rejected'], message: '{VALUE} is not a valid approval status' },
+      default: 'pending',
+    },
+    // Account block (e.g. for outstanding commission dues); admin can unblock.
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
+    blockReason: {
+      type: String,
+      default: '',
+    },
+    // Outstanding commission owed to the platform (PKR). Auto-blocks at 50k.
+    commissionDue: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     // 'earned' = reached 20k points (green) · 'paid' = admin-granted (blue) · null = not popular
     popularType: {
       type: String,

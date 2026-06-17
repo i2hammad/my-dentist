@@ -159,9 +159,11 @@ exports.listDentists = async (req, res) => {
 // @route PATCH /api/admin/dentists/:id  (approve/verify, etc.)
 exports.updateDentist = async (req, res) => {
   try {
-    const allowed = ['pmdcVerified', 'clinicTier', 'fullName', 'specialization'];
+    const allowed = ['pmdcVerified', 'clinicTier', 'fullName', 'specialization', 'approvalStatus', 'isBlocked', 'blockReason'];
     const update = {};
     for (const k of allowed) if (k in req.body) update[k] = req.body[k];
+    // Approving a doctor also marks them verified.
+    if (update.approvalStatus === 'approved') update.pmdcVerified = true;
     const doc = await DoctorProfile.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!doc) return fail(res, 404, 'Dentist not found');
     ok(res, doc);
@@ -584,5 +586,43 @@ exports.listPopularDoctors = async (req, res) => {
       .select('fullName photo specialization rewardPoints isPopular popularType city')
       .lean();
     ok(res, docs);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Commission dues & blocking ─────────────────────────────
+const COMMISSION_BLOCK_THRESHOLD = 50000;
+
+// @route PATCH /api/admin/dentists/:id/commission
+// body: { commissionDue } (set absolute) or { addCommission } (increment)
+// Auto-blocks the doctor when dues reach the 50k threshold.
+exports.setCommission = async (req, res) => {
+  try {
+    const doc = await DoctorProfile.findById(req.params.id);
+    if (!doc) return fail(res, 404, 'Dentist not found');
+
+    if (typeof req.body.commissionDue === 'number') doc.commissionDue = Math.max(0, req.body.commissionDue);
+    else if (typeof req.body.addCommission === 'number') doc.commissionDue = Math.max(0, (doc.commissionDue || 0) + req.body.addCommission);
+
+    // Auto-block at threshold; clearing dues below threshold does NOT auto-unblock
+    // (admin must explicitly unblock after verifying payment).
+    if ((doc.commissionDue || 0) >= COMMISSION_BLOCK_THRESHOLD && !doc.isBlocked) {
+      doc.isBlocked = true;
+      doc.blockReason = `Outstanding commission dues of PKR ${doc.commissionDue.toLocaleString()} exceeded the limit. Clear dues and contact admin to unblock.`;
+    }
+    await doc.save();
+    ok(res, doc);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route PATCH /api/admin/dentists/:id/unblock  (admin clears the block)
+exports.unblockDentist = async (req, res) => {
+  try {
+    const doc = await DoctorProfile.findByIdAndUpdate(
+      req.params.id,
+      { isBlocked: false, blockReason: '' },
+      { new: true }
+    );
+    if (!doc) return fail(res, 404, 'Dentist not found');
+    ok(res, doc);
   } catch (e) { fail(res, 500, e.message); }
 };

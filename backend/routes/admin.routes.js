@@ -26,6 +26,8 @@ router.post('/dentists', admin.createDentist);
 router.get('/dentists/:id', admin.getDentist);
 router.patch('/dentists/:id', admin.updateDentist);
 router.patch('/dentists/:id/popular', admin.setPopular);
+router.patch('/dentists/:id/commission', admin.setCommission);
+router.patch('/dentists/:id/unblock', admin.unblockDentist);
 router.delete('/dentists/:id', admin.deleteDentist);
 
 router.get('/patients', admin.listPatients);

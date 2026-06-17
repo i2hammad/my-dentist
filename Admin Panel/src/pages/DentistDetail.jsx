@@ -26,7 +26,29 @@ export default function DentistDetail() {
   const t = doc.clinicTiming || {};
 
   const approve = async () => {
-    try { await api.patch(`/api/admin/dentists/${id}`, { pmdcVerified: true }); toast('Dentist approved'); load(); }
+    try { await api.patch(`/api/admin/dentists/${id}`, { approvalStatus: 'approved' }); toast('Dentist approved & activated'); load(); }
+    catch { toast('Failed', 'error'); }
+  };
+  const reject = async () => {
+    if (!(await confirm({ title: 'Reject Dentist', message: `Reject ${doc.fullName}'s application? They will not be able to use the app.`, confirmText: 'Reject', destructive: true }))) return;
+    try { await api.patch(`/api/admin/dentists/${id}`, { approvalStatus: 'rejected' }); toast('Dentist rejected'); load(); }
+    catch { toast('Failed', 'error'); }
+  };
+  const toggleBlock = async () => {
+    if (doc.isBlocked) {
+      if (!(await confirm({ title: 'Unblock Dentist', message: `Unblock ${doc.fullName}? Confirm dues are cleared.`, confirmText: 'Unblock' }))) return;
+      try { await api.patch(`/api/admin/dentists/${id}/unblock`); toast('Dentist unblocked'); load(); } catch { toast('Failed', 'error'); }
+    } else {
+      if (!(await confirm({ title: 'Block Dentist', message: `Block ${doc.fullName}? They lose access until unblocked.`, confirmText: 'Block', destructive: true }))) return;
+      try { await api.patch(`/api/admin/dentists/${id}`, { isBlocked: true, blockReason: 'Blocked by admin.' }); toast('Dentist blocked'); load(); } catch { toast('Failed', 'error'); }
+    }
+  };
+  const setCommission = async () => {
+    const val = window.prompt(`Set outstanding commission dues (PKR) for ${doc.fullName}. Auto-blocks at 50,000.`, String(doc.commissionDue || 0));
+    if (val == null) return;
+    const num = Number(val);
+    if (isNaN(num) || num < 0) return toast('Enter a valid amount', 'error');
+    try { await api.patch(`/api/admin/dentists/${id}/commission`, { commissionDue: num }); toast('Commission updated'); load(); }
     catch { toast('Failed', 'error'); }
   };
   const del = async () => {
@@ -46,7 +68,10 @@ export default function DentistDetail() {
       <div className="card-head" style={{ marginBottom: 16 }}>
         <button className="btn ghost" onClick={() => nav('/dentists')}><ArrowLeft size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Back to Dentists</button>
         <div className="row-actions">
-          {!doc.pmdcVerified && <button className="btn primary" onClick={approve}><Check size={16} weight="bold" style={{ verticalAlign: -2, marginRight: 6 }} />Approve</button>}
+          {doc.approvalStatus !== 'approved' && <button className="btn primary" onClick={approve}><Check size={16} weight="bold" style={{ verticalAlign: -2, marginRight: 6 }} />Approve</button>}
+          {doc.approvalStatus === 'pending' && <button className="btn ghost" onClick={reject}>Reject</button>}
+          <button className="btn ghost" onClick={setCommission}>Commission: Rs. {(doc.commissionDue || 0).toLocaleString()}</button>
+          <button className={`btn ${doc.isBlocked ? 'primary' : 'ghost'}`} onClick={toggleBlock}>{doc.isBlocked ? 'Unblock' : 'Block'}</button>
           <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
         </div>
       </div>
@@ -60,10 +85,12 @@ export default function DentistDetail() {
             <div className="muted">{doc.specialization} · {doc.clinicName || 'No clinic'}</div>
             <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <Stars value={d.rating} /> <span className="muted">({d.reviewCount} reviews)</span>
-              <span className={`badge ${doc.pmdcVerified ? 'green' : 'amber'}`}>{doc.pmdcVerified ? 'Verified' : 'Pending'}</span>
+              <span className={`badge ${doc.approvalStatus === 'approved' ? 'green' : doc.approvalStatus === 'rejected' ? 'red' : 'amber'}`}>{doc.approvalStatus === 'approved' ? 'Approved' : doc.approvalStatus === 'rejected' ? 'Rejected' : 'Pending Approval'}</span>
+              {doc.isBlocked && <span className="badge red">Blocked</span>}
               <span className={`badge ${doc.onlineStatus === 'online' ? 'green' : doc.onlineStatus === 'busy' ? 'amber' : 'gray'}`}>{doc.onlineStatus || 'offline'}</span>
               <PopularBadge type={doc.popularType} />
               <span className="badge gray">{(doc.rewardPoints || 0).toLocaleString()} pts</span>
+              {doc.commissionDue > 0 && <span className="badge amber">Dues: Rs. {doc.commissionDue.toLocaleString()}</span>}
             </div>
           </div>
         </div>

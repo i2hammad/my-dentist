@@ -9,7 +9,7 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
-import { webForm } from '../config/webLayout';
+import { webForm, isWeb } from '../config/webLayout';
 
 export default function PatientSetupScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -218,13 +218,23 @@ export default function PatientSetupScreen({ navigation }) {
       {/* Top Blue Header */}
       <View style={styles.blueHeader}>
         <View style={[styles.blueHeaderInner, webForm]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.headerSide}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}>
+              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            {isWeb && (
+              <View style={styles.headerBrand}>
+                <Image source={require('../../assets/app-logo.png')} style={styles.headerLogo} resizeMode="contain" />
+                <Text style={styles.headerBrandText}>My Dentist PK</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.headerTitle}>{profileExists ? 'Edit Profile' : 'Complete Profile'}</Text>
-          <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }}>
-            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={[styles.headerSide, { justifyContent: 'flex-end' }]}>
+            <TouchableOpacity onPress={handleLogout} style={styles.headerIconBtn}>
+              <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -443,6 +453,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
   },
+  headerSide: { flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 40 },
+  headerIconBtn: { padding: 4, borderRadius: 8 },
+  headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerLogo: { width: 28, height: 28, borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.18)' },
+  headerBrandText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   backButton: {
     padding: 4,
   },

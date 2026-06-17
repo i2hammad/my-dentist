@@ -11,6 +11,7 @@ import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import { SkeletonDoctorDetail } from '../components/Skeleton';
+import { drName } from '../utils/doctorName';
 
 // Used only by a couple of static StyleSheet entries below (half-width cards).
 // Component layout uses the live useResponsive() hook instead.
@@ -284,9 +285,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
       const docId = doctor._id || doctor.userId;
       const shareUrl = `mydentist://doctor/${docId}`;
       await Share.share({
-        message: `Check out Dr. ${doctor.fullName}'s profile on My Dentist PK: ${shareUrl}`,
+        message: `Check out ${drName(doctor.fullName)}'s profile on My Dentist PK: ${shareUrl}`,
         url: shareUrl,
-        title: `Dr. ${doctor.fullName}'s Profile`
+        title: `${drName(doctor.fullName)}'s Profile`
       });
     } catch (error) {
       console.log('Error sharing profile:', error);
@@ -470,14 +471,14 @@ export default function DoctorProfileScreen({ route, navigation }) {
       paymentMethod: bill.paymentMethod || 'cash'
     };
 
-    const docName = doctor.fullName || 'Dentist';
+    const docName = drName(doctor.fullName, 'Dentist');
     const clinic = doctor.clinicName || 'Dentist Clinic';
     const spec = doctor.specialization || 'General Doctor';
 
     // Formatted text for native sharing on mobile
     const receiptText = `
 === ${clinic.toUpperCase()} ===
-Doctor: Dr. ${docName} (${spec})
+Doctor: ${docName} (${spec})
 Invoice: ${invoice.invoiceNumber}
 Date: ${invoice.date}
 Payment Method: ${invoice.paymentMethod.toUpperCase()}
@@ -518,7 +519,7 @@ Thank you for visiting!
       <body>
         <div class="header">
           <div class="clinic">${clinic.toUpperCase()}</div>
-          <div class="meta">Dr. ${docName} (${spec})</div>
+          <div class="meta">${docName} (${spec})</div>
           <div class="meta">Invoice: ${invoice.invoiceNumber}</div>
           <div class="meta">Date: ${invoice.date}</div>
         </div>
@@ -624,7 +625,7 @@ Thank you for visiting!
           ? <Image source={{ uri: photoUri }} style={styles.webRailPhoto} />
           : <View style={[styles.webRailPhoto, styles.avatarPlaceholder]}><Ionicons name="person" size={48} color="#0052FF" /></View>}
         <View style={styles.nameRow}>
-          <Text style={styles.doctorName}>Dr. {doctor.fullName}</Text>
+          <Text style={styles.doctorName}>{drName(doctor.fullName)}</Text>
           {doctor.pmdcVerified && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 6 }} />}
         </View>
         <Text style={styles.doctorSpecialty}>{doctor.specialization} • {doctor.qualification || 'BDS'}</Text>
@@ -664,7 +665,7 @@ Thank you for visiting!
           <TouchableOpacity style={styles.webRailAction} onPress={() => {
             const docUserId = doctor.userId?._id || doctor.userId;
             if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
-            navigation.navigate('Chat', { userId: docUserId, userName: `Dr. ${doctor.fullName || 'Doctor'}` });
+            navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
           }}>
             <Ionicons name="chatbubble-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Chat</Text>
           </TouchableOpacity>
@@ -746,7 +747,7 @@ Thank you for visiting!
             )}
             <View style={{ flex: 1, marginLeft: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.compactDoctorName} numberOfLines={1}>Dr. {doctor.fullName}</Text>
+                <Text style={styles.compactDoctorName} numberOfLines={1}>{drName(doctor.fullName)}</Text>
                 {doctor.pmdcVerified && <Ionicons name="checkmark-circle" size={14} color="#0052FF" style={{ marginLeft: 4 }} />}
               </View>
               <Text style={styles.compactSpecialty} numberOfLines={1}>{doctor.specialization} • {doctor.qualification || 'BDS'}</Text>
@@ -772,7 +773,7 @@ Thank you for visiting!
             )}
             <View style={styles.doctorHeader}>
               <View style={styles.nameRow}>
-                <Text style={styles.doctorName}>Dr. {doctor.fullName}</Text>
+                <Text style={styles.doctorName}>{drName(doctor.fullName)}</Text>
                 {doctor.pmdcVerified && (
                   <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 6 }} />
                 )}
@@ -811,7 +812,7 @@ Thank you for visiting!
                   Alert.alert('Error', 'Unable to start chat. Doctor User ID not found.');
                   return;
                 }
-                navigation.navigate('Chat', { userId: docUserId, userName: `Dr. ${doctor.fullName || 'Doctor'}` });
+                navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
               }}
             >
               <Ionicons name="chatbubble-outline" size={20} color="#0052FF" />
@@ -905,7 +906,7 @@ Thank you for visiting!
           {activeTab === 'Treatments' && (
             <View>
               <Text style={styles.sectionTitle}>Dental Treatments</Text>
-              <Text style={styles.sectionSubtitle}>Select or view treatments offered by Dr. {doctor.fullName}</Text>
+              <Text style={styles.sectionSubtitle}>Select or view treatments offered by {drName(doctor.fullName)}</Text>
               {treatments.length > 0 ? (
                 treatments.map((t) => (
                   <View key={t._id} style={styles.treatmentRow}>
@@ -979,7 +980,7 @@ Thank you for visiting!
                 <>
                   <Text style={styles.sectionTitle}>Our Services</Text>
                   <Text style={styles.sectionSubtitle}>
-                    Facilities & services available at Dr. {doctor.fullName}'s clinic
+                    Facilities & services available at {drName(doctor.fullName)}'s clinic
                   </Text>
                   <View style={styles.servicesGrid}>
                     {facilityList.map((fac, idx) => (
@@ -1115,7 +1116,7 @@ Thank you for visiting!
           {activeTab === 'Appointments' && (
             <View>
               <View style={styles.cardHeader}>
-                <Text style={styles.sectionTitle}>My Appointments with Dr. {doctor.fullName}</Text>
+                <Text style={styles.sectionTitle}>My Appointments with {drName(doctor.fullName)}</Text>
               </View>
               {appointments.length > 0 ? (
                 appointments.map(apt => (

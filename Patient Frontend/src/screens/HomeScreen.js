@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import imgUrl from '../config/imgUrl';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
@@ -63,7 +64,7 @@ function StatusBadge({ status }) {
 // ─── Single Doctor Card ──────────────────────────────────────────────
 function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style }) {
   const photoUri = doc.photo
-    ? `${API_BASE_URL}${doc.photo}`
+    ? imgUrl(doc.photo)
     : null;
 
   const status = doc.isOnline === true
@@ -323,7 +324,7 @@ export default function HomeScreen({ navigation }) {
             >
               {profile?.profileImage ? (
                 <Image
-                  source={{ uri: `${API_BASE_URL}${profile.profileImage}` }}
+                  source={{ uri: imgUrl(profile.profileImage) }}
                   style={styles.profilePhoto}
                 />
               ) : (

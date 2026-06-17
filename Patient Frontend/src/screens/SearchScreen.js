@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
+import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
@@ -86,7 +87,7 @@ export default function SearchScreen({ navigation, route }) {
       <View style={styles.cardTop}>
         <View style={styles.doctorImageContainer}>
           <Image 
-            source={{ uri: item.photo ? `${API_BASE_URL}${item.photo}` : item.photoUrl || 'https://via.placeholder.com/150' }} 
+            source={{ uri: item.photo ? imgUrl(item.photo) : item.photoUrl || 'https://via.placeholder.com/150' }} 
             style={styles.doctorImage} 
           />
         </View>
@@ -189,7 +190,7 @@ export default function SearchScreen({ navigation, route }) {
             </TouchableOpacity>
             <TouchableOpacity style={styles.userAvatar} onPress={() => navigation.navigate('MainTabs', { screen: 'Profile' })}>
               {profile?.profileImage ? (
-                <Image source={{ uri: `${API_BASE_URL}${profile.profileImage}` }} style={styles.avatarImg} />
+                <Image source={{ uri: imgUrl(profile.profileImage) }} style={styles.avatarImg} />
               ) : (
                 <View style={[styles.avatarImg, { backgroundColor: '#4A7DFF', justifyContent: 'center', alignItems: 'center' }]}>
                   <Ionicons name="person" size={20} color="#FFFFFF" />

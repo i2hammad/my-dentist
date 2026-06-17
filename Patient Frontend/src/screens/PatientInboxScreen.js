@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import imgUrl from '../config/imgUrl';
 
 export default function PatientInboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -88,7 +89,7 @@ export default function PatientInboxScreen({ navigation }) {
       >
         <View style={styles.avatarWrap}>
           {photo ? (
-            <Image source={{ uri: `${API_BASE_URL}${photo}` }} style={styles.avatar} />
+            <Image source={{ uri: imgUrl(photo) }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.avatarFallback]}>
               <Text style={styles.avatarInitial}>{name.charAt(0).toUpperCase()}</Text>

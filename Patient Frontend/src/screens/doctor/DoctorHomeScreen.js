@@ -9,6 +9,7 @@ import storage from '../../config/storage';
 import confirmAlert from '../../utils/confirmAlert';
 import PromoBanner from '../../components/PromoBanner';
 import API_BASE_URL from '../../config/api';
+import imgUrl from '../../config/imgUrl';
 import { useNotifications } from '../../context/NotificationContext';
 
 // Tab Components
@@ -147,7 +148,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
 
   const reviewsCount = reviewStats?.totalReviews || 0;
   const ratingStars = reviewStats?.avgRating ? reviewStats.avgRating.toFixed(1) : '0.0';
-  const photoUri = profile?.photo ? { uri: `${API_BASE_URL}${profile.photo}` } : require('../../../assets/icon.png'); // fallback to generic app icon if possible or handle missing image in JSX
+  const photoUri = profile?.photo ? { uri: imgUrl(profile.photo) } : require('../../../assets/icon.png'); // fallback to generic app icon if possible or handle missing image in JSX
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>

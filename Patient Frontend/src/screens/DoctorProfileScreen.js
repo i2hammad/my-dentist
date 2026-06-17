@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
+import imgUrl from '../config/imgUrl';
 import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 
@@ -591,7 +592,7 @@ Thank you for visiting!
   // ── Desktop left rail: doctor identity + sticky booking card.
   // Reuses the same data/handlers as the phone layout but is always visible
   // on wide screens (not gated to the About tab).
-  const photoUri = (doctor.photo || doctor.avatar) ? `${API_BASE_URL}${doctor.photo || doctor.avatar}` : null;
+  const photoUri = (doctor.photo || doctor.avatar) ? imgUrl(doctor.photo || doctor.avatar) : null;
   const leftRail = (
     <View style={styles.webRail}>
       <View style={styles.webRailCard}>
@@ -678,7 +679,7 @@ Thank you for visiting!
           <View style={styles.coverContainer}>
             {doctor.photo || doctor.avatar ? (
               <Image
-                source={{ uri: `${API_BASE_URL}${doctor.photo || doctor.avatar}` }}
+                source={{ uri: imgUrl(doctor.photo || doctor.avatar) }}
                 style={styles.coverImage}
               />
             ) : (
@@ -713,7 +714,7 @@ Thank you for visiting!
               <Ionicons name="arrow-back" size={22} color="#0F172A" />
             </TouchableOpacity>
             {doctor.photo || doctor.avatar ? (
-              <Image source={{ uri: `${API_BASE_URL}${doctor.photo || doctor.avatar}` }} style={styles.compactAvatar} />
+              <Image source={{ uri: imgUrl(doctor.photo || doctor.avatar) }} style={styles.compactAvatar} />
             ) : (
               <View style={[styles.compactAvatar, { backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }]}>
                 <Ionicons name="person" size={28} color="#0052FF" />
@@ -739,7 +740,7 @@ Thank you for visiting!
         {activeTab === 'About' && !isWide && (
           <View style={styles.floatingCard}>
             {doctor.photo || doctor.avatar ? (
-              <Image source={{ uri: `${API_BASE_URL}${doctor.photo || doctor.avatar}` }} style={styles.doctorAvatar} />
+              <Image source={{ uri: imgUrl(doctor.photo || doctor.avatar) }} style={styles.doctorAvatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="person" size={40} color="#0052FF" />
@@ -912,7 +913,7 @@ Thank you for visiting!
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {clinicPhotos.length > 0 ? (
                   clinicPhotos.map(item => (
-                    <Image key={item._id} source={{ uri: `${API_BASE_URL}${item.imageUrl}` }} style={styles.galleryImage} />
+                    <Image key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.galleryImage} />
                   ))
                 ) : (
                   <Text style={styles.emptyText}>No clinic photos uploaded.</Text>
@@ -925,11 +926,11 @@ Thank you for visiting!
                     <View key={item._id} style={styles.beforeAfterCard}>
                       {item.beforeImage && item.afterImage ? (
                         <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <Image source={{ uri: `${API_BASE_URL}${item.beforeImage}` }} style={styles.beforeAfterImg} />
-                          <Image source={{ uri: `${API_BASE_URL}${item.afterImage}` }} style={styles.beforeAfterImg} />
+                          <Image source={{ uri: imgUrl(item.beforeImage) }} style={styles.beforeAfterImg} />
+                          <Image source={{ uri: imgUrl(item.afterImage) }} style={styles.beforeAfterImg} />
                         </View>
                       ) : (
-                        <Image source={{ uri: `${API_BASE_URL}${item.imageUrl || item.beforeImage || item.afterImage}` }} style={[styles.beforeAfterImg, { width: 180 }]} />
+                        <Image source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={[styles.beforeAfterImg, { width: 180 }]} />
                       )}
                       {item.title ? <Text style={{ fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 4 }}>{item.title}</Text> : null}
                     </View>
@@ -942,7 +943,7 @@ Thank you for visiting!
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {certificates.length > 0 ? (
                   certificates.map(item => (
-                    <Image key={item._id} source={{ uri: `${API_BASE_URL}${item.imageUrl}` }} style={styles.certificateImg} />
+                    <Image key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.certificateImg} />
                   ))
                 ) : (
                   <Text style={styles.emptyText}>No certificates uploaded.</Text>

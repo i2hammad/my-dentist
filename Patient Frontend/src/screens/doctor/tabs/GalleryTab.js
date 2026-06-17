@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Pla
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
+import imgUrl from '../../../config/imgUrl';
 import storage from '../../../config/storage';
 import confirmAlert from '../../../utils/confirmAlert';
 
@@ -216,7 +217,7 @@ export default function GalleryTab({ profile }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
             {clinicPhotos.map((item) => (
               <View key={item._id} style={styles.imageCard}>
-                <Image source={{ uri: `${API_BASE_URL}${item.imageUrl}` }} style={styles.photo} />
+                <Image source={{ uri: imgUrl(item.imageUrl) }} style={styles.photo} />
                 <TouchableOpacity style={styles.deleteBadge} onPress={() => handleDelete(item._id)}>
                   <Ionicons name="close" size={12} color="#0052FF" />
                 </TouchableOpacity>
@@ -249,12 +250,12 @@ export default function GalleryTab({ profile }) {
                 <View style={styles.beforeAfterCard}>
                   {item.beforeImage && item.afterImage ? (
                     <View style={{ flexDirection: 'row', width: '100%', height: '100%' }}>
-                      <Image source={{ uri: `${API_BASE_URL}${item.beforeImage}` }} style={[styles.photoHalf, { borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }]} />
+                      <Image source={{ uri: imgUrl(item.beforeImage) }} style={[styles.photoHalf, { borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }]} />
                       <View style={{ width: 2, backgroundColor: '#FFF' }} />
-                      <Image source={{ uri: `${API_BASE_URL}${item.afterImage}` }} style={[styles.photoHalf, { borderTopRightRadius: 12, borderBottomRightRadius: 12 }]} />
+                      <Image source={{ uri: imgUrl(item.afterImage) }} style={[styles.photoHalf, { borderTopRightRadius: 12, borderBottomRightRadius: 12 }]} />
                     </View>
                   ) : (
-                    <Image source={{ uri: `${API_BASE_URL}${item.imageUrl}` }} style={[styles.photoHalf, { borderRadius: 12 }]} />
+                    <Image source={{ uri: imgUrl(item.imageUrl) }} style={[styles.photoHalf, { borderRadius: 12 }]} />
                   )}
                 </View>
                 <Text style={styles.beforeAfterTitle}>{item.title || 'Before & After'}</Text>
@@ -287,7 +288,7 @@ export default function GalleryTab({ profile }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
             {certificates.map((item) => (
               <View key={item._id} style={styles.certCard}>
-                <Image source={{ uri: `${API_BASE_URL}${item.imageUrl}` }} style={styles.certPhoto} />
+                <Image source={{ uri: imgUrl(item.imageUrl) }} style={styles.certPhoto} />
                 <TouchableOpacity style={styles.deleteBadge} onPress={() => handleDelete(item._id)}>
                   <Ionicons name="close" size={12} color="#16A34A" />
                 </TouchableOpacity>

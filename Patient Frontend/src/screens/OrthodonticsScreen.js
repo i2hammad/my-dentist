@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import imgUrl from '../config/imgUrl';
 import { useIsFocused } from '@react-navigation/native';
 
 function StatusBadge({ status }) {
@@ -32,7 +33,7 @@ function StatusBadge({ status }) {
 
 function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite }) {
   const photoUri = doc.profileImage
-    ? `${API_BASE_URL}${doc.profileImage}`
+    ? imgUrl(doc.profileImage)
     : null;
 
   const status = doc.isOnline === true || doc.onlineStatus === 'online'

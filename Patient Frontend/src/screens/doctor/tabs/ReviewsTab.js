@@ -5,6 +5,7 @@ import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import { actionMenu } from '../../../utils/confirmAlert';
 import storage from '../../../config/storage';
+import { getClinicTier } from '../../../utils/clinicTier';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
@@ -117,6 +118,16 @@ export default function ReviewsTab({ profile }) {
     if (days < 14) return `1 week ago`;
     return new Date(dateStr).toLocaleDateString();
   };
+
+  // Real facility score → grade (Standard 1-15 / Modern 16-30 / Elite 31+)
+  const facilityScore = profile?.facilityScore || 0;
+  const grade = getClinicTier(facilityScore); // { label, color, tier }
+  const gradeIcon = grade.tier === 'elite' ? 'ribbon' : grade.tier === 'modern' ? 'business' : 'shield-checkmark';
+  const gradeBlurb = grade.tier === 'elite'
+    ? 'This clinic offers excellent facilities and premium care.'
+    : grade.tier === 'modern'
+    ? 'This clinic offers modern facilities and quality care.'
+    : 'This clinic offers standard facilities and reliable care.';
 
   return (
     <View style={styles.container}>
@@ -283,18 +294,18 @@ export default function ReviewsTab({ profile }) {
             </View>
           </View>
 
-          {/* Right Side: Elite Clinic Badge */}
+          {/* Right Side: Clinic Grade Badge (computed from facility score) */}
           <View style={styles.rightCol}>
-            
-            {/* Elite Badge Card */}
-            <View style={[styles.card, { alignItems: 'center', borderColor: '#FDE68A', borderWidth: 2 }]}>
+
+            {/* Grade Badge Card */}
+            <View style={[styles.card, { alignItems: 'center', borderColor: grade.color, borderWidth: 2 }]}>
               <View style={styles.badgeImagePlaceholder}>
-                <Ionicons name="ribbon" size={60} color="#D97706" />
-                <View style={styles.badgeEliteTag}><Text style={styles.badgeEliteText}>ELITE</Text></View>
+                <Ionicons name={gradeIcon} size={60} color={grade.color} />
+                <View style={[styles.badgeEliteTag, { backgroundColor: grade.color }]}><Text style={styles.badgeEliteText}>{grade.label.replace(' Clinic', '').toUpperCase()}</Text></View>
               </View>
-              <Text style={styles.eliteTitle}>Elite Clinic</Text>
-              <Text style={styles.eliteSubtitle}>This Clinic offers excellent facilities and premium care.</Text>
-              
+              <Text style={styles.eliteTitle}>{grade.label}</Text>
+              <Text style={styles.eliteSubtitle}>{gradeBlurb}</Text>
+
               <View style={styles.verifiedHighlightsBox}>
                 <Text style={styles.verifiedHighlightsTitle}>VERIFIED HIGHLIGHTS</Text>
                 <View style={styles.vhRow}><Ionicons name="checkmark-circle-outline" size={16} color="#16A34A" /><Text style={styles.vhText}>Verified Services</Text></View>
@@ -307,28 +318,28 @@ export default function ReviewsTab({ profile }) {
             {/* Score Card */}
             <View style={[styles.card, { alignItems: 'center' }]}>
               <Text style={styles.facilityScoreTitle}>FACILITY SCORE</Text>
-              <View style={styles.scoreCircle}>
-                <Text style={styles.scoreNumber}>28</Text>
+              <View style={[styles.scoreCircle, { borderColor: grade.color }]}>
+                <Text style={styles.scoreNumber}>{facilityScore}</Text>
                 <Text style={styles.scoreText}>POINTS</Text>
               </View>
             </View>
 
-            {/* Legends */}
+            {/* Legends — Standard 1-15 / Modern 16-30 / Elite 31+ */}
             <View style={styles.legendsList}>
-              <View style={[styles.legendRow, {backgroundColor: '#FFFBEB', borderColor: '#FDE68A'}]}>
+              <View style={[styles.legendRow, {backgroundColor: '#FFFBEB', borderColor: '#FDE68A'}, grade.tier === 'elite' && { borderWidth: 2 }]}>
                 <View style={[styles.legendIcon, {backgroundColor: '#D97706'}]}><Ionicons name="ribbon" size={12} color="#FFF" /></View>
                 <Text style={styles.legendName}>Elite Clinic</Text>
-                <Text style={styles.legendRange}>26+ Points</Text>
+                <Text style={styles.legendRange}>31+ Points</Text>
               </View>
-              <View style={[styles.legendRow, {backgroundColor: '#EFF6FF', borderColor: '#BFDBFE'}]}>
+              <View style={[styles.legendRow, {backgroundColor: '#EFF6FF', borderColor: '#BFDBFE'}, grade.tier === 'modern' && { borderWidth: 2 }]}>
                 <View style={[styles.legendIcon, {backgroundColor: '#0052FF'}]}><Ionicons name="business" size={12} color="#FFF" /></View>
                 <Text style={styles.legendName}>Modern Clinic</Text>
-                <Text style={styles.legendRange}>11 - 25 Points</Text>
+                <Text style={styles.legendRange}>16 - 30 Points</Text>
               </View>
-              <View style={[styles.legendRow, {backgroundColor: '#F8FAFC', borderColor: '#E2E8F0'}]}>
+              <View style={[styles.legendRow, {backgroundColor: '#F8FAFC', borderColor: '#E2E8F0'}, grade.tier === 'standard' && { borderWidth: 2 }]}>
                 <View style={[styles.legendIcon, {backgroundColor: '#64748B'}]}><Ionicons name="shield-checkmark" size={12} color="#FFF" /></View>
                 <Text style={styles.legendName}>Standard Clinic</Text>
-                <Text style={styles.legendRange}>1 - 10 Points</Text>
+                <Text style={styles.legendRange}>1 - 15 Points</Text>
               </View>
             </View>
 

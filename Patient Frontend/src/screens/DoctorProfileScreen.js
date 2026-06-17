@@ -2015,7 +2015,7 @@ const styles = StyleSheet.create({
   billRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
 
   // ── Action buttons (Chat / Directions / Save) ──
-  actionRow: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 8, gap: 10 },
+  actionRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 16, marginBottom: 8, gap: 10 },
   actionBtn: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#0052FF', borderRadius: 12, paddingVertical: 10, gap: 4, backgroundColor: '#FFFFFF' },
   actionBtnText: { fontSize: 12, fontWeight: '600', color: '#0052FF' },
 

@@ -115,6 +115,33 @@ export default function DoctorRegisterScreen({ navigation }) {
   const [experience, setExperience] = useState('');
   const [clinicContact, setClinicContact] = useState('');
   const [locationCoords, setLocationCoords] = useState('');
+  const [detectingLoc, setDetectingLoc] = useState(false);
+
+  // Detect precise GPS coordinates via the device/browser geolocation API.
+  const detectLocation = () => {
+    const geo = (typeof navigator !== 'undefined' && navigator.geolocation) ? navigator.geolocation : null;
+    if (!geo) {
+      const msg = 'Location services are not available on this device. Please enter coordinates manually (latitude, longitude).';
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Unavailable', msg);
+      return;
+    }
+    setDetectingLoc(true);
+    geo.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setLocationCoords(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+        setDetectingLoc(false);
+      },
+      (err) => {
+        setDetectingLoc(false);
+        const msg = err?.code === 1
+          ? 'Location permission denied. Please allow location access, or enter coordinates manually.'
+          : 'Could not get your location. Please try again or enter coordinates manually.';
+        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Location', msg);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
   const [clinicName, setClinicName] = useState('');
   const [clinicAddress, setClinicAddress] = useState('');
   const [city, setCity] = useState('');
@@ -493,17 +520,9 @@ export default function DoctorRegisterScreen({ navigation }) {
             />
             <TouchableOpacity
               style={styles.locateBtn}
-              onPress={() => {
-                // Placeholder for geolocation
-                const msg = 'Location detection will be available after GPS permission setup.';
-                if (Platform.OS === 'web') {
-                  window.alert(msg);
-                } else {
-                  Alert.alert('Info', msg);
-                }
-              }}
+              onPress={detectLocation}
             >
-              <Ionicons name="locate" size={20} color="#0052FF" />
+              {detectingLoc ? <ActivityIndicator size="small" color="#0052FF" /> : <Ionicons name="locate" size={20} color="#0052FF" />}
             </TouchableOpacity>
           </View>
 

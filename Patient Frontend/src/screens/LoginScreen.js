@@ -5,8 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import useResponsive from '../hooks/useResponsive';
+import WebAuthLayout from '../components/WebAuthLayout';
 
 export default function LoginScreen({ route, navigation }) {
+  const { isWide } = useResponsive();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -94,33 +97,10 @@ export default function LoginScreen({ route, navigation }) {
     }
   };
 
-  return (
-    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('RoleSelection')}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Image 
-            source={require('../../assets/app-logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>Login to continue to your account</Text>
-        </View>
-
-
-        {/* Form Fields */}
-        <View style={styles.form}>
+  // Form body shared by mobile + web. On wide web it sits inside WebAuthLayout's
+  // card; on mobile it keeps the original scroll layout with logo header.
+  const formBody = (
+    <View style={styles.form}>
           
           {/* Email */}
           <Text style={styles.label}>Email Address</Text>
@@ -234,6 +214,48 @@ export default function LoginScreen({ route, navigation }) {
           </View>
 
         </View>
+  );
+
+  // ── Wide web: split-panel layout with a brand hero ──
+  if (isWide) {
+    return (
+      <WebAuthLayout
+        title={'Welcome back.\nLet’s get you in.'}
+        subtitle="Log in to manage your appointments, chat with your dentist, and track your care."
+      >
+        <Text style={styles.webHeading}>Welcome Back!</Text>
+        <Text style={styles.webSubheading}>Login to continue to your account</Text>
+        {formBody}
+      </WebAuthLayout>
+    );
+  }
+
+  // ── Mobile: original layout ──
+  return (
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* Back Button */}
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('RoleSelection')}>
+          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+        </TouchableOpacity>
+
+        {/* Header */}
+        <View style={styles.header}>
+          <Image
+            source={require('../../assets/app-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Welcome Back!</Text>
+          <Text style={styles.subtitle}>Login to continue to your account</Text>
+        </View>
+
+        {formBody}
       </ScrollView>
     </KeyboardAvoidingView>
     </SafeAreaView>
@@ -241,6 +263,8 @@ export default function LoginScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
+  webHeading: { fontSize: 26, fontWeight: '800', color: '#0A1551', marginBottom: 4 },
+  webSubheading: { fontSize: 15, color: '#64748B', marginBottom: 20 },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

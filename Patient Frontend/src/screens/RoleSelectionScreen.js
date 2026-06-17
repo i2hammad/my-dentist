@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import useResponsive from '../hooks/useResponsive';
+import WebAuthLayout from '../components/WebAuthLayout';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +25,7 @@ function ToothDecoration({ style }) {
 }
 
 export default function RoleSelectionScreen({ navigation }) {
+  const { isWide } = useResponsive();
   const handleDoctor = () => {
     navigation.navigate('Login', { role: 'doctor' });
   };
@@ -30,6 +33,74 @@ export default function RoleSelectionScreen({ navigation }) {
   const handlePatient = () => {
     navigation.navigate('Login', { role: 'patient' });
   };
+
+  // The three role cards — shared by mobile + web.
+  const roleCards = (
+    <View style={styles.cardsContainer}>
+
+      {/* Doctor Card */}
+      <TouchableOpacity style={styles.card} onPress={handleDoctor} activeOpacity={0.85}>
+        <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
+          <Ionicons name="person-circle-outline" size={36} color="#2563EB" />
+        </View>
+        <View style={styles.cardTextContainer}>
+          <Text style={styles.cardTitle}>I'm a Doctor</Text>
+          <Text style={styles.cardSubtitle}>Manage your practice, appointments and patients</Text>
+        </View>
+        <View style={[styles.chevronCircle, { backgroundColor: '#EFF6FF' }]}>
+          <Ionicons name="chevron-forward" size={20} color="#2563EB" />
+        </View>
+      </TouchableOpacity>
+
+      {/* Patient Card */}
+      <TouchableOpacity style={styles.card} onPress={handlePatient} activeOpacity={0.85}>
+        <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+          <Ionicons name="person-outline" size={36} color="#16A34A" />
+        </View>
+        <View style={styles.cardTextContainer}>
+          <Text style={styles.cardTitle}>I'm a Patient</Text>
+          <Text style={styles.cardSubtitle}>Book appointments, manage your dental health</Text>
+        </View>
+        <View style={[styles.chevronCircle, { backgroundColor: '#F0FDF4' }]}>
+          <Ionicons name="chevron-forward" size={20} color="#16A34A" />
+        </View>
+      </TouchableOpacity>
+
+      {/* Vendor Card (disabled, Coming Soon) */}
+      <View style={[styles.card, styles.cardDisabled]}>
+        <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}>
+          <Ionicons name="bag-handle-outline" size={36} color="#A78BFA" />
+        </View>
+        <View style={styles.cardTextContainer}>
+          <View style={styles.vendorTitleRow}>
+            <Text style={[styles.cardTitle, styles.disabledText]}>I'm a Vendor</Text>
+            <View style={styles.comingSoonBadge}>
+              <Text style={styles.comingSoonText}>Coming Soon</Text>
+            </View>
+          </View>
+          <Text style={[styles.cardSubtitle, styles.disabledText]}>Provide dental products and services</Text>
+        </View>
+        <View style={[styles.chevronCircle, { backgroundColor: '#F3F4F6' }]}>
+          <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+        </View>
+      </View>
+
+    </View>
+  );
+
+  // ── Wide web: brand split-panel + role cards in the form card ──
+  if (isWide) {
+    return (
+      <WebAuthLayout
+        title={'Welcome to\nMy Dentist PK.'}
+        subtitle="Pakistan's trusted platform to discover dentists, book appointments, and manage dental care."
+      >
+        <Text style={styles.webHeading}>Continue as</Text>
+        <Text style={styles.webSubheading}>Choose how you’d like to use My Dentist PK</Text>
+        {roleCards}
+      </WebAuthLayout>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea} edges={['top', 'bottom']}>
@@ -58,76 +129,15 @@ export default function RoleSelectionScreen({ navigation }) {
         </View>
 
         {/* Role Cards */}
-        <View style={styles.cardsContainer}>
-
-          {/* Doctor Card */}
-          <TouchableOpacity
-            style={styles.card}
-            onPress={handleDoctor}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="person-circle-outline" size={36} color="#2563EB" />
-            </View>
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>I'm a Doctor</Text>
-              <Text style={styles.cardSubtitle}>
-                Manage your practice, appointments and patients
-              </Text>
-            </View>
-            <View style={[styles.chevronCircle, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="chevron-forward" size={20} color="#2563EB" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Patient Card */}
-          <TouchableOpacity
-            style={styles.card}
-            onPress={handlePatient}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="person-outline" size={36} color="#16A34A" />
-            </View>
-            <View style={styles.cardTextContainer}>
-              <Text style={styles.cardTitle}>I'm a Patient</Text>
-              <Text style={styles.cardSubtitle}>
-                Book appointments, manage your dental health
-              </Text>
-            </View>
-            <View style={[styles.chevronCircle, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="chevron-forward" size={20} color="#16A34A" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Vendor Card (disabled, Coming Soon) */}
-          <View style={[styles.card, styles.cardDisabled]}>
-            <View style={[styles.iconBox, { backgroundColor: '#FAF5FF' }]}>
-              <Ionicons name="bag-handle-outline" size={36} color="#A78BFA" />
-            </View>
-            <View style={styles.cardTextContainer}>
-              <View style={styles.vendorTitleRow}>
-                <Text style={[styles.cardTitle, styles.disabledText]}>I'm a Vendor</Text>
-                <View style={styles.comingSoonBadge}>
-                  <Text style={styles.comingSoonText}>Coming Soon</Text>
-                </View>
-              </View>
-              <Text style={[styles.cardSubtitle, styles.disabledText]}>
-                Provide dental products and services
-              </Text>
-            </View>
-            <View style={[styles.chevronCircle, { backgroundColor: '#F3F4F6' }]}>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </View>
-          </View>
-
-        </View>
+        {roleCards}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  webHeading: { fontSize: 26, fontWeight: '800', color: '#0A1551', marginBottom: 4 },
+  webSubheading: { fontSize: 15, color: '#64748B', marginBottom: 20 },
   safeArea: {
     flex: 1,
     backgroundColor: '#EFF6FF',

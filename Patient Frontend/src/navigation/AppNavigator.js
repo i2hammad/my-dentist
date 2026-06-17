@@ -39,6 +39,12 @@ import OrthodonticsScreen from '../screens/OrthodonticsScreen';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
+import WebTopNav from '../components/WebTopNav';
+
+// On web, render a top navigation bar (brand + tabs + profile) in place of the
+// bottom/left tab bar. Native keeps the default bottom tabs.
+const isWeb = Platform.OS === 'web';
+const webTabBar = isWeb ? (props) => <WebTopNav {...props} /> : undefined;
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -89,6 +95,7 @@ function MainTabNavigator() {
   const tabBarOptions = useTabBarOptions();
   return (
     <Tab.Navigator
+      tabBar={webTabBar}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
@@ -122,6 +129,7 @@ function DoctorTabNavigator() {
 
   return (
     <Tab.Navigator
+      tabBar={webTabBar}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {

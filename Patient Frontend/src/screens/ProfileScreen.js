@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView, Share, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,6 +26,7 @@ export default function ProfileScreen({ navigation }) {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const [profileExists, setProfileExists] = useState(false);
+  const [referral, setReferral] = useState(null);
   
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
@@ -36,8 +37,32 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     if (isFocused) {
       fetchUserProfile();
+      fetchReferral();
     }
   }, [isFocused]);
+
+  const fetchReferral = async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.get(`${API_BASE_URL}/api/users/referral`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data?.success) setReferral(res.data.data);
+    } catch (e) { /* non-critical */ }
+  };
+
+  const shareReferral = async () => {
+    let data = referral;
+    if (!data) {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.get(`${API_BASE_URL}/api/users/referral`, { headers: { Authorization: `Bearer ${token}` } });
+        data = res.data?.data; setReferral(data);
+      } catch (e) { return Alert.alert('Error', 'Could not load your referral code. Please try again.'); }
+    }
+    const link = data.webLink || data.appLink;
+    Share.share({
+      message: `Join me on My Dentist PK! Use my referral code ${data.code} when you sign up — we both get 100 reward points after your first treatment. ${link}`,
+    });
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -400,6 +425,26 @@ export default function ProfileScreen({ navigation }) {
 
             </View>
 
+            {/* Refer a Friend */}
+            <View style={styles.referCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Ionicons name="gift" size={20} color="#FFFFFF" />
+                <Text style={styles.referTitle}>Refer a Friend</Text>
+              </View>
+              <Text style={styles.referDesc}>You and your friend each get 100 points when they join and complete their first treatment.</Text>
+              {referral ? (
+                <View style={styles.referCodeBox}>
+                  <Text style={styles.referCodeLabel}>Your code</Text>
+                  <Text style={styles.referCode}>{referral.code}</Text>
+                  <Text style={styles.referStats}>{referral.referredCount} referred · {referral.referralPointsEarned} pts earned</Text>
+                </View>
+              ) : null}
+              <TouchableOpacity style={styles.referBtn} onPress={shareReferral}>
+                <Ionicons name="share-social-outline" size={18} color="#0052FF" />
+                <Text style={styles.referBtnText}>Share Invite Link</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Support & Help */}
             <View style={styles.supportCard}>
               <Text style={styles.supportTitle}>Support & Help</Text>
@@ -611,6 +656,15 @@ const styles = StyleSheet.create({
   supportIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   supportLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   supportValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
+  referCard: { backgroundColor: '#0052FF', borderRadius: 16, padding: 18, marginBottom: 12 },
+  referTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+  referDesc: { fontSize: 13, color: '#DBEAFE', lineHeight: 19, marginBottom: 14 },
+  referCodeBox: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginBottom: 14 },
+  referCodeLabel: { fontSize: 11, color: '#BFDBFE', fontWeight: '600' },
+  referCode: { fontSize: 22, color: '#FFFFFF', fontWeight: '900', letterSpacing: 2, marginTop: 2 },
+  referStats: { fontSize: 12, color: '#DBEAFE', marginTop: 4 },
+  referBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13 },
+  referBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 15 },
   bottomBar: {
     backgroundColor: '#F8FAFC',
     padding: 20,

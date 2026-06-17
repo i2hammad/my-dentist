@@ -443,6 +443,13 @@ const completeAppointment = async (req, res) => {
       // Doctor earns points too — drives the green "popular" badge at 20k.
       const { addDoctorPoints } = require('../utils/popular');
       await addDoctorPoints(appointment.doctorId._id, patientPts);
+
+      // Referral bonus: 100/100 to the patient + their referrer after this
+      // patient's FIRST completed treatment.
+      const PatientProfile = require('../models/PatientProfile');
+      const fullPatient = await PatientProfile.findById(appointment.patientId._id);
+      const { rewardReferralOnFirstTreatment } = require('../utils/referral');
+      await rewardReferralOnFirstTreatment(fullPatient);
     } catch (e) {
       console.error('Award points error (non-fatal):', e.message);
     }

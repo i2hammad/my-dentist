@@ -11,10 +11,16 @@ const {
   uploadAvatar,
   uploadFile,
   upload,
-  updateDoctorProfile
+  updateDoctorProfile,
+  getReferral,
+  applyReferral
 } = require('../controllers/user.controller');
 
 const router = express.Router();
+
+// Referral program
+router.get('/referral', protect, getReferral);
+router.post('/referral/apply', protect, applyReferral);
 
 // All routes below require authentication
 router.use(protect);

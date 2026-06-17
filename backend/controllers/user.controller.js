@@ -339,3 +339,56 @@ const updateDoctorProfile = async (req, res) => {
   }
 };
 module.exports.updateDoctorProfile = updateDoctorProfile;
+
+// ─── Referral program ──────────────────────────────────────
+// @route GET /api/users/referral  — my referral code + share link + points earned
+const getReferral = async (req, res) => {
+  try {
+    const PatientProfile = require('../models/PatientProfile');
+    const Reward = require('../models/Reward');
+    const { ensureReferralCode, REFERRAL_POINTS } = require('../utils/referral');
+    const profile = await PatientProfile.findOne({ userId: req.user._id });
+    if (!profile) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    const code = await ensureReferralCode(profile);
+    const referredCount = await PatientProfile.countDocuments({ referredBy: profile._id });
+    const earned = await Reward.aggregate([
+      { $match: { patientId: profile._id, type: 'referral' } },
+      { $group: { _id: null, total: { $sum: '$points' } } },
+    ]);
+    res.json({
+      success: true,
+      data: {
+        code,
+        pointsPerReferral: REFERRAL_POINTS,
+        referredCount,
+        referralPointsEarned: earned[0]?.total || 0,
+        // Share links (web app deep links). The app reads ?ref=CODE at signup.
+        webLink: `https://my-dentist-pk-website.vercel.app/?ref=${code}`,
+        appLink: `https://my-dentist-webapp.vercel.app/?ref=${code}`,
+      },
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// @route POST /api/users/referral/apply  body: { code } — link this patient to a referrer
+const applyReferral = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
+    const PatientProfile = require('../models/PatientProfile');
+    const me = await PatientProfile.findOne({ userId: req.user._id });
+    if (!me) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
+
+    const referrer = await PatientProfile.findOne({ referralCode: code.trim().toUpperCase() });
+    if (!referrer) return res.status(404).json({ success: false, message: 'Invalid referral code.' });
+    if (String(referrer._id) === String(me._id)) return res.status(400).json({ success: false, message: "You can't use your own referral code." });
+
+    me.referredBy = referrer._id;
+    await me.save();
+    res.json({ success: true, message: 'Referral applied! You and your friend get 100 points after your first completed treatment.' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+module.exports.getReferral = getReferral;
+module.exports.applyReferral = applyReferral;

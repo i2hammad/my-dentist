@@ -11,7 +11,12 @@ import { useNotifications } from '../context/NotificationContext';
 // icon come from each route's descriptor options. The right-hand profile button
 // activates the route named "Profile" so it stays in sync with the tabs.
 export default function WebTopNav({ state, descriptors, navigation }) {
-  const { unreadChatCount = 0 } = useNotifications() || {};
+  const { unreadChatCount = 0, unreadCount = 0 } = useNotifications() || {};
+
+  // Is this the patient navigator? (has a Home tab). Doctors don't get the
+  // patient-only quick actions (appointments/inbox/notifications stack routes).
+  const isPatient = state.routes.some((r) => r.name === 'Home');
+  const goStack = (name) => navigation.navigate(name);
 
   const onPress = (route, isFocused) => {
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -68,8 +73,27 @@ export default function WebTopNav({ state, descriptors, navigation }) {
           })}
         </ScrollView>
 
-        {/* Right cluster: profile */}
+        {/* Right cluster: quick actions + profile */}
         <View style={styles.right}>
+          {isPatient && (
+            <>
+              <Pressable style={styles.iconBtn} onPress={() => goStack('Appointments')}>
+                <Ionicons name="calendar-outline" size={22} color="#334155" />
+              </Pressable>
+              <Pressable style={styles.iconBtn} onPress={() => goStack('PatientInbox')}>
+                <Ionicons name="chatbubbles-outline" size={22} color="#334155" />
+                {unreadChatCount > 0 && (
+                  <View style={styles.badge}><Text style={styles.badgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text></View>
+                )}
+              </Pressable>
+              <Pressable style={styles.iconBtn} onPress={() => goStack('Notifications')}>
+                <Ionicons name="notifications-outline" size={22} color="#334155" />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
+                )}
+              </Pressable>
+            </>
+          )}
           {profileRoute && (() => {
             const descriptor = descriptors[profileRoute.key];
             const isFocused = state.routes[state.index].key === profileRoute.key;
@@ -122,7 +146,8 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 14.5, fontWeight: '600', color: '#64748B' },
   linkTextActive: { color: '#0052FF' },
 
-  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  iconBtn: { position: 'relative', padding: 8, borderRadius: 10 },
   profileBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
@@ -132,8 +157,10 @@ const styles = StyleSheet.create({
   profileText: { fontSize: 14, fontWeight: '600', color: '#334155' },
 
   badge: {
-    minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444',
-    paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', marginLeft: 2,
+    position: 'absolute', top: 2, right: 2,
+    minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444',
+    paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#FFFFFF',
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
 });

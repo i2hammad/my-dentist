@@ -10,7 +10,10 @@ import {
   FlatList,
   Pressable,
   Alert,
+  Platform,
 } from 'react-native';
+
+const isWeb = Platform.OS === 'web';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -283,8 +286,11 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
 
       {/* ── BLUE HEADER ── */}
+      {/* On web the brand + action icons live in the top navbar (WebTopNav),
+          so we drop Row 1 here and keep only the location row. */}
       <AnimatedHeader style={styles.blueHeader}>
-        {/* Row 1 */}
+        {/* Row 1 — mobile only */}
+        {!isWeb && (
         <View style={styles.headerRow1}>
           <Text style={styles.headerTitle}>My Dentist PK</Text>
           <View style={styles.headerRight}>
@@ -339,6 +345,7 @@ export default function HomeScreen({ navigation }) {
             </PressableScale>
           </View>
         </View>
+        )}
 
         {/* Row 2: Location */}
         <PressableScale style={styles.locationRow} scaleTo={0.97}>

@@ -38,7 +38,6 @@ import OrthodonticsScreen from '../screens/OrthodonticsScreen';
 
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
-import useResponsive from '../hooks/useResponsive';
 import WebTopNav from '../components/WebTopNav';
 
 // On web, render a top navigation bar (brand + tabs + profile) in place of the
@@ -49,25 +48,17 @@ const webTabBar = isWeb ? (props) => <WebTopNav {...props} /> : undefined;
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Tab bar styling shared by patient + doctor navigators. On wide web the
-// bar moves to the left as a sidebar; on phones it stays at the bottom.
+// Tab bar styling shared by patient + doctor navigators. On web a custom top
+// navbar (WebTopNav) is used, so the scene must sit at the TOP position to fill
+// the full width below it. On phones the bar stays at the bottom.
 function useTabBarOptions() {
-  const { isWide } = useResponsive();
   const insets = useSafeAreaInsets();
-  if (isWide) {
+  if (isWeb) {
+    // The custom WebTopNav handles rendering; 'top' makes the scene full-width.
     return {
-      tabBarPosition: 'left',
-      tabBarVariant: 'material',
+      tabBarPosition: 'top',
       tabBarActiveTintColor: '#0052FF',
       tabBarInactiveTintColor: '#64748B',
-      tabBarStyle: {
-        width: 230,
-        paddingTop: 16,
-        backgroundColor: '#FFFFFF',
-        borderRightWidth: 1,
-        borderRightColor: '#E2E8F0',
-      },
-      tabBarLabelStyle: { fontSize: 14, fontWeight: '600' },
     };
   }
   // Add the device's bottom safe-area inset (gesture nav bar) so labels aren't

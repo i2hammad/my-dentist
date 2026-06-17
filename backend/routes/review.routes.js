@@ -11,7 +11,8 @@ const {
   getDoctorReviewStats,
   createReview,
   toggleHelpful,
-  deleteReview
+  deleteReview,
+  replyToReview
 } = require('../controllers/review.controller');
 
 // --- Public routes ---
@@ -78,6 +79,17 @@ router.put(
   ],
   validate,
   toggleHelpful
+);
+
+// @route   PUT /api/reviews/:id/reply
+// @desc    Doctor replies to a review on their profile
+router.put(
+  '/:id/reply',
+  protect,
+  authorize('doctor'),
+  [param('id').isMongoId().withMessage('Invalid review ID')],
+  validate,
+  replyToReview
 );
 
 // @route   DELETE /api/reviews/:id

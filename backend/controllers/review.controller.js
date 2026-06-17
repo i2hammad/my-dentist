@@ -330,10 +330,41 @@ const deleteReview = async (req, res) => {
   }
 };
 
+// @desc    Doctor replies to a review on their profile
+// @route   PUT /api/reviews/:id/reply
+// @access  Protected (doctor)
+const replyToReview = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Reply text is required' });
+    }
+    const Review = require('../models/Review');
+    const DoctorProfile = require('../models/DoctorProfile');
+
+    const review = await Review.findById(req.params.id);
+    if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
+
+    // Ensure the logged-in doctor owns this review's profile.
+    const doctorProfile = await DoctorProfile.findOne({ userId: req.user._id });
+    if (!doctorProfile || String(review.doctorId) !== String(doctorProfile._id)) {
+      return res.status(403).json({ success: false, message: 'You can only reply to reviews on your own profile' });
+    }
+
+    review.doctorReply = { text: text.trim(), repliedAt: new Date() };
+    await review.save();
+    res.json({ success: true, message: 'Reply posted', data: review });
+  } catch (error) {
+    console.error('Reply to review error:', error);
+    res.status(500).json({ success: false, message: 'Server error while replying' });
+  }
+};
+
 module.exports = {
   getDoctorReviews,
   getDoctorReviewStats,
   createReview,
   toggleHelpful,
-  deleteReview
+  deleteReview,
+  replyToReview
 };

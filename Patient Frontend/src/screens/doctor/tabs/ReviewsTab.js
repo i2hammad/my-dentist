@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity, Dimensions, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -14,7 +14,65 @@ export default function ReviewsTab({ profile }) {
   const [stats, setStats] = useState({ average: 0, count: 0, distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } });
   const [loading, setLoading] = useState(true);
 
-  const services = profile?.services && profile.services.length > 0 ? profile.services : [];
+  // Editable facilities & services (persisted to the doctor profile).
+  const [services, setServices] = useState([]);
+  const [newService, setNewService] = useState('');
+  const [savingServices, setSavingServices] = useState(false);
+
+  // Reply modal state.
+  const [replyTarget, setReplyTarget] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [postingReply, setPostingReply] = useState(false);
+
+  useEffect(() => {
+    const list = (profile?.services && profile.services.length > 0)
+      ? profile.services.map(s => (typeof s === 'string' ? s : s.name))
+      : [];
+    setServices(list);
+  }, [profile?._id]);
+
+  const persistServices = async (list) => {
+    setSavingServices(true);
+    try {
+      const token = await storage.getItem('userToken');
+      await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { services: list }, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (e) {
+      Alert.alert('Error', 'Could not save services. Please try again.');
+    } finally {
+      setSavingServices(false);
+    }
+  };
+
+  const addService = () => {
+    const v = newService.trim();
+    if (!v) return;
+    if (services.includes(v)) { setNewService(''); return; }
+    const list = [...services, v];
+    setServices(list); setNewService('');
+    persistServices(list);
+  };
+
+  const removeService = (name) => {
+    const list = services.filter(s => s !== name);
+    setServices(list);
+    persistServices(list);
+  };
+
+  const submitReply = async () => {
+    if (!replyText.trim() || !replyTarget) return;
+    setPostingReply(true);
+    try {
+      const token = await storage.getItem('userToken');
+      await axios.put(`${API_BASE_URL}/api/reviews/${replyTarget._id}/reply`, { text: replyText.trim() }, { headers: { Authorization: `Bearer ${token}` } });
+      setReplyTarget(null); setReplyText('');
+      fetchReviews();
+      Alert.alert('Reply posted', 'Your reply is now visible on this review.');
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Could not post reply.');
+    } finally {
+      setPostingReply(false);
+    }
+  };
 
   useEffect(() => {
     fetchReviews();
@@ -68,29 +126,43 @@ export default function ReviewsTab({ profile }) {
           {/* Left Side: Services & Reviews */}
           <View style={styles.leftCol}>
             
-            {/* Our Services */}
+            {/* Facilities & Services (add / remove) */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Our Services</Text>
-              <Text style={styles.cardSubtitle}>Facilities & services available at Dr. {profile?.fullName || ''}'s clinic</Text>
+              <Text style={styles.cardTitle}>Facilities & Services</Text>
+              <Text style={styles.cardSubtitle}>Add or remove facilities & services available at your clinic{savingServices ? '  • saving…' : ''}</Text>
 
               {services.length > 0 ? (
                 <View style={styles.servicesGrid}>
-                  {services.map((item, idx) => {
-                    const label = typeof item === 'string' ? item : item.name;
-                    const icon = typeof item === 'string' ? 'checkmark-circle-outline' : (item.icon || 'checkmark-circle-outline');
-                    return (
-                      <View key={idx} style={styles.serviceItem}>
-                        <Ionicons name={icon} size={16} color="#0052FF" />
-                        <Text style={styles.serviceText} numberOfLines={1}>{label}</Text>
-                      </View>
-                    );
-                  })}
+                  {services.map((label, idx) => (
+                    <View key={idx} style={styles.serviceItem}>
+                      <Ionicons name="checkmark-circle" size={16} color="#0052FF" />
+                      <Text style={styles.serviceText} numberOfLines={1}>{label}</Text>
+                      <TouchableOpacity onPress={() => removeService(label)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close-circle" size={16} color="#94A3B8" style={{ marginLeft: 6 }} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
               ) : (
                 <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 8, fontStyle: 'italic' }}>
-                  No services listed yet. Update your profile to add clinic services.
+                  No services listed yet. Add your first facility / service below.
                 </Text>
               )}
+
+              <View style={styles.addServiceRow}>
+                <TextInput
+                  style={styles.addServiceInput}
+                  value={newService}
+                  onChangeText={setNewService}
+                  placeholder="e.g. Teeth Whitening, X-Ray, Parking"
+                  placeholderTextColor="#94A3B8"
+                  onSubmitEditing={addService}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity style={styles.addServiceBtn} onPress={addService}>
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Patient Reviews */}
@@ -167,8 +239,7 @@ export default function ReviewsTab({ profile }) {
                               title: 'Review Options',
                               message: `Reviewer: ${review.patientId?.fullName || 'Patient'}\nRating: ${review.rating} Stars`,
                               options: [
-                                { text: 'Reply to Review', onPress: () => Alert.alert('Reply', 'Reply feature will be active soon!') },
-                                { text: 'Report Review', style: 'destructive', onPress: () => Alert.alert('Reported', 'Review reported for administrative review.') },
+                                { text: review.doctorReply?.text ? 'Edit Reply' : 'Reply to Review', onPress: () => { setReplyTarget(review); setReplyText(review.doctorReply?.text || ''); } },
                                 { text: 'Close', style: 'cancel' }
                               ]
                             });
@@ -178,10 +249,28 @@ export default function ReviewsTab({ profile }) {
                         </TouchableOpacity>
                       </View>
                       <Text style={styles.commentText}>{review.comment}</Text>
-                      <TouchableOpacity style={styles.helpfulBtn}>
-                        <Ionicons name="thumbs-up-outline" size={14} color="#64748B" />
-                        <Text style={styles.helpfulBtnText}>Helpful ({review.helpfulCount || 0})</Text>
-                      </TouchableOpacity>
+
+                      {/* Doctor's reply (if any) */}
+                      {review.doctorReply?.text ? (
+                        <View style={styles.replyBox}>
+                          <View style={styles.replyHeader}>
+                            <Ionicons name="arrow-undo" size={13} color="#0052FF" />
+                            <Text style={styles.replyAuthor}>Your reply</Text>
+                          </View>
+                          <Text style={styles.replyText}>{review.doctorReply.text}</Text>
+                        </View>
+                      ) : null}
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>
+                        <TouchableOpacity style={styles.helpfulBtn}>
+                          <Ionicons name="thumbs-up-outline" size={14} color="#64748B" />
+                          <Text style={styles.helpfulBtnText}>Helpful ({review.helpfulCount || 0})</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.helpfulBtn} onPress={() => { setReplyTarget(review); setReplyText(review.doctorReply?.text || ''); }}>
+                          <Ionicons name="chatbubble-outline" size={14} color="#0052FF" />
+                          <Text style={[styles.helpfulBtnText, { color: '#0052FF' }]}>{review.doctorReply?.text ? 'Edit Reply' : 'Reply'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))
                 ) : (
@@ -246,6 +335,30 @@ export default function ReviewsTab({ profile }) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Reply modal */}
+      <Modal visible={!!replyTarget} transparent animationType="slide" onRequestClose={() => setReplyTarget(null)}>
+        <View style={styles.replyOverlay}>
+          <View style={styles.replyModal}>
+            <View style={styles.replyModalHead}>
+              <Text style={styles.replyModalTitle}>Reply to {replyTarget?.patientId?.fullName || 'Patient'}</Text>
+              <TouchableOpacity onPress={() => setReplyTarget(null)}><Ionicons name="close" size={22} color="#64748B" /></TouchableOpacity>
+            </View>
+            {!!replyTarget?.comment && <Text style={styles.replyQuote}>“{replyTarget.comment}”</Text>}
+            <TextInput
+              style={styles.replyInput}
+              value={replyText}
+              onChangeText={setReplyText}
+              placeholder="Write a professional reply…"
+              placeholderTextColor="#94A3B8"
+              multiline
+            />
+            <TouchableOpacity style={[styles.replySubmit, postingReply && { opacity: 0.6 }]} onPress={submitReply} disabled={postingReply}>
+              {postingReply ? <ActivityIndicator color="#FFF" /> : <Text style={styles.replySubmitText}>Post Reply</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );
@@ -342,5 +455,24 @@ const styles = StyleSheet.create({
   /* Footer */
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   bookBtn: { backgroundColor: '#0052FF', height: 40, borderRadius: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  bookBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' }
+  bookBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
+
+  /* Add service */
+  addServiceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  addServiceInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13.5, color: '#0F172A' },
+  addServiceBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#0052FF', justifyContent: 'center', alignItems: 'center' },
+
+  /* Doctor reply */
+  replyBox: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#0052FF' },
+  replyHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  replyAuthor: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+  replyText: { fontSize: 13, color: '#334155', lineHeight: 18 },
+  replyOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  replyModal: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
+  replyModalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  replyModalTitle: { fontSize: 17, fontWeight: '700', color: '#0A1551' },
+  replyQuote: { fontSize: 13, color: '#64748B', fontStyle: 'italic', marginBottom: 12 },
+  replyInput: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, minHeight: 90, textAlignVertical: 'top', fontSize: 14, color: '#0F172A' },
+  replySubmit: { backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+  replySubmitText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
 });

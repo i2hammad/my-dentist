@@ -38,6 +38,11 @@ const reviewSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    // Doctor's reply to this review.
+    doctorReply: {
+      text: { type: String, default: '' },
+      repliedAt: { type: Date, default: null },
+    },
   },
   {
     timestamps: true,

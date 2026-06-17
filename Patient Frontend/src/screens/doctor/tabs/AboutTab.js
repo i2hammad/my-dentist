@@ -53,6 +53,22 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
   const cancelRate = allAppts.length > 0 ? Math.round((cancelledThisMonth / Math.max(allAppts.length, 1)) * 100) : 0;
   const returningRate = totalPatients > 0 ? Math.min(Math.round((past.length / Math.max(totalPatients, 1)) * 50), 100) : 0;
 
+  // Build a readable clinic-timing string: prefer morning/evening sessions +
+  // available days; fall back to the legacy single start/end range.
+  const buildTiming = () => {
+    const t = profile?.clinicTiming;
+    if (!t) return 'Not specified';
+    const lines = [];
+    const days = (t.availableDays && t.availableDays.length) ? t.availableDays.join(', ') : (t.days || '');
+    if (days) lines.push(days);
+    if (t.morningStart && t.morningEnd) lines.push(`Morning: ${t.morningStart} - ${t.morningEnd}`);
+    if (t.eveningStart && t.eveningEnd) lines.push(`Evening: ${t.eveningStart} - ${t.eveningEnd}`);
+    // Legacy fallback if no sessions set
+    if (!t.morningStart && !t.eveningStart && t.startTime && t.endTime) lines.push(`${t.startTime} - ${t.endTime}`);
+    if (t.offDays && t.offDays.length) lines.push(`Off: ${t.offDays.join(', ')}`);
+    return lines.length ? lines.join('\n') : 'Not specified';
+  };
+
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
       {/* Dashboard Overview */}
@@ -78,7 +94,7 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
           <CredentialRow icon="medical-outline" label="Specialization" value={profile?.specialization || 'Not specified'} />
           <CredentialRow icon="shield-checkmark-outline" label="PMDC Verified" value={profile?.pmdcVerified ? 'Yes ✅' : 'No'} />
           <CredentialRow icon="language-outline" label="Languages" value={profile?.languages?.length ? profile.languages.join(', ') : 'Not specified'} />
-          <CredentialRow icon="time-outline" label="Clinic Timing" value={profile?.clinicTiming ? `${profile.clinicTiming.days || ''}\n${profile.clinicTiming.startTime || ''} - ${profile.clinicTiming.endTime || ''}` : 'Not specified'} />
+          <CredentialRow icon="time-outline" label="Clinic Timing" value={buildTiming()} />
         </View>
       </View>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView, Share, Alert } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -14,7 +14,6 @@ import { SkeletonProfile } from '../components/Skeleton';
 import { webForm, isWeb } from '../config/webLayout';
 
 export default function ProfileScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const isFocused = useIsFocused();
@@ -24,6 +23,7 @@ export default function ProfileScreen({ navigation }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [city, setCity] = useState('');
   const [location, setLocation] = useState('');
+  const [coords, setCoords] = useState('');
   const [detectingLoc, setDetectingLoc] = useState(false);
   const [gender, setGender] = useState('Select your gender');
   const [dateOfBirth, setDateOfBirth] = useState('');
@@ -437,7 +437,20 @@ export default function ProfileScreen({ navigation }) {
                     multiline
                   />
                 </View>
-                <TouchableOpacity style={styles.preciseLocationBtn} onPress={() => detectCoords(setLocation, setDetectingLoc)} disabled={detectingLoc}>
+                {coords ? (
+                  <View style={styles.coordsRow}>
+                    <Ionicons name="navigate" size={13} color="#16A34A" />
+                    <Text style={styles.coordsText}>{coords}</Text>
+                  </View>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.preciseLocationBtn}
+                  onPress={() => detectCoords(
+                    (text, details) => { setLocation(details?.address || text); setCoords(details?.coords || ''); },
+                    setDetectingLoc
+                  )}
+                  disabled={detectingLoc}
+                >
                   {detectingLoc ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="locate" size={16} color="#FFFFFF" />}
                   <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Detecting your location…' : 'Use My Precise Location'}</Text>
                 </TouchableOpacity>
@@ -482,28 +495,24 @@ export default function ProfileScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <View style={{ height: 20 }} />
+            {/* Save button flows right after the content (no floating gap) */}
+            <TouchableOpacity
+              style={[styles.saveButton, webForm, { marginTop: 20 }, saving && { opacity: 0.7 }]}
+              onPress={handleSaveChanges}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="save" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.saveButtonText}>{profileExists ? 'Update Profile' : 'Save Profile'}</Text>
+                </>
+              )}
+            </TouchableOpacity>
              </>
             )}
           </ScrollView>
-        </View>
-
-        {/* Bottom Fixed Save Button */}
-        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-          <TouchableOpacity
-            style={[styles.saveButton, webForm, saving && { opacity: 0.7 }]}
-            onPress={handleSaveChanges}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="save" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.saveButtonText}>{profileExists ? 'Update Profile' : 'Save Profile'}</Text>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -547,7 +556,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 100, // space for bottom bar
+    paddingBottom: 28,
   },
   avatarWrapper: {
     alignSelf: 'center',
@@ -696,6 +705,19 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     textAlignVertical: 'top',
   },
+  coordsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: 12,
+  },
+  coordsText: { fontSize: 12, fontWeight: '600', color: '#15803D' },
   preciseLocationBtn: {
     backgroundColor: '#0066FF',
     flexDirection: 'row',

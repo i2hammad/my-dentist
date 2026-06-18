@@ -31,23 +31,33 @@ async function webReverseGeocode(lat, lng) {
 }
 
 /**
- * Detect the user's precise location and return a READABLE ADDRESS (not raw
- * coordinates). Falls back to "lat, lng" only if reverse geocoding fails.
+ * Detect the user's precise location and return BOTH a readable address and the
+ * raw coordinates.
  *
  *   detectCoords(onResult, onBusy)
- *     onResult(address: string)   // human-readable address, e.g. "F-7 Markaz, Islamabad"
- *     onBusy(boolean)             // toggles a loading spinner
+ *     onResult(value)  // backwards-compatible string (address, or "lat, lng")
+ *                      // AND a second arg: { address, coords: "lat, lng", latitude, longitude }
+ *     onBusy(boolean)  // toggles a loading spinner
+ *
+ * Callers can either use the first string arg as before, or read the details
+ * object for both the address and the coordinates.
  */
 export async function detectCoords(onResult, onBusy) {
   onBusy && onBusy(true);
-  const done = (v) => { onBusy && onBusy(false); if (v) onResult(v); };
+  const finish = (address, latitude, longitude) => {
+    onBusy && onBusy(false);
+    if (latitude == null) { if (address) onResult(address); return; }
+    const coords = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const text = address || coords;
+    onResult(text, { address: address || '', coords, latitude, longitude });
+  };
 
   try {
     if (Platform.OS !== 'web') {
       const Location = require('expo-location');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        done(null);
+        onBusy && onBusy(false);
         Alert.alert('Permission needed', 'Location permission was denied. You can type your location manually instead.');
         return;
       }
@@ -58,24 +68,24 @@ export async function detectCoords(onResult, onBusy) {
         const results = await Location.reverseGeocodeAsync({ latitude, longitude });
         address = formatNativeAddress(results && results[0]);
       } catch { /* fall back to coords */ }
-      done(address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+      finish(address, latitude, longitude);
       return;
     }
 
     // Web
     const geo = (typeof navigator !== 'undefined' && navigator.geolocation) ? navigator.geolocation : null;
-    if (!geo) { done(null); window.alert('Location not available. Please type your location manually.'); return; }
+    if (!geo) { onBusy && onBusy(false); window.alert('Location not available. Please type your location manually.'); return; }
     geo.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         const address = await webReverseGeocode(latitude, longitude);
-        done(address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+        finish(address, latitude, longitude);
       },
-      (err) => { done(null); window.alert(err?.code === 1 ? 'Location permission denied.' : 'Could not get location.'); },
+      (err) => { onBusy && onBusy(false); window.alert(err?.code === 1 ? 'Location permission denied.' : 'Could not get location.'); },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   } catch (e) {
-    done(null);
+    onBusy && onBusy(false);
     Alert.alert('Location', 'Could not get your location. Please type it manually.');
   }
 }

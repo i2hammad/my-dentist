@@ -338,25 +338,25 @@ export default function PatientSetupScreen({ navigation }) {
               )}
               </View>
 
-              <View style={[styles.fieldItem, webHalf]}>
+              <View style={[styles.fieldItem, webHalf, showGenderDropdown && styles.fieldItemOpen]}>
               <Text style={styles.label}>Gender</Text>
               <TouchableOpacity
                 style={styles.inputContainer}
-                onPress={() => setShowGenderDropdown(!showGenderDropdown)}
+                onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowCityDropdown(false); }}
                 activeOpacity={0.8}
               >
                 <Ionicons name="people-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <Text style={[styles.input, { color: gender === 'Select your gender' ? '#94A3B8' : '#0F172A', paddingTop: Platform.OS==='ios'?14:0 }]}>
                   {gender}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                <Ionicons name={showGenderDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
               </TouchableOpacity>
-              
+
               {showGenderDropdown && (
                 <View style={styles.dropdownMenu}>
                   {['Male', 'Female', 'Other'].map((g) => (
-                    <TouchableOpacity 
-                      key={g} 
+                    <TouchableOpacity
+                      key={g}
                       style={styles.dropdownItem}
                       onPress={() => { setGender(g); setShowGenderDropdown(false); }}
                     >
@@ -367,28 +367,28 @@ export default function PatientSetupScreen({ navigation }) {
               )}
               </View>
 
-              <View style={[styles.fieldItem, webHalf]}>
+              <View style={[styles.fieldItem, webHalf, showCityDropdown && styles.fieldItemOpen]}>
               <Text style={styles.label}>City</Text>
               <TouchableOpacity
                 style={styles.inputContainer}
-                onPress={() => setShowCityDropdown(!showCityDropdown)}
+                onPress={() => { setShowCityDropdown(!showCityDropdown); setShowGenderDropdown(false); }}
               >
                 <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <Text style={[styles.input, { color: city ? '#0F172A' : '#94A3B8' }]}>
                   {city || 'Select your city'}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color="#94A3B8" />
+                <Ionicons name={showCityDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
               </TouchableOpacity>
 
               {showCityDropdown && (
-                <View style={styles.dropdownContainer}>
+                <View style={styles.dropdownMenu}>
                   {cities.map((c) => (
                     <TouchableOpacity 
                       key={c} 
                       style={styles.dropdownItem} 
                       onPress={() => { setCity(c); setShowCityDropdown(false); }}
                     >
-                      <Text style={styles.dropdownText}>{c}</Text>
+                      <Text style={styles.dropdownItemText}>{c}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -554,7 +554,8 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   fieldGrid: {},
-  fieldItem: {},
+  fieldItem: { position: 'relative', zIndex: 1 },
+  fieldItemOpen: { zIndex: 1000 },
   label: {
     fontSize: 13,
     fontWeight: 'bold',
@@ -581,12 +582,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   dropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 8,
     marginTop: 4,
     padding: 4,
+    zIndex: 1000,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
   },
   dropdownItem: {
     padding: 12,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView, Share, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -14,6 +14,7 @@ import { SkeletonProfile } from '../components/Skeleton';
 import { webForm, isWeb } from '../config/webLayout';
 
 export default function ProfileScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const isFocused = useIsFocused();
@@ -424,18 +425,21 @@ export default function ProfileScreen({ navigation }) {
               </View>
 
               <Text style={styles.label}>Location / Address</Text>
-              <View style={[styles.inputContainer, { paddingRight: 6 }]}>
-                <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput 
-                  style={styles.input}
-                  value={location}
-                  onChangeText={setLocation}
-                  placeholder="Add your precise location"
-                  placeholderTextColor="#94A3B8"
-                />
+              <View style={styles.locationCard}>
+                <View style={styles.locationInputRow}>
+                  <Ionicons name="location-outline" size={20} color="#94A3B8" style={{ marginRight: 10, marginTop: 2 }} />
+                  <TextInput
+                    style={styles.locationInput}
+                    value={location}
+                    onChangeText={setLocation}
+                    placeholder="Add your full address (house, street, area, city)"
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                  />
+                </View>
                 <TouchableOpacity style={styles.preciseLocationBtn} onPress={() => detectCoords(setLocation, setDetectingLoc)} disabled={detectingLoc}>
                   {detectingLoc ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="locate" size={16} color="#FFFFFF" />}
-                  <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Locating…' : 'Precise Location'}</Text>
+                  <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Detecting your location…' : 'Use My Precise Location'}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -443,20 +447,22 @@ export default function ProfileScreen({ navigation }) {
 
             {/* Refer a Friend */}
             <View style={styles.referCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Ionicons name="gift" size={20} color="#FFFFFF" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <View style={styles.referIconBadge}>
+                  <Ionicons name="gift" size={18} color="#0052FF" />
+                </View>
                 <Text style={styles.referTitle}>Refer a Friend</Text>
               </View>
               <Text style={styles.referDesc}>You and your friend each get 100 points when they join and complete their first treatment.</Text>
               {referral ? (
                 <View style={styles.referCodeBox}>
-                  <Text style={styles.referCodeLabel}>Your code</Text>
+                  <Text style={styles.referCodeLabel}>YOUR CODE</Text>
                   <Text style={styles.referCode}>{referral.code}</Text>
                   <Text style={styles.referStats}>{referral.referredCount} referred · {referral.referralPointsEarned} pts earned</Text>
                 </View>
               ) : null}
               <TouchableOpacity style={styles.referBtn} onPress={shareReferral}>
-                <Ionicons name="share-social-outline" size={18} color="#0052FF" />
+                <Ionicons name="share-social-outline" size={18} color="#FFFFFF" />
                 <Text style={styles.referBtnText}>Share Invite Link</Text>
               </TouchableOpacity>
             </View>
@@ -483,7 +489,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Bottom Fixed Save Button */}
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <TouchableOpacity
             style={[styles.saveButton, webForm, saving && { opacity: 0.7 }]}
             onPress={handleSaveChanges}
@@ -499,7 +505,6 @@ export default function ProfileScreen({ navigation }) {
             )}
           </TouchableOpacity>
         </View>
-        <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#F8FAFC' }} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -670,19 +675,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
   },
+  locationCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 14,
+  },
+  locationInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    minHeight: 64,
+    marginBottom: 12,
+  },
+  locationInput: {
+    flex: 1,
+    color: '#0F172A',
+    fontSize: 14,
+    lineHeight: 20,
+    paddingTop: 2,
+    textAlignVertical: 'top',
+  },
   preciseLocationBtn: {
     backgroundColor: '#0066FF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   preciseLocationTxt: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 4,
+    fontSize: 13.5,
+    fontWeight: '700',
+    marginLeft: 6,
   },
   supportCard: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginTop: 8 },
   supportTitle: { fontSize: 15, fontWeight: '700', color: '#0A1551', marginBottom: 6 },
@@ -690,20 +716,21 @@ const styles = StyleSheet.create({
   supportIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   supportLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   supportValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
-  referCard: { backgroundColor: '#0052FF', borderRadius: 16, padding: 18, marginBottom: 12 },
-  referTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
-  referDesc: { fontSize: 13, color: '#DBEAFE', lineHeight: 19, marginBottom: 14 },
-  referCodeBox: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginBottom: 14 },
-  referCodeLabel: { fontSize: 11, color: '#BFDBFE', fontWeight: '600' },
-  referCode: { fontSize: 22, color: '#FFFFFF', fontWeight: '900', letterSpacing: 2, marginTop: 2 },
-  referStats: { fontSize: 12, color: '#DBEAFE', marginTop: 4 },
-  referBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13 },
-  referBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 15 },
+  referCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  referIconBadge: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' },
+  referTitle: { fontSize: 16, fontWeight: '800', color: '#0A1551' },
+  referDesc: { fontSize: 13, color: '#64748B', lineHeight: 19, marginBottom: 14 },
+  referCodeBox: { backgroundColor: '#F8FAFF', borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#E6EEFF', borderStyle: 'dashed' },
+  referCodeLabel: { fontSize: 10.5, color: '#64748B', fontWeight: '700', letterSpacing: 0.5 },
+  referCode: { fontSize: 22, color: '#0052FF', fontWeight: '900', letterSpacing: 2, marginTop: 2 },
+  referStats: { fontSize: 12, color: '#64748B', marginTop: 6 },
+  referBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 13 },
+  referBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
   bottomBar: {
     backgroundColor: '#F8FAFC',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8, // gesture-bar inset is added by the SafeAreaView below
+    paddingTop: 10,
+    // paddingBottom set inline from safe-area inset (no double spacing)
   },
   saveButton: {
     backgroundColor: '#0066FF',

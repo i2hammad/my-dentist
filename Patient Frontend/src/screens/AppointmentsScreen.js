@@ -1,26 +1,44 @@
-﻿import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import { SkeletonList } from '../components/Skeleton';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
-import webContent from '../config/webLayout';
 import { useIsFocused } from '@react-navigation/native';
 import API_BASE_URL from '../config/api';
 
+const STATUS_CONFIG = {
+  confirmed: { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed' },
+  pending:   { bg: '#FEF3C7', text: '#D97706', icon: 'time',              label: 'Pending'   },
+  cancelled: { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',      label: 'Cancelled' },
+  completed: { bg: '#EDE9FE', text: '#7C3AED', icon: 'ribbon',            label: 'Completed' },
+};
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatTime(t) {
+  if (!t) return '';
+  const [hh, mm] = t.split(':');
+  const h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${mm} ${ampm}`;
+}
+
 export default function AppointmentsScreen({ navigation }) {
   const [upcoming, setUpcoming] = useState([]);
-  const [past, setPast] = useState([]);
+  const [past, setPast]         = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const isFocused = useIsFocused();
 
   useEffect(() => {
-    if (isFocused) {
-      fetchAppointments();
-    }
+    if (isFocused) fetchAppointments();
   }, [isFocused]);
 
   const fetchAppointments = async () => {
@@ -28,66 +46,77 @@ export default function AppointmentsScreen({ navigation }) {
       setLoading(true);
       const token = await storage.getItem('userToken');
       if (!token) return;
-
       const res = await axios.get(`${API_BASE_URL}/api/appointments/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
       const data = res.data.data || {};
       setUpcoming(data.upcoming || []);
       setPast(data.past || []);
     } catch (error) {
       console.error(error);
-      const msg = error.response?.data?.message || error.message || 'Unknown error';
-      alert(`Failed to load appointments: ${msg}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'confirmed': return { bg: '#D1FAE5', text: '#059669' };
-      case 'pending': return { bg: '#FEF3C7', text: '#D97706' };
-      case 'cancelled': return { bg: '#FEE2E2', text: '#DC2626' };
-      case 'completed': return { bg: '#DBEAFE', text: '#2563EB' };
-      default: return { bg: '#F1F5F9', text: '#64748B' };
-    }
-  };
+  const renderItem = ({ item, index }) => {
+    const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
+    const treatmentList = (item.treatmentType || 'Consultation').split(',').map(t => t.trim());
 
-  const formatDate = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const renderItem = ({ item }) => {
-    const colors = getStatusColor(item.status);
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.dateContainer}>
-            <Ionicons name="calendar-outline" size={20} color="#2563EB" />
-            <Text style={styles.date}>{formatDate(item.date)}</Text>
-            <Text style={styles.time}>at {item.time}</Text>
+      <View style={[styles.card, { marginTop: index === 0 ? 0 : 14 }]}>
+        {/* Card top accent line */}
+        <View style={[styles.cardAccent, { backgroundColor: cfg.text }]} />
+
+        {/* Status + Date row */}
+        <View style={styles.cardTopRow}>
+          <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
+            <Ionicons name={cfg.icon} size={13} color={cfg.text} />
+            <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-            <Text style={[styles.statusText, { color: colors.text }]}>{item.status?.toUpperCase()}</Text>
+          <View style={styles.dateTimeBox}>
+            <Ionicons name="calendar-outline" size={13} color="#0052FF" />
+            <Text style={styles.dateText}>{formatDate(item.date)}</Text>
           </View>
         </View>
-        <View style={styles.cardBody}>
-          <View style={styles.doctorRow}>
-            <View style={styles.avatarSmall}>
-              <Ionicons name="person" size={18} color="#2563EB" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.doctorName}>{item.doctorId?.fullName || 'Doctor'}</Text>
-              <Text style={styles.specialty}>{item.doctorId?.specialization || 'Specialist'}</Text>
-            </View>
+
+        {/* Time badge */}
+        <View style={styles.timeBadgeRow}>
+          <Ionicons name="time-outline" size={14} color="#7C3AED" />
+          <Text style={styles.timeText}>{formatTime(item.time)}</Text>
+          <View style={styles.dot} />
+          <Ionicons name={item.consultationType === 'online' ? 'videocam-outline' : 'business-outline'} size={13} color="#64748B" />
+          <Text style={styles.consultTypeText}>{item.consultationType === 'online' ? 'Video Call' : 'In-Clinic'}</Text>
+        </View>
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* Doctor info */}
+        <View style={styles.doctorRow}>
+          <View style={styles.doctorAvatar}>
+            <Ionicons name="person" size={20} color="#0052FF" />
           </View>
-          <View style={styles.treatmentRow}>
-            <Ionicons name="medkit-outline" size={16} color="#64748B" />
-            <Text style={styles.treatmentText}>{item.treatmentType || 'Consultation'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.doctorName}>{item.doctorId?.fullName || 'Doctor'}</Text>
+            <Text style={styles.specialty}>{item.doctorId?.specialization || 'Specialist'}</Text>
           </View>
+          <TouchableOpacity
+            style={styles.viewBtn}
+            onPress={() => navigation.navigate('DoctorProfile', { doctorId: item.doctorId?._id || item.doctorId, doctor: item.doctorId })}
+          >
+            <Text style={styles.viewBtnText}>View</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Treatments */}
+        <View style={styles.treatmentRow}>
+          {treatmentList.map((t, i) => (
+            <View key={i} style={styles.treatmentChip}>
+              <Ionicons name="medkit-outline" size={11} color="#7C3AED" />
+              <Text style={styles.treatmentChipText}>{t}</Text>
+            </View>
+          ))}
         </View>
       </View>
     );
@@ -96,33 +125,61 @@ export default function AppointmentsScreen({ navigation }) {
   const activeData = activeTab === 'upcoming' ? upcoming : past;
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
-      <View style={[styles.container, webContent]}>
-      <AnimatedHeader style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 16, marginHorizontal: 20 }}>
-        <PressableScale style={{ marginRight: 12 }} hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      {/* Header */}
+      <View style={styles.header}>
+        <PressableScale hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
+          <Ionicons name="arrow-back" size={24} color="#FFF" />
         </PressableScale>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0F172A' }}>My Appointments</Text>
-      </AnimatedHeader>
-      
+        <View>
+          <Text style={styles.headerTitle}>My Campaigns</Text>
+          <Text style={styles.headerSub}>Your treatment campaigns</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => navigation.navigate('Search')}
+        >
+          <Ionicons name="add" size={22} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Stats bar */}
+      <View style={styles.statsBar}>
+        <View style={styles.statItem}>
+          <Text style={styles.statNum}>{upcoming.length}</Text>
+          <Text style={styles.statLabel}>Upcoming</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statNum, { color: '#7C3AED' }]}>{past.filter(p => p.status === 'completed').length}</Text>
+          <Text style={styles.statLabel}>Completed</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statNum, { color: '#EF4444' }]}>{past.filter(p => p.status === 'cancelled').length}</Text>
+          <Text style={styles.statLabel}>Cancelled</Text>
+        </View>
+      </View>
+
       {/* Tabs */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'upcoming' && styles.tabActive]}
-          onPress={() => setActiveTab('upcoming')}
-        >
-          <Text style={[styles.tabText, activeTab === 'upcoming' && styles.tabTextActive]}>
-            Upcoming ({upcoming.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'past' && styles.tabActive]}
-          onPress={() => setActiveTab('past')}
-        >
-          <Text style={[styles.tabText, activeTab === 'past' && styles.tabTextActive]}>
-            Past ({past.length})
-          </Text>
-        </TouchableOpacity>
+        {['upcoming', 'past'].map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.tabActive]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Ionicons
+              name={tab === 'upcoming' ? 'calendar' : 'time'}
+              size={15}
+              color={activeTab === tab ? '#0052FF' : '#94A3B8'}
+              style={{ marginRight: 5 }}
+            />
+            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+              {tab === 'upcoming' ? `Upcoming (${upcoming.length})` : `Past (${past.length})`}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
@@ -130,167 +187,226 @@ export default function AppointmentsScreen({ navigation }) {
       ) : (
         <FlatList
           data={activeData}
-          keyExtractor={(item) => item._id}
+          keyExtractor={item => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyText}>
-                {activeTab === 'upcoming' ? 'No upcoming appointments.' : 'No past appointments.'}
+              <View style={styles.emptyIconRing}>
+                <Ionicons name="calendar-outline" size={44} color="#0052FF" />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'upcoming' ? 'No Upcoming Campaigns' : 'No Past Campaigns'}
               </Text>
-              <Text style={styles.emptySubtext}>Book a doctor from the Search tab!</Text>
+              <Text style={styles.emptySub}>
+                {activeTab === 'upcoming'
+                  ? 'Book your first dental campaign with a specialist!'
+                  : 'Your completed campaigns will appear here.'}
+              </Text>
+              {activeTab === 'upcoming' && (
+                <TouchableOpacity
+                  style={styles.bookNowBtn}
+                  onPress={() => navigation.navigate('Search')}
+                >
+                  <Ionicons name="search-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.bookNowBtnText}>Find a Doctor</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
+          ListFooterComponent={<View style={{ height: 32 }} />}
         />
       )}
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+  safe: { flex: 1, backgroundColor: '#F0F4FF' },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingTop: 20,
+    backgroundColor: '#0052FF',
   },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 16,
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', textAlign: 'center' },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
+  addBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+
+  statsBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8EFFF',
+  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statNum: { fontSize: 22, fontWeight: '900', color: '#0052FF' },
+  statLabel: { fontSize: 11, color: '#94A3B8', marginTop: 2, fontWeight: '600' },
+  statDivider: { width: 1, backgroundColor: '#E8EFFF', marginHorizontal: 8 },
+
   tabContainer: {
     flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
+    marginHorizontal: 16,
+    marginVertical: 14,
+    backgroundColor: '#E8EFFF',
+    borderRadius: 14,
     padding: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: 11,
   },
   tabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#94A3B8',
-  },
-  tabTextActive: {
-    color: '#2563EB',
-    fontWeight: '700',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    backgroundColor: '#FFF',
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    elevation: 3,
   },
-  cardHeader: {
+  tabText: { fontSize: 13, fontWeight: '600', color: '#94A3B8' },
+  tabTextActive: { color: '#0052FF', fontWeight: '800' },
+
+  listContent: { paddingHorizontal: 16, paddingBottom: 16 },
+
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E8EFFF',
+  },
+  cardAccent: { height: 4 },
+
+  cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
-  dateContainer: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  date: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#0F172A',
-    marginLeft: 8,
-  },
-  time: {
-    fontSize: 13,
-    color: '#64748B',
-    marginLeft: 6,
-  },
-  statusBadge: {
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: 'bold',
+  statusText: { fontSize: 11, fontWeight: '800' },
+  dateTimeBox: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dateText: { fontSize: 12, fontWeight: '600', color: '#0A1551' },
+
+  timeBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
-  cardBody: {},
+  timeText: { fontSize: 13, fontWeight: '700', color: '#7C3AED' },
+  dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#94A3B8', marginHorizontal: 2 },
+  consultTypeText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+
+  divider: { height: 1, backgroundColor: '#F0F4FF', marginHorizontal: 16 },
+
   doctorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  avatarSmall: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#EFF6FF',
+  doctorAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#EFF4FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
-  doctorName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0F172A',
+  doctorName: { fontSize: 15, fontWeight: '800', color: '#0A1551' },
+  specialty: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  viewBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: '#EFF4FF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  specialty: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 1,
-  },
+  viewBtnText: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+
   treatmentRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  treatmentChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 46,
+    gap: 4,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
   },
-  treatmentText: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: '#64748B',
-  },
-  emptyContainer: {
+  treatmentChipText: { fontSize: 11, color: '#7C3AED', fontWeight: '600' },
+
+  emptyContainer: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
+  emptyIconRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EFF4FF',
+    borderWidth: 2,
+    borderColor: '#BFDBFE',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 60,
+    marginBottom: 20,
   },
-  emptyText: {
-    color: '#94A3B8',
-    fontSize: 16,
-    marginTop: 16,
-    fontWeight: '500',
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#0A1551', marginBottom: 8 },
+  emptySub: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  bookNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0052FF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  emptySubtext: {
-    color: '#CBD5E1',
-    fontSize: 14,
-    marginTop: 6,
-  },
+  bookNowBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 });

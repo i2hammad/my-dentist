@@ -88,7 +88,7 @@ function MainTabNavigator() {
 
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
           else if (route.name === 'Implants') iconName = focused ? 'medkit' : 'medkit-outline';
-          else if (route.name === 'Cosmetic') iconName = focused ? 'happy' : 'happy-outline';
+          else if (route.name === 'Campaigns') iconName = focused ? 'calendar' : 'calendar-outline';
           else if (route.name === 'Orthodontics') iconName = focused ? 'options' : 'options-outline';
           else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
 
@@ -99,7 +99,7 @@ function MainTabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Implants" component={ImplantsScreen} />
-      <Tab.Screen name="Cosmetic" component={CosmeticScreen} />
+      <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Campaigns' }} />
       <Tab.Screen name="Orthodontics" component={OrthodonticsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

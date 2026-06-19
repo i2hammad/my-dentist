@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,23 +21,47 @@ export default function SavedDoctorsScreen({ navigation }) {
   const loadSaved = async () => {
     setLoading(true);
     try {
-      const [favsRaw, savedRaw, res] = await Promise.all([
+      const token = await storage.getItem('userToken');
+      const [favsRaw, savedRaw] = await Promise.all([
         storage.getItem('patient_favorites'),
         storage.getItem('patient_saved'),
-        axios.get(`${API_BASE_URL}/api/doctors?limit=200`),
       ]);
-      const favIds = favsRaw ? Object.keys(JSON.parse(favsRaw)) : [];
-      const savedIds = savedRaw ? Object.keys(JSON.parse(savedRaw)) : [];
-      const allIds = [...new Set([...favIds, ...savedIds])];
-      if (!res.data?.success || allIds.length === 0) { setSavedDoctors([]); return; }
+
+      const favObj = favsRaw ? JSON.parse(favsRaw) : {};
+      const savedObj = savedRaw ? JSON.parse(savedRaw) : {};
+
+      // Collect all saved doctor IDs (only truthy values)
+      const allIds = [
+        ...Object.keys(favObj).filter(k => favObj[k]),
+        ...Object.keys(savedObj).filter(k => savedObj[k]),
+      ];
+      const uniqueIds = [...new Set(allIds)];
+
+      if (uniqueIds.length === 0) {
+        setSavedDoctors([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch doctor list with auth token for better results
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=500`, { headers });
+
+      if (!res.data?.success) {
+        setSavedDoctors([]);
+        return;
+      }
+
       const all = res.data.data || [];
-      const filtered = all.filter(d =>
-        allIds.includes(d._id) ||
-        allIds.includes(d.userId) ||
-        allIds.includes(String(d._id))
-      );
+      const filtered = all.filter(d => {
+        const id1 = String(d._id || '');
+        const id2 = String(d.userId || '');
+        return uniqueIds.some(uid => uid === id1 || uid === id2);
+      });
+
       setSavedDoctors(filtered);
     } catch (e) {
+      console.log('SavedDoctors error:', e?.message);
       setSavedDoctors([]);
     } finally {
       setLoading(false);
@@ -45,80 +69,123 @@ export default function SavedDoctorsScreen({ navigation }) {
   };
 
   const removeSaved = async (doctor) => {
-    const id = doctor._id || doctor.userId;
-    const favsRaw = await storage.getItem('patient_favorites');
-    const savedRaw = await storage.getItem('patient_saved');
+    const id = String(doctor._id || doctor.userId || '');
+    const [favsRaw, savedRaw] = await Promise.all([
+      storage.getItem('patient_favorites'),
+      storage.getItem('patient_saved'),
+    ]);
     const favObj = favsRaw ? JSON.parse(favsRaw) : {};
     const savedObj = savedRaw ? JSON.parse(savedRaw) : {};
     delete favObj[id];
     delete savedObj[id];
-    await storage.setItem('patient_favorites', JSON.stringify(favObj));
-    await storage.setItem('patient_saved', JSON.stringify(savedObj));
-    setSavedDoctors(prev => prev.filter(d => d._id !== id && d.userId !== id));
+    await Promise.all([
+      storage.setItem('patient_favorites', JSON.stringify(favObj)),
+      storage.setItem('patient_saved', JSON.stringify(savedObj)),
+    ]);
+    setSavedDoctors(prev => prev.filter(d => String(d._id) !== id && String(d.userId) !== id));
   };
 
-  const renderDoctor = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.85}
-      onPress={() => navigation.navigate('DoctorProfile', { doctorId: item._id, doctor: item })}
-    >
-      <Image
-        source={{ uri: imgUrl(item.photo) }}
-        style={styles.avatar}
-        defaultSource={require('../assets/icon.png')}
-      />
-      <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{item.fullName}</Text>
-        <Text style={styles.spec} numberOfLines={1}>{item.specialization || 'Dentist'}</Text>
-        <Text style={styles.clinic} numberOfLines={1}>{item.clinicName || ''}</Text>
-        <View style={styles.meta}>
-          <Ionicons name="star" size={13} color="#F59E0B" />
-          <Text style={styles.rating}>{item.avgRating?.toFixed(1) || '—'}</Text>
-          <Text style={styles.reviews}>({item.totalReviews || 0})</Text>
-          {item.experience > 0 && (
-            <Text style={styles.exp}> · {item.experience}yr exp</Text>
+  const renderDoctor = ({ item, index }) => {
+    const rating = item.avgRating ? Number(item.avgRating).toFixed(1) : '—';
+    const photoUri = item.photo ? imgUrl(item.photo) : null;
+
+    return (
+      <TouchableOpacity
+        style={[styles.card, { marginTop: index === 0 ? 0 : 12 }]}
+        activeOpacity={0.88}
+        onPress={() => navigation.navigate('DoctorProfile', { doctorId: item._id, doctor: item })}
+      >
+        {/* Left: Avatar + Online dot */}
+        <View style={styles.avatarWrapper}>
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Ionicons name="person" size={28} color="#0052FF" />
+            </View>
           )}
+          <View style={[styles.onlineDot, { backgroundColor: item.onlineStatus === 'online' ? '#10B981' : '#94A3B8' }]} />
         </View>
-      </View>
-      <TouchableOpacity style={styles.removeBtn} onPress={() => removeSaved(item)}>
-        <Ionicons name="heart" size={22} color="#EF4444" />
+
+        {/* Middle: info */}
+        <View style={styles.info}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={styles.name} numberOfLines={1}>{item.fullName || 'Doctor'}</Text>
+            {item.pmdcVerified && (
+              <Ionicons name="checkmark-circle" size={14} color="#0052FF" />
+            )}
+          </View>
+          <Text style={styles.spec} numberOfLines={1}>{item.specialization || 'Dentist'}</Text>
+          <Text style={styles.clinic} numberOfLines={1}>{item.clinicName || ''}</Text>
+          <View style={styles.metaRow}>
+            <View style={styles.ratingPill}>
+              <Ionicons name="star" size={11} color="#F59E0B" />
+              <Text style={styles.ratingText}>{rating}</Text>
+            </View>
+            <Text style={styles.reviewCount}>({item.totalReviews || 0} reviews)</Text>
+            {item.experience > 0 && (
+              <Text style={styles.expBadge}>{item.experience}yr exp</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Right: heart button */}
+        <TouchableOpacity
+          style={styles.heartBtn}
+          onPress={() => removeSaved(item)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="heart" size={22} color="#EF4444" />
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+          <Ionicons name="arrow-back" size={22} color="#0A1551" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Saved Doctors</Text>
+        <View>
+          <Text style={styles.headerTitle}>Saved Doctors</Text>
+          {!loading && savedDoctors.length > 0 && (
+            <Text style={styles.headerSub}>{savedDoctors.length} doctor{savedDoctors.length !== 1 ? 's' : ''} saved</Text>
+          )}
+        </View>
         <View style={{ width: 36 }} />
       </View>
 
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#0052FF" />
+          <Text style={{ color: '#94A3B8', marginTop: 12, fontSize: 14 }}>Loading your saved doctors…</Text>
         </View>
       ) : savedDoctors.length === 0 ? (
         <View style={styles.center}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="heart-outline" size={40} color="#94A3B8" />
+          <View style={styles.emptyIconRing}>
+            <Ionicons name="heart-outline" size={44} color="#0052FF" />
           </View>
           <Text style={styles.emptyTitle}>No Saved Doctors</Text>
-          <Text style={styles.emptySub}>Tap the heart icon on any doctor's profile to save them here.</Text>
+          <Text style={styles.emptySub}>
+            Tap the{' '}
+            <Ionicons name="heart-outline" size={13} color="#64748B" />
+            {' '}heart icon on any doctor's card to save them here for quick access.
+          </Text>
           <TouchableOpacity style={styles.browseBtn} onPress={() => navigation.navigate('Home')}>
+            <Ionicons name="search-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
             <Text style={styles.browseBtnText}>Browse Doctors</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={savedDoctors}
-          keyExtractor={item => item._id}
+          keyExtractor={item => String(item._id)}
           renderItem={renderDoctor}
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListFooterComponent={<View style={{ height: 32 }} />}
         />
       )}
     </SafeAreaView>
@@ -126,25 +193,99 @@ export default function SavedDoctorsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0A1551' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551', marginBottom: 8 },
-  emptySub: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-  browseBtn: { backgroundColor: '#0052FF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  browseBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 16, padding: 14, shadowColor: '#0052FF', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  avatar: { width: 64, height: 64, borderRadius: 16, backgroundColor: '#EFF6FF', marginRight: 12 },
+  safe: { flex: 1, backgroundColor: '#F0F4FF' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8EFFF',
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F0F4FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
+  headerSub: { fontSize: 12, color: '#0052FF', fontWeight: '600', marginTop: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 36 },
+  emptyIconRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EFF4FF',
+    borderWidth: 2,
+    borderColor: '#BFDBFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#0A1551', marginBottom: 10 },
+  emptySub: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  browseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0052FF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  browseBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  list: { padding: 16, paddingBottom: 16 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 18,
+    padding: 14,
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E8EFFF',
+  },
+  avatarWrapper: { position: 'relative', marginRight: 14 },
+  avatar: { width: 68, height: 68, borderRadius: 18, backgroundColor: '#EFF4FF' },
+  avatarFallback: { justifyContent: 'center', alignItems: 'center' },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
   info: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '800', color: '#0A1551', marginBottom: 2 },
-  spec: { fontSize: 12, color: '#0052FF', fontWeight: '600', marginBottom: 2 },
-  clinic: { fontSize: 11, color: '#64748B', marginBottom: 4 },
-  meta: { flexDirection: 'row', alignItems: 'center' },
-  rating: { fontSize: 12, fontWeight: '700', color: '#0F172A', marginLeft: 3 },
-  reviews: { fontSize: 11, color: '#94A3B8', marginLeft: 2 },
-  exp: { fontSize: 11, color: '#94A3B8' },
-  removeBtn: { padding: 8 },
+  name: { fontSize: 15, fontWeight: '800', color: '#0A1551' },
+  spec: { fontSize: 12, color: '#0052FF', fontWeight: '600', marginTop: 2 },
+  clinic: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  ratingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    gap: 3,
+  },
+  ratingText: { fontSize: 11, fontWeight: '800', color: '#D97706' },
+  reviewCount: { fontSize: 11, color: '#94A3B8' },
+  expBadge: { fontSize: 11, color: '#0052FF', fontWeight: '600', backgroundColor: '#EFF4FF', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  heartBtn: { padding: 8 },
 });

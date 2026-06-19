@@ -77,7 +77,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── Single Doctor Card ──────────────────────────────────────────────
-function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style }) {
+function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patientCoords }) {
   const photoUri = doc.photo
     ? imgUrl(doc.photo)
     : null;
@@ -498,6 +498,7 @@ export default function HomeScreen({ navigation }) {
                   onToggleFavorite={toggleFavorite}
                   onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id })}
                   style={isWide ? { marginHorizontal: 0 } : null}
+                  patientCoords={patientCoords}
                 />
               </View>
             ))}

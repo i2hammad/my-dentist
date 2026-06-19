@@ -168,16 +168,16 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
               <Text style={styles.earnRuleTitle}>Patient Visit Completed</Text>
               <Text style={styles.earnRuleDesc}>Per visit completed</Text>
             </View>
-            <Text style={styles.earnPointsText}>+10 pts</Text>
+            <Text style={styles.earnPointsText}>+50 pts</Text>
           </View>
-          
+
           <View style={styles.earnRow}>
             <View style={[styles.earnIconWrap, {backgroundColor: '#EFF6FF'}]}><Ionicons name="card" size={16} color="#0052FF" /></View>
             <View style={{flex: 1}}>
               <Text style={styles.earnRuleTitle}>Debit Payment Received</Text>
               <Text style={styles.earnRuleDesc}>When patient pays online to{'\n'}My Dentist Accounts</Text>
             </View>
-            <Text style={styles.earnPointsText}>+20 pts</Text>
+            <Text style={styles.earnPointsText}>+50 pts</Text>
           </View>
 
           <View style={styles.earnRow}>
@@ -186,7 +186,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
               <Text style={styles.earnRuleTitle}>Credit Payment Received</Text>
               <Text style={styles.earnRuleDesc}>When patient pays online to{'\n'}My Dentist Accounts</Text>
             </View>
-            <Text style={styles.earnPointsText}>+20 pts</Text>
+            <Text style={styles.earnPointsText}>+50 pts</Text>
           </View>
 
           <View style={[styles.earnRow, {borderBottomWidth: 0, paddingBottom: 0}]}>
@@ -195,7 +195,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
               <Text style={styles.earnRuleTitle}>Patient Review Received</Text>
               <Text style={styles.earnRuleDesc}>When patient submits review</Text>
             </View>
-            <Text style={styles.earnPointsText}>+15 pts</Text>
+            <Text style={styles.earnPointsText}>+50 pts</Text>
           </View>
         </View>
       </View>
@@ -287,7 +287,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
             bills.slice(0, 4).map((tx, idx) => {
               const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
               const txTime = new Date(tx.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-              const pts = Math.floor((tx.amount || 0) * 0.1);
+              const pts = tx.status === 'paid' ? 50 : 0;
               return (
                 <View key={tx._id || idx} style={styles.txRow}>
                   <View style={[styles.txIconWrap, {borderColor: '#0052FF'}]}><Ionicons name="medical-outline" size={16} color="#0052FF" /></View>

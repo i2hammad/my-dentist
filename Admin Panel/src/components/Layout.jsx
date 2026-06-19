@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   SquaresFour, ShieldCheck, Tooth, Users, Heartbeat,
   Image, Star, CalendarBlank, Receipt, Gift, SignOut, Bell, MagnifyingGlass,
-  Gear, CaretDown, UserCircle, Megaphone, List, X,
+  Gear, CaretDown, UserCircle, Megaphone, Sparkle, List, X,
 } from '@phosphor-icons/react';
 import { useAuth } from '../lib/auth.jsx';
 import { imgUrl } from '../lib/api';
@@ -19,7 +19,8 @@ const NAV = [
   { to: '/appointments', label: 'Appointments', Icon: CalendarBlank },
   { to: '/bills', label: 'Bills & Bill History', Icon: Receipt },
   { to: '/rewards', label: 'Rewards & Payments', Icon: Gift },
-  { to: '/campaigns', label: 'Promotions', Icon: Megaphone },
+  { to: '/campaigns', label: 'Dr. Promotions', Icon: Megaphone },
+  { to: '/patient-campaigns', label: 'Patient Promotions', Icon: Sparkle },
   { to: '/settings', label: 'Settings', Icon: Gear },
 ];
 

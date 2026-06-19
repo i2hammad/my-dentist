@@ -15,7 +15,10 @@ const campaignSchema = new mongoose.Schema(
     ctaLabel: { type: String, default: 'Learn More' },
     ctaLink: { type: String, default: '' }, // optional external URL
 
-    // Targeting: empty cities array = show to ALL doctors.
+    // Who sees this campaign: 'doctor' or 'patient'.
+    targetAudience: { type: String, enum: ['doctor', 'patient'], default: 'doctor' },
+
+    // Targeting: empty cities array = show to ALL.
     cities: { type: [String], default: [] },
 
     // Scheduling window.

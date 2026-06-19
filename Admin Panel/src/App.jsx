@@ -16,6 +16,7 @@ import Bills from './pages/Bills.jsx';
 import Rewards from './pages/Rewards.jsx';
 import Settings from './pages/Settings.jsx';
 import Campaigns from './pages/Campaigns.jsx';
+import PatientCampaigns from './pages/PatientCampaigns.jsx';
 
 function Protected({ children }) {
   const { admin, loading } = useAuth();
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="bills" element={<Bills />} />
         <Route path="rewards" element={<Rewards />} />
         <Route path="campaigns" element={<Campaigns />} />
+        <Route path="patient-campaigns" element={<PatientCampaigns />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

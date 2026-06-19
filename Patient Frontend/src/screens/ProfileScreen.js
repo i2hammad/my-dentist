@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView, Share, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView, Share, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,7 +30,11 @@ export default function ProfileScreen({ navigation }) {
   const [profileImage, setProfileImage] = useState(null);
   const [profileExists, setProfileExists] = useState(false);
   const [referral, setReferral] = useState(null);
-  
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [referralInput, setReferralInput] = useState('');
+  const [applyingCode, setApplyingCode] = useState(false);
+  const [referralApplied, setReferralApplied] = useState(false);
+
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -41,6 +45,7 @@ export default function ProfileScreen({ navigation }) {
     if (isFocused) {
       fetchUserProfile();
       fetchReferral();
+      checkReferralPrompt();
     }
   }, [isFocused]);
 
@@ -50,6 +55,38 @@ export default function ProfileScreen({ navigation }) {
       const res = await axios.get(`${API_BASE_URL}/api/users/referral`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.data?.success) setReferral(res.data.data);
     } catch (e) { /* non-critical */ }
+  };
+
+  const checkReferralPrompt = async () => {
+    const done = await storage.getItem('referralPromptDone');
+    if (!done) setShowReferralModal(true);
+  };
+
+  const handleApplyCode = async () => {
+    if (!referralInput.trim()) return;
+    setApplyingCode(true);
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.post(
+        `${API_BASE_URL}/api/users/referral/apply`,
+        { code: referralInput.trim().toUpperCase() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data?.success) {
+        setReferralApplied(true);
+        await storage.setItem('referralPromptDone', '1');
+        setTimeout(() => setShowReferralModal(false), 2200);
+      }
+    } catch (e) {
+      Alert.alert('Invalid Code', e.response?.data?.message || 'Code not found. Please check and try again.');
+    } finally {
+      setApplyingCode(false);
+    }
+  };
+
+  const handleSkipReferral = async () => {
+    await storage.setItem('referralPromptDone', '1');
+    setShowReferralModal(false);
   };
 
   const shareReferral = async () => {
@@ -242,6 +279,56 @@ export default function ProfileScreen({ navigation }) {
   };
 
   return (
+    <>
+    {/* One-time referral code modal */}
+    <Modal visible={showReferralModal} transparent animationType="fade" onRequestClose={handleSkipReferral}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.referralModalBox}>
+          {referralApplied ? (
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+                <Ionicons name="checkmark-circle" size={36} color="#16A34A" />
+              </View>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: '#0A1551', marginBottom: 6 }}>Code Applied!</Text>
+              <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19 }}>
+                You and your friend will each get{'\n'}100 points after your first treatment.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginBottom: 14, alignSelf: 'center' }}>
+                <Ionicons name="gift-outline" size={28} color="#0052FF" />
+              </View>
+              <Text style={styles.referralModalTitle}>Have a Friend's Code?</Text>
+              <Text style={styles.referralModalSub}>Enter their referral code and you both earn 100 bonus points after your first treatment!</Text>
+              <TextInput
+                style={styles.referralModalInput}
+                placeholder="e.g. MD708392"
+                placeholderTextColor="#94A3B8"
+                value={referralInput}
+                onChangeText={t => setReferralInput(t.toUpperCase())}
+                autoCapitalize="characters"
+                maxLength={12}
+              />
+              <TouchableOpacity
+                style={[styles.referralModalApplyBtn, (!referralInput.trim() || applyingCode) && { opacity: 0.5 }]}
+                onPress={handleApplyCode}
+                disabled={!referralInput.trim() || applyingCode}
+              >
+                {applyingCode
+                  ? <ActivityIndicator color="#FFF" size="small" />
+                  : <Text style={styles.referralModalApplyText}>Apply Code</Text>
+                }
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.referralModalSkipBtn} onPress={handleSkipReferral}>
+                <Text style={styles.referralModalSkipText}>I don't have a code — Skip</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* Top Blue Header */}
       <View style={styles.blueHeader}>
@@ -516,6 +603,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </>
   );
 }
 
@@ -748,6 +836,15 @@ const styles = StyleSheet.create({
   referStats: { fontSize: 12, color: '#64748B', marginTop: 6 },
   referBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 13 },
   referBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  referralModalBox: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 380 },
+  referralModalTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551', textAlign: 'center', marginBottom: 8 },
+  referralModalSub: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginBottom: 20 },
+  referralModalInput: { borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 18, fontWeight: '800', letterSpacing: 3, color: '#0052FF', textAlign: 'center', marginBottom: 14, backgroundColor: '#F8FAFF' },
+  referralModalApplyBtn: { backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10 },
+  referralModalApplyText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
+  referralModalSkipBtn: { alignItems: 'center', paddingVertical: 10 },
+  referralModalSkipText: { color: '#94A3B8', fontSize: 13, fontWeight: '500' },
   bottomBar: {
     backgroundColor: '#F8FAFC',
     paddingHorizontal: 20,

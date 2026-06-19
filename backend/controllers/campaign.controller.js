@@ -1,5 +1,6 @@
 const Campaign = require('../models/Campaign');
 const DoctorProfile = require('../models/DoctorProfile');
+const PatientProfile = require('../models/PatientProfile');
 
 const ok = (res, data, extra = {}) => res.json({ success: true, data, ...extra });
 const fail = (res, code, message) => res.status(code).json({ success: false, message });
@@ -7,7 +8,7 @@ const fail = (res, code, message) => res.status(code).json({ success: false, mes
 const ALLOWED = [
   'title', 'bannerText', 'body', 'medicineName', 'company',
   'bannerImage', 'detailImage', 'ctaLabel', 'ctaLink', 'cities',
-  'startAt', 'endAt', 'isActive',
+  'startAt', 'endAt', 'isActive', 'targetAudience',
 ];
 const pickFields = (body) => {
   const out = {};
@@ -15,24 +16,30 @@ const pickFields = (body) => {
   return out;
 };
 
+const withAnalytics = (campaigns) => {
+  const now = new Date();
+  return campaigns.map((c) => ({
+    ...c,
+    ctr: c.views ? Math.round((c.clicks / c.views) * 1000) / 10 : 0,
+    live: c.isActive && new Date(c.startAt) <= now && new Date(c.endAt) >= now,
+  }));
+};
+
+const buildCounts = (data) => ({
+  total: data.length,
+  live: data.filter((c) => c.live).length,
+  totalViews: data.reduce((s, c) => s + (c.views || 0), 0),
+  totalClicks: data.reduce((s, c) => s + (c.clicks || 0), 0),
+});
+
 // ── Admin: list all campaigns with analytics ──
 // GET /api/campaigns/admin
 exports.listCampaigns = async (req, res) => {
   try {
-    const campaigns = await Campaign.find().sort({ createdAt: -1 }).lean();
+    const campaigns = await Campaign.find({ targetAudience: { $ne: 'patient' } }).sort({ createdAt: -1 }).lean();
     const now = new Date();
-    const data = campaigns.map((c) => ({
-      ...c,
-      ctr: c.views ? Math.round((c.clicks / c.views) * 1000) / 10 : 0, // %
-      live: c.isActive && new Date(c.startAt) <= now && new Date(c.endAt) >= now,
-    }));
-    const counts = {
-      total: campaigns.length,
-      live: data.filter((c) => c.live).length,
-      totalViews: campaigns.reduce((s, c) => s + (c.views || 0), 0),
-      totalClicks: campaigns.reduce((s, c) => s + (c.clicks || 0), 0),
-    };
-    ok(res, data, { counts });
+    const data = withAnalytics(campaigns);
+    ok(res, data, { counts: buildCounts(data) });
   } catch (e) { fail(res, 500, e.message); }
 };
 
@@ -103,6 +110,81 @@ exports.getActiveForDoctor = async (req, res) => {
 
 // POST /api/campaigns/:id/click  (protected; doctor) — records a click.
 exports.recordClick = async (req, res) => {
+  try {
+    const c = await Campaign.findByIdAndUpdate(req.params.id, { $inc: { clicks: 1 } }, { new: true });
+    if (!c) return fail(res, 404, 'Campaign not found');
+    ok(res, { clicks: c.clicks });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ── Admin: patient campaigns ──
+// GET /api/campaigns/patient-admin
+exports.listPatientCampaigns = async (req, res) => {
+  try {
+    const campaigns = await Campaign.find({ targetAudience: 'patient' }).sort({ createdAt: -1 }).lean();
+    const data = withAnalytics(campaigns);
+    ok(res, data, { counts: buildCounts(data) });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// POST /api/campaigns/patient-admin
+exports.createPatientCampaign = async (req, res) => {
+  try {
+    const fields = pickFields(req.body);
+    fields.targetAudience = 'patient';
+    if (!fields.title) return fail(res, 400, 'Title is required');
+    if (!fields.startAt || !fields.endAt) return fail(res, 400, 'Start and end dates are required');
+    const c = await Campaign.create(fields);
+    ok(res, c);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// PATCH /api/campaigns/patient-admin/:id
+exports.updatePatientCampaign = async (req, res) => {
+  try {
+    const c = await Campaign.findOneAndUpdate(
+      { _id: req.params.id, targetAudience: 'patient' },
+      pickFields(req.body),
+      { new: true, runValidators: true }
+    );
+    if (!c) return fail(res, 404, 'Campaign not found');
+    ok(res, c);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// DELETE /api/campaigns/patient-admin/:id
+exports.deletePatientCampaign = async (req, res) => {
+  try {
+    const c = await Campaign.findOneAndDelete({ _id: req.params.id, targetAudience: 'patient' });
+    if (!c) return fail(res, 404, 'Campaign not found');
+    ok(res, { deleted: true });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ── Patient-facing: active campaign ──
+// GET /api/campaigns/active-patient  (protected; patient)
+exports.getActiveForPatient = async (req, res) => {
+  try {
+    const profile = await PatientProfile.findOne({ userId: req.user._id }).select('city').lean();
+    const city = profile?.city || '';
+    const now = new Date();
+
+    const campaign = await Campaign.findOne({
+      targetAudience: 'patient',
+      isActive: true,
+      startAt: { $lte: now },
+      endAt: { $gte: now },
+      $or: [{ cities: { $size: 0 } }, { cities: city }],
+    }).sort({ createdAt: -1 });
+
+    if (!campaign) return ok(res, null);
+    Campaign.updateOne({ _id: campaign._id }, { $inc: { views: 1 } }).catch(() => {});
+    ok(res, campaign);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// POST /api/campaigns/:id/patient-click  (protected; patient)
+exports.recordPatientClick = async (req, res) => {
   try {
     const c = await Campaign.findByIdAndUpdate(req.params.id, { $inc: { clicks: 1 } }, { new: true });
     if (!c) return fail(res, 404, 'Campaign not found');

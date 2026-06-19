@@ -19,9 +19,11 @@ export default function GalleryTab({ profile }) {
   }, [profile]);
 
   const fetchGallery = async () => {
-    if (!profile?._id) return;
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/gallery/doctor/${profile._id}`);
+      const token = await storage.getItem('userToken');
+      const res = await axios.get(`${API_BASE_URL}/api/gallery/my`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.data?.success) {
         setItems(res.data.data);
       }

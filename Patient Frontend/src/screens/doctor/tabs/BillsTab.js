@@ -255,6 +255,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         setCurrentInvoice({
           invoiceNumber: newBill.invoiceNumber,
           date: new Date(newBill.createdAt).toLocaleDateString(),
+          time: new Date(newBill.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           patientName: selectedPatient.name,
           patientPhone: selectedPatient.phone || 'Not provided',
           treatments: items,
@@ -538,6 +539,7 @@ Thank you for visiting!
                             setCurrentInvoice({
                               invoiceNumber: inv.invoiceNumber,
                               date: billDate,
+                              time: new Date(inv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                               patientName: inv.patientId?.fullName || 'Patient',
                               patientPhone: 'Provided',
                               treatments: [{ name: inv.treatmentName, price: inv.amount.toString() }],
@@ -559,6 +561,7 @@ Thank you for visiting!
                             setCurrentInvoice({
                               invoiceNumber: inv.invoiceNumber,
                               date: billDate,
+                              time: new Date(inv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                               patientName: inv.patientId?.fullName || 'Patient',
                               patientPhone: 'Provided',
                               treatments: [{ name: inv.treatmentName, price: inv.amount.toString() }],
@@ -829,6 +832,7 @@ Thank you for visiting!
 
                   <View style={styles.rRow}><Text style={styles.rLabel}>Bill No.</Text><Text style={styles.rVal}>: {currentInvoice?.invoiceNumber || '—'}</Text></View>
                   <View style={styles.rRow}><Text style={styles.rLabel}>Date</Text><Text style={styles.rVal}>: {currentInvoice?.date || new Date().toLocaleDateString()}</Text></View>
+                  <View style={styles.rRow}><Text style={styles.rLabel}>Time</Text><Text style={styles.rVal}>: {currentInvoice?.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View>
                   <View style={styles.rRow}><Text style={styles.rLabel}>Patient</Text><Text style={styles.rVal}>: {currentInvoice?.patientName || '—'}</Text></View>
                   <View style={styles.rRow}><Text style={styles.rLabel}>Method</Text><Text style={styles.rVal}>: {(currentInvoice?.paymentMethod || 'cash').toUpperCase()}</Text></View>
 

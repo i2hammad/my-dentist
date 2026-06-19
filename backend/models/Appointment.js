@@ -41,6 +41,11 @@ const appointmentSchema = new mongoose.Schema(
       },
       default: 'pending',
     },
+    consultationType: {
+      type: String,
+      enum: ['online', 'offline'],
+      default: 'offline',
+    },
     visitSummary: {
       type: String,
       default: '',

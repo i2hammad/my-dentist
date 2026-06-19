@@ -70,6 +70,7 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
       phone,
       patientUserId,
       status: apt.status || 'pending',
+      consultationType: apt.consultationType || 'offline',
       month,
       date: dateNum.toString(),
       day,
@@ -328,6 +329,12 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                   <View style={styles.patientInfo}>
                     <Text style={styles.patientName}>{apt.patientName}</Text>
                     <Text style={styles.patientTreatment}>{apt.treatment}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                      <View style={[styles.consultBadge, apt.consultationType === 'online' ? styles.consultOnline : styles.consultOffline]}>
+                        <Ionicons name={apt.consultationType === 'online' ? 'videocam-outline' : 'location-outline'} size={10} color={apt.consultationType === 'online' ? '#0052FF' : '#16A34A'} />
+                        <Text style={[styles.consultBadgeText, { color: apt.consultationType === 'online' ? '#0052FF' : '#16A34A' }]}>{apt.consultationType === 'online' ? 'Online' : 'Offline'}</Text>
+                      </View>
+                    </View>
                     <TouchableOpacity style={styles.phoneRow} onPress={() => handleCallPatient(apt.phone)}>
                       <Ionicons name="call-outline" size={12} color="#64748B" />
                       <Text style={styles.phoneText}>{apt.phone}</Text>
@@ -414,6 +421,12 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                   <View style={styles.patientInfo}>
                     <Text style={styles.patientName}>{apt.patientName}</Text>
                     <Text style={styles.patientTreatment}>{apt.treatment}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                      <View style={[styles.consultBadge, apt.consultationType === 'online' ? styles.consultOnline : styles.consultOffline]}>
+                        <Ionicons name={apt.consultationType === 'online' ? 'videocam-outline' : 'location-outline'} size={10} color={apt.consultationType === 'online' ? '#0052FF' : '#16A34A'} />
+                        <Text style={[styles.consultBadgeText, { color: apt.consultationType === 'online' ? '#0052FF' : '#16A34A' }]}>{apt.consultationType === 'online' ? 'Online' : 'Offline'}</Text>
+                      </View>
+                    </View>
                     <View style={styles.timeRow}>
                       <Ionicons name="time-outline" size={12} color="#64748B" />
                       <Text style={styles.phoneText}>{apt.timeStr}</Text>
@@ -546,6 +559,10 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: '#0052FF', fontSize: 10.5, fontWeight: 'bold' },
   
   dotsBtn: { padding: 10, justifyContent: 'center', alignItems: 'center' },
+  consultBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  consultOnline: { backgroundColor: '#EFF6FF' },
+  consultOffline: { backgroundColor: '#DCFCE7' },
+  consultBadgeText: { fontSize: 9, fontWeight: '700' },
   emptyState: {
     padding: 24,
     alignItems: 'center',

@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
-import { actionMenu } from '../../../utils/confirmAlert';
+import confirmAlert from '../../../utils/confirmAlert';
 
 const { width } = Dimensions.get('window');
 
@@ -181,27 +181,17 @@ export default function TreatmentsTab({ profile }) {
               <View style={[styles.toggleCircle, t.isActive ? styles.toggleCircleOn : styles.toggleCircleOff]} />
             </TouchableOpacity>
 
-            {/* Options */}
-            <TouchableOpacity 
-              style={{ padding: 4, marginLeft: 8 }}
+            {/* Delete Button */}
+            <TouchableOpacity
+              style={styles.deleteBtn}
               onPress={() => {
-                actionMenu({
-                  title: 'Treatment Options',
-                  message: `Treatment: ${t.name || 'New Treatment'}\nPrice Range: PKR ${t.priceMin} - ${t.priceMax}`,
-                  options: [
-                    { text: t.isActive ? 'Deactivate Treatment' : 'Activate Treatment', onPress: () => handleToggle(t._id) },
-                    { text: 'Delete Treatment', style: 'destructive', onPress: () => {
-                      if (t._id && t._id.length === 24) {
-                        setDeletedIds(prev => [...prev, t._id]);
-                      }
-                      setTreatments(prev => prev.filter(item => item._id !== t._id));
-                    }},
-                    { text: 'Close', style: 'cancel' }
-                  ]
-                });
+                if (t._id && t._id.length === 24) {
+                  setDeletedIds(prev => [...prev, t._id]);
+                }
+                setTreatments(prev => prev.filter(item => item._id !== t._id));
               }}
             >
-              <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />
+              <Ionicons name="trash-outline" size={16} color="#DC2626" />
             </TouchableOpacity>
           </View>
         ))}
@@ -243,6 +233,7 @@ const styles = StyleSheet.create({
   toggleCircleOn: { transform: [{ translateX: 16 }] },
   toggleCircleOff: { transform: [{ translateX: 0 }] },
 
+  deleteBtn: { padding: 8, marginLeft: 4, borderRadius: 6, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center' },
   addBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, paddingBottom: 30 },
   addBtnText: { color: '#0052FF', fontSize: 13, fontWeight: 'bold', marginLeft: 4 },
 

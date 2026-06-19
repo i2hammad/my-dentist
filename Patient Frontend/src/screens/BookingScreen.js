@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,11 +12,28 @@ export default function BookingScreen({ route, navigation }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [treatmentType, setTreatmentType] = useState('Consultation');
+  const [consultationType, setConsultationType] = useState('offline');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [customDateLabel, setCustomDateLabel] = useState('');
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.success) {
+          setUserRole(res.data.data.user?.role || res.data.data.role);
+        }
+      } catch {}
+    })();
+  }, []);
   const [customTimeLabel, setCustomTimeLabel] = useState('');
 
   const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -81,6 +98,7 @@ export default function BookingScreen({ route, navigation }) {
       await axios.post(`${API_BASE_URL}/api/appointments`, {
         doctorId: doctor._id,
         treatmentType: treatmentType,
+        consultationType: consultationType,
         description: description || `Appointment with ${doctor.fullName}`,
         date: selectedDate,    // ISO date like "2026-06-05"
         time: selectedTime,    // 24-hour like "09:00"
@@ -113,7 +131,21 @@ export default function BookingScreen({ route, navigation }) {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Doctor Info */}
+      {/* Role guard — doctors cannot book appointments */}
+      {userRole === 'doctor' ? (
+        <View style={{ alignItems: 'center', justifyContent: 'center', padding: 32, marginTop: 60 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+            <Ionicons name="lock-closed-outline" size={32} color="#DC2626" />
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0A1551', textAlign: 'center', marginBottom: 10 }}>Doctors Cannot Book</Text>
+          <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20 }}>
+            Appointment booking is for patients only.{'\n'}Please login with a patient account to book an appointment.
+          </Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 24, backgroundColor: '#0052FF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+            <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (<>
       <View style={styles.doctorCard}>
         <View style={styles.avatarPlaceholder}>
           <Ionicons name="person" size={32} color="#2563EB" />
@@ -144,6 +176,25 @@ export default function BookingScreen({ route, navigation }) {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Consultation Type */}
+      <Text style={styles.sectionTitle}>Consultation Type</Text>
+      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+        <TouchableOpacity
+          style={[styles.chip, consultationType === 'offline' && styles.chipSelected, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}
+          onPress={() => setConsultationType('offline')}
+        >
+          <Ionicons name="location-outline" size={14} color={consultationType === 'offline' ? '#FFF' : '#64748B'} />
+          <Text style={[styles.chipText, consultationType === 'offline' && styles.chipTextSelected]}>In-Clinic (Offline)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.chip, consultationType === 'online' && styles.chipSelected, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}
+          onPress={() => setConsultationType('online')}
+        >
+          <Ionicons name="videocam-outline" size={14} color={consultationType === 'online' ? '#FFF' : '#64748B'} />
+          <Text style={[styles.chipText, consultationType === 'online' && styles.chipTextSelected]}>Video Call (Online)</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Date Selection */}
       <Text style={styles.sectionTitle}>Select Date</Text>
@@ -213,6 +264,8 @@ export default function BookingScreen({ route, navigation }) {
           {loading ? 'Booking...' : 'Confirm Appointment'}
         </Text>
       </TouchableOpacity>
+      </>
+      )}
     </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

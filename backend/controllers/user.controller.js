@@ -362,9 +362,10 @@ const getReferral = async (req, res) => {
         pointsPerReferral: REFERRAL_POINTS,
         referredCount,
         referralPointsEarned: earned[0]?.total || 0,
-        // Share links (web app deep links). The app reads ?ref=CODE at signup.
-        webLink: `https://my-dentist-pk-website.vercel.app/?ref=${code}`,
-        appLink: `https://my-dentist-webapp.vercel.app/?ref=${code}`,
+        // Share links — each platform reads ?ref=CODE at signup to auto-apply the referral
+        webLink: `https://my-dentist-sigma.vercel.app/?ref=${code}`,
+        androidLink: `https://play.google.com/store/apps/details?id=com.mydentistpk&ref=${code}`,
+        iosLink: `https://apps.apple.com/app/my-dentist-pk/id0000000000?ref=${code}`,
       },
     });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

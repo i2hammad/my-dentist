@@ -92,6 +92,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [hasCompletedAppointment, setHasCompletedAppointment] = useState(false);
 
   // Jump to a specific tab when navigated from a notification
   useEffect(() => {
@@ -99,6 +100,32 @@ export default function DoctorProfileScreen({ route, navigation }) {
       setActiveTab(route.params.initialTab);
     }
   }, [route.params?.initialTab]);
+
+  // Check if patient has a completed appointment with this doctor
+  useEffect(() => {
+    const checkCompletedApt = async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        if (!token) return;
+        const docId = route.params?.doctorId || route.params?.doctor?._id;
+        if (!docId) return;
+        const res = await axios.get(`${API_BASE_URL}/api/appointments/my`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.success) {
+          const all = [...(res.data.data.upcoming || []), ...(res.data.data.past || [])];
+          const completed = all.some(a =>
+            a.status === 'completed' && (
+              String(a.doctorId?._id) === String(docId) ||
+              String(a.doctorId) === String(docId)
+            )
+          );
+          setHasCompletedAppointment(completed);
+        }
+      } catch {}
+    };
+    checkCompletedApt();
+  }, []);
 
   // Load favorites/saved from AsyncStorage on mount
   useEffect(() => {
@@ -1049,11 +1076,19 @@ Thank you for visiting!
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 10 }}>
                 <Text style={[styles.sectionTitle, { marginTop: 0 }]}>Patient Reviews</Text>
                 <TouchableOpacity
-                  style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center' }}
-                  onPress={() => setShowReviewModal(true)}
+                  style={{ backgroundColor: hasCompletedAppointment ? '#EFF6FF' : '#F1F5F9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: hasCompletedAppointment ? '#BFDBFE' : '#E2E8F0', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => {
+                    if (!hasCompletedAppointment) {
+                      Alert.alert('Treatment Required', 'You can only review a doctor after completing a treatment with them. Book an appointment first!');
+                      return;
+                    }
+                    setShowReviewModal(true);
+                  }}
                 >
-                  <Ionicons name="create-outline" size={14} color="#0052FF" style={{ marginRight: 4 }} />
-                  <Text style={{ fontSize: 11, color: '#0052FF', fontWeight: 'bold' }}>+ Write a Review</Text>
+                  <Ionicons name={hasCompletedAppointment ? 'create-outline' : 'lock-closed-outline'} size={14} color={hasCompletedAppointment ? '#0052FF' : '#94A3B8'} style={{ marginRight: 4 }} />
+                  <Text style={{ fontSize: 11, color: hasCompletedAppointment ? '#0052FF' : '#94A3B8', fontWeight: 'bold' }}>
+                    {hasCompletedAppointment ? '+ Write a Review' : 'Complete Treatment First'}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.ratingOverallCard}>

@@ -50,6 +50,16 @@ const patientProfileSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    age: { type: Number, default: null },
+    address: { type: String, default: '' },
+    coordinates: { type: String, default: '' },
+    // ── Family members ──
+    familyMembers: [{
+      name: { type: String, required: true },
+      relation: { type: String, enum: ['Spouse', 'Child', 'Parent', 'Sibling', 'Other'], default: 'Other' },
+      age: { type: Number },
+      gender: { type: String, enum: ['male', 'female', 'other'] },
+    }],
     // ── Referral program ──
     referralCode: { type: String, unique: true, sparse: true }, // this patient's own code to share
     referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'PatientProfile', default: null }, // who referred them

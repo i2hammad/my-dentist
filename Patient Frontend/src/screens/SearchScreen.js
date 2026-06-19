@@ -11,6 +11,18 @@ import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
 
+// Haversine formula — returns distance in km between two lat/lng points
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
+
 export default function SearchScreen({ navigation, route }) {
   const { isWide, columns } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,6 +30,7 @@ export default function SearchScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('Nearby');
   const [profile, setProfile] = useState(null);
+  const [patientCoords, setPatientCoords] = useState(null);
   const { unreadCount } = useNotifications();
 
   useEffect(() => {
@@ -33,7 +46,14 @@ export default function SearchScreen({ navigation, route }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data?.success && res.data?.data?.profile) {
-        setProfile(res.data.data.profile);
+        const p = res.data.data.profile;
+        setProfile(p);
+        if (p.coordinates) {
+          const parts = String(p.coordinates).split(',').map(Number);
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            setPatientCoords({ lat: parts[0], lng: parts[1] });
+          }
+        }
       }
     } catch (e) { /* ignore */ }
   };
@@ -113,7 +133,15 @@ export default function SearchScreen({ navigation, route }) {
           
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={12} color="#64748B" />
-            <Text style={styles.distanceText}>0.8 km away</Text>
+            <Text style={styles.distanceText}>
+              {(() => {
+                if (!patientCoords) return item.city || 'Nearby';
+                const dc = item.coordinates ? String(item.coordinates).split(',').map(Number) : null;
+                if (!dc || dc.length < 2 || isNaN(dc[0])) return item.city || 'Nearby';
+                const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
+                return km !== null ? fmtKm(km) : (item.city || 'Nearby');
+              })()}
+            </Text>
           </View>
         </View>
 

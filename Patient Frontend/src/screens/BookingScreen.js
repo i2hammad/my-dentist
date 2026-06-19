@@ -11,7 +11,7 @@ export default function BookingScreen({ route, navigation }) {
   const doctor = route.params?.doctor || {};
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
-  const [treatmentType, setTreatmentType] = useState('Consultation');
+  const [selectedTreatments, setSelectedTreatments] = useState([]);
   const [consultationType, setConsultationType] = useState('offline');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,17 +56,25 @@ export default function BookingScreen({ route, navigation }) {
     setCustomTimeLabel(`${h12}:${mm} ${ampm}`);
   };
 
-  // Generate next 7 days dynamically
+  const toggleTreatment = (t) => {
+    setSelectedTreatments(prev =>
+      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+    );
+  };
+
+  // Generate next 30 days
   const generateDates = () => {
     const dates = [];
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    for (let i = 1; i <= 7; i++) {
+    const dayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthShortArr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    for (let i = 1; i <= 30; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
       dates.push({
-        label: `${dayNames[d.getDay()]} ${d.getDate()} ${monthNames[d.getMonth()]}`,
-        iso: d.toISOString().split('T')[0] // e.g. "2026-06-05"
+        dayName: dayShort[d.getDay()],
+        dateNum: d.getDate(),
+        month: monthShortArr[d.getMonth()],
+        iso: d.toISOString().split('T')[0],
       });
     }
     return dates;
@@ -90,18 +98,19 @@ export default function BookingScreen({ route, navigation }) {
 
   const handleBooking = async () => {
     if (!selectedDate || !selectedTime) return alert('Please select a date and time');
+    if (selectedTreatments.length === 0) return alert('Please select at least one treatment');
     try {
       setLoading(true);
       const token = await storage.getItem('userToken');
       if (!token) return alert('Please login first!');
-      
+
       await axios.post(`${API_BASE_URL}/api/appointments`, {
         doctorId: doctor._id,
-        treatmentType: treatmentType,
+        treatmentType: selectedTreatments.join(', '),
         consultationType: consultationType,
         description: description || `Appointment with ${doctor.fullName}`,
-        date: selectedDate,    // ISO date like "2026-06-05"
-        time: selectedTime,    // 24-hour like "09:00"
+        date: selectedDate,
+        time: selectedTime,
         duration: 30
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -163,19 +172,23 @@ export default function BookingScreen({ route, navigation }) {
         )}
       </View>
 
-      {/* Treatment Type */}
-      <Text style={styles.sectionTitle}>Treatment Type</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-        {treatments.map((t, i) => (
-          <TouchableOpacity 
-            key={i} 
-            style={[styles.chip, treatmentType === t && styles.chipSelected]}
-            onPress={() => setTreatmentType(t)}
-          >
-            <Text style={[styles.chipText, treatmentType === t && styles.chipTextSelected]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Treatment Type — multi-select */}
+      <Text style={styles.sectionTitle}>Select Treatments <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '400' }}>(select all that apply)</Text></Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20, gap: 8 }}>
+        {treatments.map((t, i) => {
+          const sel = selectedTreatments.includes(t);
+          return (
+            <TouchableOpacity
+              key={i}
+              style={[styles.chip, sel && styles.chipSelected, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}
+              onPress={() => toggleTreatment(t)}
+            >
+              <Ionicons name={sel ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={sel ? '#FFF' : '#94A3B8'} />
+              <Text style={[styles.chipText, sel && styles.chipTextSelected]}>{t}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {/* Consultation Type */}
       <Text style={styles.sectionTitle}>Consultation Type</Text>
@@ -196,25 +209,24 @@ export default function BookingScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Date Selection */}
+      {/* Date Selection — 30-day calendar grid */}
       <Text style={styles.sectionTitle}>Select Date</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-        {dates.map((date, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[styles.chip, selectedDate === date.iso && styles.chipSelected]}
-            onPress={() => { setSelectedDate(date.iso); setCustomDateLabel(''); }}
-          >
-            <Text style={[styles.chipText, selectedDate === date.iso && styles.chipTextSelected]}>
-              {date.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+        {dates.map((date, index) => {
+          const sel = selectedDate === date.iso;
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[styles.dateCell, sel && styles.dateCellSelected]}
+              onPress={() => { setSelectedDate(date.iso); setCustomDateLabel(''); }}
+            >
+              <Text style={[styles.dateCellDay, sel && { color: '#FFF' }]}>{date.dayName}</Text>
+              <Text style={[styles.dateCellNum, sel && { color: '#FFF' }]}>{date.dateNum}</Text>
+              <Text style={[styles.dateCellMonth, sel && { color: 'rgba(255,255,255,0.8)' }]}>{date.month}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
-      <TouchableOpacity style={styles.pickBtn} onPress={() => setShowDatePicker(true)}>
-        <Ionicons name="calendar-outline" size={18} color="#0052FF" />
-        <Text style={styles.pickBtnText}>{customDateLabel ? `Selected: ${customDateLabel}` : 'Pick a custom date'}</Text>
-      </TouchableOpacity>
       {showDatePicker && (
         <DateTimePicker value={selectedDate ? new Date(selectedDate) : new Date()} mode="date" minimumDate={new Date()} display="default" onChange={onPickDate} />
       )}
@@ -255,9 +267,9 @@ export default function BookingScreen({ route, navigation }) {
       />
 
       {/* Confirm Button */}
-      <TouchableOpacity 
-        style={[styles.confirmButton, (!selectedDate || !selectedTime) && styles.confirmButtonDisabled]}
-        disabled={!selectedDate || !selectedTime || loading}
+      <TouchableOpacity
+        style={[styles.confirmButton, (!selectedDate || !selectedTime || selectedTreatments.length === 0) && styles.confirmButtonDisabled]}
+        disabled={!selectedDate || !selectedTime || selectedTreatments.length === 0 || loading}
         onPress={handleBooking}
       >
         <Text style={styles.confirmButtonText}>
@@ -374,6 +386,11 @@ const styles = StyleSheet.create({
   chipTextSelected: {
     color: '#FFFFFF',
   },
+  dateCell: { alignItems: 'center', justifyContent: 'center', width: 58, height: 72, borderRadius: 14, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E2E8F0', marginRight: 8 },
+  dateCellSelected: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  dateCellDay: { fontSize: 10, fontWeight: '600', color: '#94A3B8', marginBottom: 2 },
+  dateCellNum: { fontSize: 20, fontWeight: '900', color: '#0A1551' },
+  dateCellMonth: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',

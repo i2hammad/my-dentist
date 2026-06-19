@@ -22,6 +22,7 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import ChatScreen from '../screens/ChatScreen';
 import PatientInboxScreen from '../screens/PatientInboxScreen';
 import PromoScreen from '../screens/PromoScreen';
+import SavedDoctorsScreen from '../screens/SavedDoctorsScreen';
 
 // Doctor Screens
 import DoctorHomeScreen from '../screens/doctor/DoctorHomeScreen';
@@ -200,6 +201,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="Appointments" component={AppointmentsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="SavedDoctors" component={SavedDoctorsScreen} />
       </Stack.Navigator>
         </View>
       </View>

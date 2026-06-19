@@ -26,7 +26,7 @@ export default function ProfileScreen({ navigation }) {
   const [coords, setCoords] = useState('');
   const [detectingLoc, setDetectingLoc] = useState(false);
   const [gender, setGender] = useState('Select your gender');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [age, setAge] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const [profileExists, setProfileExists] = useState(false);
   const [referral, setReferral] = useState(null);
@@ -35,9 +35,14 @@ export default function ProfileScreen({ navigation }) {
   const [applyingCode, setApplyingCode] = useState(false);
   const [referralApplied, setReferralApplied] = useState(false);
 
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [showFamilyForm, setShowFamilyForm] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberRelation, setNewMemberRelation] = useState('Spouse');
+  const [newMemberAge, setNewMemberAge] = useState('');
+  const [newMemberGender, setNewMemberGender] = useState('male');
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const cities = ['Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar'];
 
@@ -98,10 +103,18 @@ export default function ProfileScreen({ navigation }) {
         data = res.data?.data; setReferral(data);
       } catch (e) { return Alert.alert('Error', 'Could not load your referral code. Please try again.'); }
     }
-    const link = data.webLink || data.appLink;
-    Share.share({
-      message: `Join me on My Dentist PK! Use my referral code ${data.code} when you sign up — we both get 100 reward points after your first treatment. ${link}`,
-    });
+    const msg = [
+      `🦷 Join me on My Dentist PK!`,
+      ``,
+      `Use my referral code: *${data.code}*`,
+      `We both earn 100 reward points after your first treatment! 🎁`,
+      ``,
+      `📱 Download the App:`,
+      `• Android: ${data.androidLink || data.webLink}`,
+      `• iPhone: ${data.iosLink || data.webLink}`,
+      `• Web: ${data.webLink}`,
+    ].join('\n');
+    Share.share({ message: msg, title: 'Join My Dentist PK' });
   };
 
   const fetchUserProfile = async () => {
@@ -133,7 +146,8 @@ export default function ProfileScreen({ navigation }) {
         if (p.gender) {
           setGender(p.gender.charAt(0).toUpperCase() + p.gender.slice(1));
         }
-        setDateOfBirth(p.dateOfBirth ? formatDateForInput(p.dateOfBirth) : '');
+        setAge(p.age ? String(p.age) : '');
+        if (Array.isArray(p.familyMembers)) setFamilyMembers(p.familyMembers);
       }
     } catch (error) {
       console.log('Error fetching user profile:', error);
@@ -147,7 +161,7 @@ export default function ProfileScreen({ navigation }) {
     try {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return '';
-      return d.toISOString().split('T')[0];
+      return String(d.getFullYear() ? Math.floor((Date.now() - d) / (1000 * 60 * 60 * 24 * 365)) : '');
     } catch {
       return '';
     }
@@ -210,9 +224,8 @@ export default function ProfileScreen({ navigation }) {
         gender: genderVal,
       };
 
-      if (dateOfBirth) {
-         payload.dateOfBirth = new Date(dateOfBirth).toISOString();
-      }
+      if (age) payload.age = parseInt(age, 10);
+      payload.familyMembers = familyMembers;
 
       // Check if image is local and needs upload
       const isLocalImage = profileImage && (profileImage.startsWith('file://') || profileImage.startsWith('content://') || profileImage.startsWith('ph://'));
@@ -248,12 +261,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setDateOfBirth(selectedDate.toISOString().split('T')[0]);
-    }
-  };
 
   const handlePickImage = async () => {
     try {
@@ -413,46 +420,19 @@ export default function ProfileScreen({ navigation }) {
                 />
               </View>
 
-              <Text style={styles.label}>Date of Birth</Text>
+              <Text style={styles.label}>Age (years)</Text>
               <View style={styles.inputContainer}>
-                <Ionicons name="calendar-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                {Platform.OS === 'web' ? (
-                  React.createElement('input', {
-                    type: 'date',
-                    value: dateOfBirth,
-                    onChange: (e) => setDateOfBirth(e.target.value),
-                    style: {
-                      flex: 1,
-                      border: 'none',
-                      outline: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#0F172A',
-                      fontSize: 14,
-                      fontFamily: 'inherit',
-                      padding: 0
-                    }
-                  })
-                ) : (
-                  <TouchableOpacity 
-                    style={{ flex: 1, justifyContent: 'center' }} 
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text style={{ color: dateOfBirth ? '#0F172A' : '#94A3B8', fontSize: 14 }}>
-                      {dateOfBirth || 'YYYY-MM-DD'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                <Ionicons name="calendar" size={20} color="#94A3B8" />
-              </View>
-
-              {showDatePicker && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={dateOfBirth ? new Date(dateOfBirth) : new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={handleDateChange}
+                <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  value={age}
+                  onChangeText={t => setAge(t.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="Enter your age"
+                  placeholderTextColor="#94A3B8"
+                  maxLength={3}
                 />
-              )}
+              </View>
 
               <Text style={styles.label}>Gender</Text>
               <View style={[styles.dropdownAnchor, showGenderDropdown && styles.dropdownAnchorOpen]}>
@@ -543,6 +523,91 @@ export default function ProfileScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
+            </View>
+
+            {/* Family Profile */}
+            <View style={[styles.referCard, { marginBottom: 12 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={[styles.referIconBadge, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                    <Ionicons name="people" size={18} color="#16A34A" />
+                  </View>
+                  <Text style={styles.referTitle}>Family Profile</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#BBF7D0' }}
+                  onPress={() => setShowFamilyForm(v => !v)}
+                >
+                  <Ionicons name={showFamilyForm ? 'close' : 'add'} size={14} color="#16A34A" />
+                  <Text style={{ fontSize: 12, color: '#16A34A', fontWeight: '700', marginLeft: 4 }}>{showFamilyForm ? 'Cancel' : 'Add Member'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.referDesc, { marginBottom: 12 }]}>Manage dental health for your whole family from one account.</Text>
+
+              {/* Existing members */}
+              {familyMembers.map((m, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                    <Ionicons name={m.gender === 'female' ? 'woman' : 'man'} size={18} color="#0052FF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#0A1551' }}>{m.name}</Text>
+                    <Text style={{ fontSize: 12, color: '#64748B' }}>{m.relation}{m.age ? ` · ${m.age} yrs` : ''}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setFamilyMembers(prev => prev.filter((_, i) => i !== idx))}>
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {/* Add member form */}
+              {showFamilyForm && (
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B', marginBottom: 8 }}>NEW FAMILY MEMBER</Text>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', marginBottom: 10, backgroundColor: '#FFF' }}
+                    placeholder="Full Name"
+                    placeholderTextColor="#94A3B8"
+                    value={newMemberName}
+                    onChangeText={setNewMemberName}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                    {['Spouse','Child','Parent','Sibling','Other'].map(r => (
+                      <TouchableOpacity key={r} onPress={() => setNewMemberRelation(r)}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: newMemberRelation === r ? '#0052FF' : '#FFF', borderWidth: 1, borderColor: newMemberRelation === r ? '#0052FF' : '#E2E8F0' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: newMemberRelation === r ? '#FFF' : '#64748B' }}>{r}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                    <TextInput
+                      style={{ flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#FFF' }}
+                      placeholder="Age"
+                      placeholderTextColor="#94A3B8"
+                      value={newMemberAge}
+                      onChangeText={t => setNewMemberAge(t.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      maxLength={3}
+                    />
+                    {['male','female'].map(g => (
+                      <TouchableOpacity key={g} onPress={() => setNewMemberGender(g)}
+                        style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: newMemberGender === g ? '#0052FF' : '#FFF', borderWidth: 1, borderColor: newMemberGender === g ? '#0052FF' : '#E2E8F0', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: newMemberGender === g ? '#FFF' : '#64748B' }}>{g === 'male' ? '♂ Male' : '♀ Female'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#16A34A', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+                    onPress={() => {
+                      if (!newMemberName.trim()) return Alert.alert('Name required', 'Please enter the member\'s name.');
+                      setFamilyMembers(prev => [...prev, { name: newMemberName.trim(), relation: newMemberRelation, age: newMemberAge ? parseInt(newMemberAge) : undefined, gender: newMemberGender }]);
+                      setNewMemberName(''); setNewMemberAge(''); setShowFamilyForm(false);
+                    }}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>Add to Family</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Refer a Friend */}

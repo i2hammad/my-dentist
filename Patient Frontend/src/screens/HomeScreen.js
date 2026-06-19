@@ -14,6 +14,16 @@ import {
 } from 'react-native';
 
 const isWeb = Platform.OS === 'web';
+
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -141,11 +151,18 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style }) {
             </Text>
           </View>
 
-          {/* Location */}
+          {/* Location + Distance */}
           <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={13} color="#64748B" />
             <Text style={styles.infoText} numberOfLines={1}>
-              {doc.clinicCity || doc.address || 'Islamabad, Pakistan'}
+              {doc.clinicCity || doc.address || 'Islamabad'}
+              {(() => {
+                if (!patientCoords) return '';
+                const dc = doc.coordinates ? String(doc.coordinates).split(',').map(Number) : null;
+                if (!dc || dc.length < 2 || isNaN(dc[0])) return '';
+                const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
+                return km !== null ? ` · ${fmtKm(km)} away` : '';
+              })()}
             </Text>
           </View>
         </View>
@@ -194,6 +211,7 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style }) {
 // ─── Main HomeScreen ─────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
   const [profile, setProfile]         = useState(null);
+  const [patientCoords, setPatientCoords] = useState(null);
   const [doctors, setDoctors]         = useState([]);
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
@@ -214,7 +232,12 @@ export default function HomeScreen({ navigation }) {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.data?.success && res.data?.data?.profile) {
-            setProfile(res.data.data.profile);
+            const p = res.data.data.profile;
+            setProfile(p);
+            if (p.coordinates) {
+              const parts = String(p.coordinates).split(',').map(Number);
+              if (parts.length === 2 && !isNaN(parts[0])) setPatientCoords({ lat: parts[0], lng: parts[1] });
+            }
           }
         } catch (e) {
           console.log('Profile fetch error:', e?.message);
@@ -294,6 +317,14 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerRow1}>
           <Text style={styles.headerTitle}>My Dentist PK</Text>
           <View style={styles.headerRight}>
+            {/* Saved Doctors */}
+            <PressableScale
+              style={styles.bellWrapper}
+              hitSlop={8}
+              onPress={() => navigation.navigate('SavedDoctors')}
+            >
+              <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
+            </PressableScale>
             {/* Appointments Icon */}
             <PressableScale
               style={styles.bellWrapper}

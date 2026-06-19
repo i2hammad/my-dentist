@@ -14,8 +14,11 @@ const HIGHLIGHTS = [
 ];
 
 export default function WebAuthLayout({ children, title, subtitle, onBack }) {
-  const { isWide } = useResponsive();
-  if (!isWide) return children;
+  const { width } = useResponsive();
+  // Only use the brand split-panel on genuinely wide screens. Below 900px
+  // (phones + small tablets) render the form full-width to avoid a cramped,
+  // text-collapsing column.
+  if (!width || width < 900) return children;
 
   return (
     <View style={styles.root}>

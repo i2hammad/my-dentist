@@ -8,6 +8,7 @@ import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
 import RoleBadge from '../components/RoleBadge';
+import { webForm } from '../config/webLayout';
 
 export default function RegisterScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -225,7 +226,7 @@ export default function RegisterScreen({ route, navigation }) {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, webForm]} showsVerticalScrollIndicator={false}>
 
         {/* Back Button */}
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>

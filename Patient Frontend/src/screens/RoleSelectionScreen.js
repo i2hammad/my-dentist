@@ -222,9 +222,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
+    flexShrink: 0,
   },
   cardTextContainer: {
     flex: 1,
+    minWidth: 0,
   },
   cardTitle: {
     fontSize: 17,
@@ -247,6 +249,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 10,
+    flexShrink: 0,
   },
   vendorTitleRow: {
     flexDirection: 'row',

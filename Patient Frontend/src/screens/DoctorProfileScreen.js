@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
-  Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking
+  Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,6 +94,13 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [hasCompletedAppointment, setHasCompletedAppointment] = useState(false);
 
+  // Lightbox
+  const [lightboxUri, setLightboxUri] = useState(null);
+
+  // Redeem Points
+  const [redeemCode, setRedeemCode] = useState(null);
+  const [redeemLoading, setRedeemLoading] = useState(false);
+
   // Jump to a specific tab when navigated from a notification
   useEffect(() => {
     if (route.params?.initialTab) {
@@ -173,17 +180,35 @@ export default function DoctorProfileScreen({ route, navigation }) {
     } catch (e) { /* ignore */ }
   }, [saved, doctor]);
 
+  const handleRedeem = async () => {
+    const pts = rewards.totalPoints || rewards.points || 0;
+    if (pts <= 0) return Alert.alert('No Points', 'You have no reward points to redeem.');
+    setRedeemLoading(true);
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.post(`${API_BASE_URL}/api/rewards/redeem`, { points: pts }, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data?.success) {
+        setRedeemCode(res.data.data?.code);
+      }
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Could not generate code. Please try again.');
+    } finally {
+      setRedeemLoading(false);
+    }
+  };
+
   const TAB_ICONS = {
     'About': 'person-outline',
     'Treatments': 'medkit-outline',
     'Gallery': 'images-outline',
+    'Facilities': 'business-outline',
     'Reviews': 'star-outline',
     'Appointments': 'calendar-outline',
     'Bills & Bill History': 'receipt-outline',
     'Rewards & Payments': 'gift-outline',
   };
 
-  const tabs = ['About', 'Treatments', 'Gallery', 'Reviews', 'Appointments', 'Bills & Bill History', 'Rewards & Payments'];
+  const tabs = ['About', 'Treatments', 'Gallery', 'Facilities', 'Reviews', 'Appointments', 'Bills & Bill History', 'Rewards & Payments'];
 
   useEffect(() => {
     fetchDoctorData();
@@ -684,10 +709,12 @@ Thank you for visiting!
             <Text style={styles.webFeeValue}>Rs. {doctor.consultationFee}</Text>
           </View>
         ) : null}
-        <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
-          <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.bookBtnTxt}>Book Appointment</Text>
-        </TouchableOpacity>
+        {(activeTab === 'Treatments' || activeTab === 'Appointments') && (
+          <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
+            <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.bookBtnTxt}>Book Appointment</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.webRailActions}>
           <TouchableOpacity style={styles.webRailAction} onPress={() => {
             const docUserId = doctor.userId?._id || doctor.userId;
@@ -973,7 +1000,9 @@ Thank you for visiting!
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {clinicPhotos.length > 0 ? (
                   clinicPhotos.map(item => (
-                    <ShimmerImage key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.galleryImage} />
+                    <TouchableOpacity key={item._id} onPress={() => setLightboxUri(imgUrl(item.imageUrl))}>
+                      <ShimmerImage source={{ uri: imgUrl(item.imageUrl) }} style={styles.galleryImage} />
+                    </TouchableOpacity>
                   ))
                 ) : (
                   <Text style={styles.emptyText}>No clinic photos uploaded.</Text>
@@ -986,11 +1015,17 @@ Thank you for visiting!
                     <View key={item._id} style={styles.beforeAfterCard}>
                       {item.beforeImage && item.afterImage ? (
                         <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <ShimmerImage source={{ uri: imgUrl(item.beforeImage) }} style={styles.beforeAfterImg} />
-                          <ShimmerImage source={{ uri: imgUrl(item.afterImage) }} style={styles.beforeAfterImg} />
+                          <TouchableOpacity onPress={() => setLightboxUri(imgUrl(item.beforeImage))}>
+                            <ShimmerImage source={{ uri: imgUrl(item.beforeImage) }} style={styles.beforeAfterImg} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => setLightboxUri(imgUrl(item.afterImage))}>
+                            <ShimmerImage source={{ uri: imgUrl(item.afterImage) }} style={styles.beforeAfterImg} />
+                          </TouchableOpacity>
                         </View>
                       ) : (
-                        <ShimmerImage source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={[styles.beforeAfterImg, { width: 180 }]} />
+                        <TouchableOpacity onPress={() => setLightboxUri(imgUrl(item.imageUrl || item.beforeImage || item.afterImage))}>
+                          <ShimmerImage source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={[styles.beforeAfterImg, { width: 180 }]} />
+                        </TouchableOpacity>
                       )}
                       {item.title ? <Text style={{ fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 4 }}>{item.title}</Text> : null}
                     </View>
@@ -1003,38 +1038,22 @@ Thank you for visiting!
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {certificates.length > 0 ? (
                   certificates.map(item => (
-                    <ShimmerImage key={item._id} source={{ uri: imgUrl(item.imageUrl) }} style={styles.certificateImg} />
+                    <TouchableOpacity key={item._id} onPress={() => setLightboxUri(imgUrl(item.imageUrl))}>
+                      <ShimmerImage source={{ uri: imgUrl(item.imageUrl) }} style={styles.certificateImg} />
+                    </TouchableOpacity>
                   ))
                 ) : (
                   <Text style={styles.emptyText}>No certificates uploaded.</Text>
                 )}
               </ScrollView>
+              <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 12 }}>Tap any image to view full size</Text>
             </View>
           )}
 
-          {/* ══════════════ REVIEWS (REDESIGNED) ══════════════ */}
-          {activeTab === 'Reviews' && (
+          {/* ══════════════ FACILITIES & SERVICES ══════════════ */}
+          {activeTab === 'Facilities' && (
             <View>
-
-              {/* ── Our Services ── */}
-              {facilityList.length > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Our Services</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    Facilities & services available at {drName(doctor.fullName)}'s clinic
-                  </Text>
-                  <View style={styles.servicesGrid}>
-                    {facilityList.map((fac, idx) => (
-                      <View key={idx} style={styles.serviceTag}>
-                        <Ionicons name={fac.icon || 'checkmark-circle-outline'} size={12} color="#0052FF" style={{ marginRight: 4 }} />
-                        <Text style={styles.serviceTagText}>{fac.label}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {/* ── Clinic Tier Badge ── */}
+              {/* Clinic Tier Badge */}
               <View style={[styles.tierCard, { borderLeftColor: tier.color }]}>
                 <View style={styles.tierTopRow}>
                   <View style={[styles.tierBadge, { backgroundColor: tier.bg }]}>
@@ -1047,8 +1066,6 @@ Thank you for visiting!
                   </View>
                 </View>
                 <Text style={styles.tierDesc}>{tier.desc}</Text>
-
-                {/* Tier levels bar */}
                 <View style={styles.tierLevels}>
                   {[
                     { label: 'Standard', range: '1–15', color: '#94A3B8' },
@@ -1061,16 +1078,38 @@ Thank you for visiting!
                     </View>
                   ))}
                 </View>
-
-                {/* Verified Highlights */}
-                <Text style={styles.highlightsTitle}>VERIFIED HIGHLIGHTS</Text>
-                {['Verified Services', 'High Patient Satisfaction', 'Advanced Technology', 'Hygiene & Safety'].map(h => (
-                  <View key={h} style={styles.highlightRow}>
-                    <Ionicons name="checkmark-circle" size={16} color="#16A34A" style={{ marginRight: 8 }} />
-                    <Text style={styles.highlightText}>{h}</Text>
-                  </View>
-                ))}
               </View>
+
+              {/* Services & Facilities Grid */}
+              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Available Services</Text>
+              <Text style={styles.sectionSubtitle}>Facilities & services available at this clinic</Text>
+              {facilityList.length > 0 ? (
+                <View style={styles.servicesGrid}>
+                  {facilityList.map((fac, idx) => (
+                    <View key={idx} style={[styles.serviceTag, { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 8 }]}>
+                      <Ionicons name={fac.icon || 'checkmark-circle-outline'} size={16} color="#0052FF" style={{ marginRight: 8 }} />
+                      <Text style={[styles.serviceTagText, { fontSize: 13 }]}>{fac.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyText}>No facilities listed for this clinic.</Text>
+              )}
+
+              {/* Verified Highlights */}
+              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Verified Highlights</Text>
+              {['Verified Services', 'High Patient Satisfaction', 'Advanced Technology', 'Hygiene & Safety'].map(h => (
+                <View key={h} style={styles.highlightRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#16A34A" style={{ marginRight: 8 }} />
+                  <Text style={styles.highlightText}>{h}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* ══════════════ REVIEWS (REDESIGNED) ══════════════ */}
+          {activeTab === 'Reviews' && (
+            <View>
 
               {/* ── Overall Rating ── */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 10 }}>
@@ -1151,8 +1190,17 @@ Thank you for visiting!
                     </View>
                   </View>
                   <Text style={styles.reviewCommentNew}>{r.comment}</Text>
+                  {r.doctorReply ? (
+                    <View style={{ backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#0052FF' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="chatbubble-outline" size={13} color="#0052FF" style={{ marginRight: 4 }} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#0052FF' }}>Doctor's Reply</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: '#1E3A8A', lineHeight: 18 }}>{r.doctorReply}</Text>
+                    </View>
+                  ) : null}
                   <TouchableOpacity>
-                    <Text style={styles.helpfulLink}>Helpful ({r.helpful || Math.floor(Math.random() * 20 + 5)})</Text>
+                    <Text style={styles.helpfulLink}>Helpful ({r.helpful || 0})</Text>
                   </TouchableOpacity>
                 </View>
               )) : (
@@ -1378,15 +1426,31 @@ Thank you for visiting!
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.redeemTitle}>Redeem Points</Text>
-                    <Text style={styles.redeemSub}>Convert your points into discount</Text>
+                    <Text style={styles.redeemSub}>Redeem all {rewards.totalPoints || rewards.points || 0} pts = PKR {rewards.totalPoints || rewards.points || 0} discount</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.redeemBtn}>
-                  <Text style={styles.redeemBtnText}>Tap to Generate Code</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#FFF" />
-                </TouchableOpacity>
+                {redeemCode ? (
+                  <View style={{ backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, color: '#16A34A', fontWeight: '700', marginBottom: 4 }}>YOUR DISCOUNT CODE</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#0A1551', letterSpacing: 4 }}>{redeemCode}</Text>
+                    <Text style={{ fontSize: 11, color: '#64748B', textAlign: 'center', marginTop: 6 }}>Share this code with your doctor. They'll apply it to your bill.</Text>
+                    <TouchableOpacity onPress={() => { Share.share({ message: `My Dentist Discount Code: ${redeemCode}` }); }} style={{ marginTop: 8, backgroundColor: '#16A34A', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="share-social-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Share Code</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.redeemBtn} onPress={handleRedeem} disabled={redeemLoading}>
+                    {redeemLoading ? <ActivityIndicator color="#FFF" size="small" /> : (
+                      <>
+                        <Text style={styles.redeemBtnText}>Tap to Generate Code</Text>
+                        <Ionicons name="chevron-forward" size={14} color="#FFF" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.redeemInfo}>
-                  Share this code with the doctor. They can apply it to deduct the amount.
+                  Share this code with the doctor. They can apply it to deduct the amount from your bill.
                 </Text>
               </View>
 
@@ -1466,9 +1530,18 @@ Thank you for visiting!
                   <Ionicons name="gift" size={30} color="#FFF" />
                 </View>
                 <View style={{ flex: 1, marginHorizontal: 12 }}>
-                  <Text style={styles.referralTitle}>Refer a friend & get 100 points!</Text>
-                  <Text style={styles.referralSub}>Your friend gets 5% off on first visit and online payment.</Text>
-                  <TouchableOpacity style={styles.referNowBtn}>
+                  <Text style={styles.referralTitle}>Refer a Friend & Get 100 Points</Text>
+                  <Text style={styles.referralSub}>You and your friend get 100 points each on your friend's first visit completion and online payment in My Dentist accounts.</Text>
+                  <TouchableOpacity style={styles.referNowBtn} onPress={async () => {
+                    try {
+                      const token = await storage.getItem('userToken');
+                      const res = await axios.get(`${API_BASE_URL}/api/users/referral`, { headers: { Authorization: `Bearer ${token}` } });
+                      const data = res.data?.data;
+                      if (data?.code) {
+                        Share.share({ message: `🦷 Join me on My Dentist PK!\n\nUse my referral code: *${data.code}*\n\nWe both earn 100 reward points after your first treatment! 🎁` });
+                      }
+                    } catch (e) { Alert.alert('Error', 'Could not load referral code.'); }
+                  }}>
                     <Text style={styles.referNowBtnText}>Refer Now</Text>
                   </TouchableOpacity>
                 </View>
@@ -1482,8 +1555,8 @@ Thank you for visiting!
         </View>{/* /webGrid */}
       </ScrollView>
 
-      {/* Fixed Bottom Button — phone only (desktop has the rail's Book button) */}
-      {!isWide && (
+      {/* Fixed Bottom Button — only on Treatments & Appointments tabs */}
+      {!isWide && (activeTab === 'Treatments' || activeTab === 'Appointments') && (
         <View style={[styles.bottomFixed, { bottom: Math.max(insets.bottom, 12) }]}>
           <TouchableOpacity
             style={styles.bookBtn}
@@ -1844,6 +1917,21 @@ Thank you for visiting!
               </TouchableOpacity>
             </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      {/* Lightbox Modal */}
+      <Modal visible={!!lightboxUri} transparent animationType="fade" onRequestClose={() => setLightboxUri(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 8 }}
+            onPress={() => setLightboxUri(null)}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          {lightboxUri ? (
+            <Image source={{ uri: lightboxUri }} style={{ width: '92%', height: '70%', resizeMode: 'contain', borderRadius: 12 }} />
+          ) : null}
         </View>
       </Modal>
     </SafeAreaView>

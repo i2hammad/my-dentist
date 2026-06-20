@@ -35,6 +35,7 @@ export default function AppointmentsScreen({ navigation }) {
   const [past, setPast]         = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming');
   const [loading, setLoading]   = useState(true);
+  const [campaign, setCampaign] = useState(null);
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -46,12 +47,18 @@ export default function AppointmentsScreen({ navigation }) {
       setLoading(true);
       const token = await storage.getItem('userToken');
       if (!token) return;
-      const res = await axios.get(`${API_BASE_URL}/api/appointments/my`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = res.data.data || {};
-      setUpcoming(data.upcoming || []);
-      setPast(data.past || []);
+      const [apptRes, campRes] = await Promise.allSettled([
+        axios.get(`${API_BASE_URL}/api/appointments/my`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (apptRes.status === 'fulfilled') {
+        const data = apptRes.value.data.data || {};
+        setUpcoming(data.upcoming || []);
+        setPast(data.past || []);
+      }
+      if (campRes.status === 'fulfilled' && campRes.value.data?.success && campRes.value.data.data?.length > 0) {
+        setCampaign(campRes.value.data.data[0]);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -142,6 +149,22 @@ export default function AppointmentsScreen({ navigation }) {
           <Ionicons name="add" size={22} color="#FFF" />
         </TouchableOpacity>
       </View>
+
+      {/* Admin Campaign Banner */}
+      {campaign && (
+        <View style={{ backgroundColor: '#7C3AED', margin: 12, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+            <Ionicons name="megaphone-outline" size={20} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>{campaign.title || 'Special Offer'}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{campaign.body || campaign.description || ''}</Text>
+          </View>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+          </View>
+        </View>
+      )}
 
       {/* Stats bar */}
       <View style={styles.statsBar}>

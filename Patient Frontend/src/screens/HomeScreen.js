@@ -216,6 +216,7 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
   const [favorites, setFavorites]     = useState({});
+  const [campaign, setCampaign]       = useState(null);
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
   const { isWide, columns } = useResponsive();
@@ -254,6 +255,15 @@ export default function HomeScreen({ navigation }) {
       } catch (e) {
         console.log('Doctors fetch error:', e?.message);
       }
+
+      // Fetch patient campaign banner
+      try {
+        const token = await storage.getItem('userToken');
+        if (token) {
+          const res = await axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.data?.success && res.data.data?.length > 0) setCampaign(res.data.data[0]);
+        }
+      } catch (e) { /* non-critical */ }
     } finally {
       setLoading(false);
     }
@@ -396,6 +406,26 @@ export default function HomeScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+
+        {/* ADMIN CAMPAIGN BANNER */}
+        {campaign && (
+          <TouchableOpacity
+            style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center' }}
+            activeOpacity={0.85}
+            onPress={() => {}}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>{campaign.title || 'Special Offer'}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }} numberOfLines={2}>{campaign.body || campaign.description || ''}</Text>
+            </View>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* MY APPOINTMENTS BANNER */}
         <TouchableOpacity

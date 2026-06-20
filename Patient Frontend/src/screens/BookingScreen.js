@@ -10,18 +10,20 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 
-const TREATMENTS = [
-  { label: 'Consultation',     icon: 'chatbubble-outline'   },
-  { label: 'Teeth Cleaning',   icon: 'water-outline'        },
-  { label: 'Root Canal',       icon: 'git-branch-outline'   },
-  { label: 'Teeth Whitening',  icon: 'sparkles-outline'     },
-  { label: 'Braces',           icon: 'git-network-outline'  },
-  { label: 'Check-up',         icon: 'search-outline'       },
-  { label: 'Filling',          icon: 'construct-outline'    },
-  { label: 'Extraction',       icon: 'cut-outline'          },
-  { label: 'Veneers',          icon: 'color-palette-outline'},
-  { label: 'Crown',            icon: 'shield-outline'       },
-];
+const getTreatIcon = (name = '') => {
+  const n = name.toLowerCase();
+  if (n.includes('implant'))   return 'construct-outline';
+  if (n.includes('root'))      return 'git-branch-outline';
+  if (n.includes('whitening')) return 'sparkles-outline';
+  if (n.includes('brace'))     return 'git-network-outline';
+  if (n.includes('extract'))   return 'cut-outline';
+  if (n.includes('clean'))     return 'water-outline';
+  if (n.includes('veneer'))    return 'color-palette-outline';
+  if (n.includes('crown'))     return 'shield-outline';
+  if (n.includes('consult'))   return 'chatbubble-outline';
+  if (n.includes('check'))     return 'search-outline';
+  return 'medical-outline';
+};
 
 const TIME_SLOTS = [
   { label: '09:00 AM', value: '09:00' },
@@ -58,18 +60,19 @@ function generateDates(count = 60) {
 export default function BookingScreen({ route, navigation }) {
   const doctor = route.params?.doctor || {};
 
-  const [selectedDate, setSelectedDate]           = useState(null);
-  const [selectedTime, setSelectedTime]           = useState(null);
+  const [selectedDate, setSelectedDate]             = useState(null);
+  const [selectedTime, setSelectedTime]             = useState(null);
   const [selectedTreatments, setSelectedTreatments] = useState([]);
-  const [consultationType, setConsultationType]   = useState('offline');
-  const [description, setDescription]             = useState('');
-  const [loading, setLoading]                     = useState(false);
-  const [userRole, setUserRole]                   = useState(null);
+  const [description, setDescription]               = useState('');
+  const [loading, setLoading]                       = useState(false);
+  const [userRole, setUserRole]                     = useState(null);
+  const [doctorTreatments, setDoctorTreatments]     = useState([]);
+  const [campaign, setCampaign]                     = useState(null);
 
-  const [showDatePicker, setShowDatePicker]       = useState(false);
-  const [showTimePicker, setShowTimePicker]       = useState(false);
-  const [customDateLabel, setCustomDateLabel]     = useState('');
-  const [customTimeLabel, setCustomTimeLabel]     = useState('');
+  const [showDatePicker, setShowDatePicker]         = useState(false);
+  const [showTimePicker, setShowTimePicker]         = useState(false);
+  const [customDateLabel, setCustomDateLabel]       = useState('');
+  const [customTimeLabel, setCustomTimeLabel]       = useState('');
 
   const dates = generateDates(60);
 
@@ -78,11 +81,20 @@ export default function BookingScreen({ route, navigation }) {
       const token = await storage.getItem('userToken');
       if (!token) return;
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.data?.success) {
-          setUserRole(res.data.data.user?.role || res.data.data.role);
+        const [meRes, treatRes, campRes] = await Promise.allSettled([
+          axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_BASE_URL}/api/treatments/doctor/${doctor._id}`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (meRes.status === 'fulfilled' && meRes.value.data?.success) {
+          setUserRole(meRes.value.data.data.user?.role || meRes.value.data.data.role);
+        }
+        if (treatRes.status === 'fulfilled' && treatRes.value.data?.success) {
+          setDoctorTreatments(treatRes.value.data.data || []);
+        }
+        if (campRes.status === 'fulfilled' && campRes.value.data?.success) {
+          const camps = campRes.value.data.data || [];
+          if (camps.length > 0) setCampaign(camps[0]);
         }
       } catch {}
     })();
@@ -128,7 +140,7 @@ export default function BookingScreen({ route, navigation }) {
       await axios.post(`${API_BASE_URL}/api/appointments`, {
         doctorId: doctor._id,
         treatmentType: selectedTreatments.join(', '),
-        consultationType,
+        consultationType: 'offline',
         description: description || `Campaign with ${doctor.fullName || 'Doctor'}`,
         date: selectedDate,
         time: selectedTime,
@@ -194,6 +206,22 @@ export default function BookingScreen({ route, navigation }) {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
+          {/* Campaign Banner from Admin */}
+          {campaign && (
+            <View style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>{campaign.title || 'Special Offer'}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }}>{campaign.body || campaign.description || ''}</Text>
+              </View>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 11 }}>PROMO</Text>
+              </View>
+            </View>
+          )}
+
           {/* Doctor Card */}
           <View style={styles.doctorCard}>
             <View style={styles.doctorAvatarBox}>
@@ -212,36 +240,35 @@ export default function BookingScreen({ route, navigation }) {
             )}
           </View>
 
-          {/* ── TREATMENTS ─────────────────────────────────────────────── */}
+          {/* ── TREATMENTS (from doctor's list) ─────────────────────────── */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="medkit" size={18} color="#7C3AED" />
               <Text style={styles.sectionTitle}>Select Treatments</Text>
               <Text style={styles.sectionHint}>(choose one or more)</Text>
             </View>
-            <View style={styles.treatmentGrid}>
-              {TREATMENTS.map((t) => {
-                const sel = selectedTreatments.includes(t.label);
-                return (
-                  <TouchableOpacity
-                    key={t.label}
-                    style={[styles.treatmentChip, sel && styles.treatmentChipSelected]}
-                    onPress={() => toggleTreatment(t.label)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={t.icon}
-                      size={15}
-                      color={sel ? '#FFF' : '#7C3AED'}
-                    />
-                    <Text style={[styles.treatmentChipText, sel && styles.treatmentChipTextSel]}>
-                      {t.label}
-                    </Text>
-                    {sel && <Ionicons name="checkmark-circle" size={14} color="rgba(255,255,255,0.8)" />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {doctorTreatments.length === 0 ? (
+              <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No treatments listed by this doctor yet.</Text>
+            ) : (
+              <View style={styles.treatmentGrid}>
+                {doctorTreatments.map((t) => {
+                  const sel = selectedTreatments.includes(t.name);
+                  const icon = getTreatIcon(t.name);
+                  return (
+                    <TouchableOpacity
+                      key={t._id || t.name}
+                      style={[styles.treatmentChip, sel && styles.treatmentChipSelected]}
+                      onPress={() => toggleTreatment(t.name)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={icon} size={15} color={sel ? '#FFF' : '#7C3AED'} />
+                      <Text style={[styles.treatmentChipText, sel && styles.treatmentChipTextSel]}>{t.name}</Text>
+                      {sel && <Ionicons name="checkmark-circle" size={14} color="rgba(255,255,255,0.8)" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
             {selectedTreatments.length > 0 && (
               <View style={styles.selectedSummary}>
                 <Ionicons name="checkmark-circle" size={14} color="#10B981" />
@@ -250,33 +277,6 @@ export default function BookingScreen({ route, navigation }) {
                 </Text>
               </View>
             )}
-          </View>
-
-          {/* ── CONSULTATION TYPE ──────────────────────────────────────── */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="swap-horizontal" size={18} color="#0052FF" />
-              <Text style={styles.sectionTitle}>Consultation Type</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              {[
-                { value: 'offline', label: 'In-Clinic',  icon: 'business-outline'  },
-                { value: 'online',  label: 'Video Call', icon: 'videocam-outline'   },
-              ].map(opt => {
-                const sel = consultationType === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[styles.consultChip, sel && styles.consultChipSel]}
-                    onPress={() => setConsultationType(opt.value)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name={opt.icon} size={18} color={sel ? '#FFF' : '#64748B'} />
-                    <Text style={[styles.consultChipText, sel && styles.consultChipTextSel]}>{opt.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
           </View>
 
           {/* ── DATE SELECTION ──────────────────────────────────────────── */}

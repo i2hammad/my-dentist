@@ -140,6 +140,7 @@ export default function ProfileScreen({ navigation }) {
         setMobileNumber(p.mobileNumber || '');
         setCity(p.city || '');
         setLocation(p.address || '');
+        setCoords(p.coordinates || '');
         if (p.profileImage) {
           setProfileImage(p.profileImage.startsWith('http') || p.profileImage.startsWith('file:') || p.profileImage.startsWith('content:') ? p.profileImage : `${API_BASE_URL}${p.profileImage}`);
         }
@@ -221,11 +222,11 @@ export default function ProfileScreen({ navigation }) {
         mobileNumber: mobileNumber.trim(),
         city: city.trim(),
         address: location.trim(),
+        coordinates: coords,
         gender: genderVal,
+        age: age ? parseInt(age, 10) : undefined,
+        familyMembers,
       };
-
-      if (age) payload.age = parseInt(age, 10);
-      payload.familyMembers = familyMembers;
 
       // Check if image is local and needs upload
       const isLocalImage = profileImage && (profileImage.startsWith('file://') || profileImage.startsWith('content://') || profileImage.startsWith('ph://'));
@@ -237,19 +238,18 @@ export default function ProfileScreen({ navigation }) {
 
       if (res.data?.success) {
         setProfileExists(true);
-        
+
         if (isLocalImage) {
           try {
-            await uploadAvatar(profileImage, token);
+            const uploadedUrl = await uploadAvatar(profileImage, token);
+            if (uploadedUrl) setProfileImage(uploadedUrl.startsWith('http') ? uploadedUrl : `${API_BASE_URL}${uploadedUrl}`);
           } catch (uploadErr) {
             console.log('Error uploading avatar:', uploadErr);
-            alert('Profile saved, but avatar upload failed. Please try another image.');
           }
         }
-        
-        alert('Profile saved successfully!');
-        // Navigate to Search (Nearby Doctors) to match the requested sequence
-        navigation.navigate('Search');
+
+        await fetchUserProfile();
+        Alert.alert('Success', 'Profile saved successfully!');
       } else {
         alert(res.data?.message || 'Failed to save profile');
       }

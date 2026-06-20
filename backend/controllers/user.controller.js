@@ -125,7 +125,7 @@ const createPatientProfile = async (req, res) => {
       });
     }
 
-    const { fullName, mobileNumber, dateOfBirth, gender, city, location } = req.body;
+    const { fullName, mobileNumber, dateOfBirth, gender, city, location, age, address, coordinates, familyMembers } = req.body;
 
     const profile = await PatientProfile.create({
       userId: req.user._id,
@@ -134,7 +134,11 @@ const createPatientProfile = async (req, res) => {
       dateOfBirth,
       gender,
       city,
-      location
+      location,
+      ...(age !== undefined && { age }),
+      ...(address !== undefined && { address }),
+      ...(coordinates !== undefined && { coordinates }),
+      ...(familyMembers !== undefined && { familyMembers }),
     });
 
     res.status(201).json({
@@ -171,7 +175,7 @@ const updatePatientProfile = async (req, res) => {
       });
     }
 
-    const allowedFields = ['fullName', 'mobileNumber', 'dateOfBirth', 'gender', 'city', 'location'];
+    const allowedFields = ['fullName', 'mobileNumber', 'dateOfBirth', 'gender', 'city', 'location', 'age', 'address', 'coordinates', 'familyMembers'];
     const updates = {};
 
     for (const field of allowedFields) {

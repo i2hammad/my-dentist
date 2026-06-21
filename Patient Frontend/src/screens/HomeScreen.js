@@ -352,14 +352,6 @@ export default function HomeScreen({ navigation }) {
             >
               <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
             </PressableScale>
-            {/* Appointments Icon */}
-            <PressableScale
-              style={styles.bellWrapper}
-              hitSlop={8}
-              onPress={() => navigation.navigate('Appointments')}
-            >
-              <Ionicons name="calendar-outline" size={26} color="#FFFFFF" />
-            </PressableScale>
             {/* Chat Inbox Icon */}
             <PressableScale
               style={styles.bellWrapper}
@@ -405,12 +397,6 @@ export default function HomeScreen({ navigation }) {
         </View>
         )}
 
-        {/* Row 2: Location */}
-        <PressableScale style={styles.locationRow} scaleTo={0.97}>
-          <Ionicons name="location-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.locationText}>Islamabad, Pakistan</Text>
-          <Ionicons name="chevron-down" size={16} color="#FFFFFF" />
-        </PressableScale>
       </AnimatedHeader>
 
       {/* ── SCROLLABLE BODY ── */}
@@ -461,6 +447,13 @@ export default function HomeScreen({ navigation }) {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
         </TouchableOpacity>
+
+        {/* LOCATION ROW — below My Appointments */}
+        <View style={styles.locationRowBody}>
+          <Ionicons name="location-outline" size={16} color="#0052FF" />
+          <Text style={styles.locationTextBody}>Islamabad, Pakistan</Text>
+          <Ionicons name="chevron-down" size={14} color="#94A3B8" />
+        </View>
 
         {/* ── SEARCH BAR ── */}
         <TouchableOpacity
@@ -635,6 +628,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginHorizontal: 2,
+  },
+  locationRowBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  locationTextBody: {
+    flex: 1,
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '600',
   },
 
   // Scrollable body

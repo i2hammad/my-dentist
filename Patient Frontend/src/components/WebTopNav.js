@@ -62,32 +62,16 @@ export default function WebTopNav({ navRef, navInfo }) {
   return (
     <View style={styles.bar}>
       <View style={styles.inner}>
-        {/* Brand */}
-        <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
-          <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
-        </Pressable>
+        {/* LEFT: Brand + quick-action icons */}
+        <View style={styles.leftCluster}>
+          <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
+            <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
+            <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
+          </Pressable>
 
-        {/* Tab links */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.links}>
-          {tabs.map((t) => {
-            const active = isActive(t.name);
-            return (
-              <Pressable key={t.name} onPress={() => goTab(t)} style={[styles.link, active && styles.linkActive]}>
-                <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={20} color={active ? '#0052FF' : '#64748B'} />
-                <Text style={[styles.linkText, active && styles.linkTextActive]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Right cluster: quick actions (patient) + profile + logout */}
-        <View style={styles.right}>
+          {/* Patient icons — chat, bell, profile, logout — right after brand */}
           {isPatient && (
             <>
-              <Pressable style={styles.iconBtn} onPress={() => goStack('Appointments')}>
-                <Ionicons name="calendar-outline" size={22} color="#334155" />
-              </Pressable>
               <Pressable style={styles.iconBtn} onPress={() => goStack('PatientInbox')}>
                 <Ionicons name="chatbubbles-outline" size={22} color="#334155" />
                 {unreadChatCount > 0 && (
@@ -100,19 +84,48 @@ export default function WebTopNav({ navRef, navInfo }) {
                   <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
                 )}
               </Pressable>
+              <Pressable
+                onPress={goProfile}
+                style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
+              >
+                <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
+                <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
+              </Pressable>
+              <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+              </Pressable>
             </>
           )}
-          <Pressable
-            onPress={goProfile}
-            style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
-          >
-            <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
-            <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
-          </Pressable>
-          <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-          </Pressable>
+
+          {/* Doctor profile + logout */}
+          {!isPatient && (
+            <>
+              <Pressable
+                onPress={goProfile}
+                style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
+              >
+                <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
+                <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
+              </Pressable>
+              <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+              </Pressable>
+            </>
+          )}
         </View>
+
+        {/* RIGHT: Tab links */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.links}>
+          {tabs.map((t) => {
+            const active = isActive(t.name);
+            return (
+              <Pressable key={t.name} onPress={() => goTab(t)} style={[styles.link, active && styles.linkActive]}>
+                <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={20} color={active ? '#0052FF' : '#64748B'} />
+                <Text style={[styles.linkText, active && styles.linkTextActive]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
     </View>
   );
@@ -140,7 +153,8 @@ const styles = StyleSheet.create({
   brandText: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
   brandAccent: { color: '#0052FF' },
 
-  links: { flexDirection: 'row', alignItems: 'center', gap: 4, flexGrow: 1, justifyContent: 'center' },
+  leftCluster: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  links: { flexDirection: 'row', alignItems: 'center', gap: 4, flexGrow: 1, justifyContent: 'flex-end' },
   link: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,

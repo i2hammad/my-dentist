@@ -127,7 +127,7 @@ export default function BookingScreen({ route, navigation }) {
 
   const handleBooking = async () => {
     if (!selectedDate || !selectedTime) {
-      return Alert.alert('Missing Info', 'Please select a date and time for your campaign.');
+      return Alert.alert('Missing Info', 'Please select a date and time for your appointment.');
     }
     if (selectedTreatments.length === 0) {
       return Alert.alert('Missing Info', 'Please select at least one treatment.');
@@ -141,7 +141,7 @@ export default function BookingScreen({ route, navigation }) {
         doctorId: doctor._id,
         treatmentType: selectedTreatments.join(', '),
         consultationType: 'offline',
-        description: description || `Campaign with ${doctor.fullName || 'Doctor'}`,
+        description: description || `Appointment with ${doctor.fullName || 'Doctor'}`,
         date: selectedDate,
         time: selectedTime,
         duration: 30,
@@ -149,14 +149,14 @@ export default function BookingScreen({ route, navigation }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      Alert.alert('Campaign Booked!', 'Your campaign has been booked successfully. The doctor will confirm shortly.', [
-        { text: 'View Campaigns', onPress: () => navigation.navigate('Campaigns') },
+      Alert.alert('Appointment Booked!', 'Your appointment has been booked successfully. The doctor will confirm shortly.', [
+        { text: 'View Appointments', onPress: () => navigation.navigate('Campaigns') },
         { text: 'OK' },
       ]);
     } catch (error) {
       const msg = error.response?.data?.message
         || error.response?.data?.errors?.map(e => e.msg).join(', ')
-        || 'Failed to book campaign. Please try again.';
+        || 'Failed to book appointment. Please try again.';
       Alert.alert('Booking Failed', msg);
     } finally {
       setLoading(false);
@@ -198,8 +198,8 @@ export default function BookingScreen({ route, navigation }) {
             <Ionicons name="arrow-back" size={22} color="#FFF" />
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerTitle}>Book Campaign</Text>
-            <Text style={styles.headerSub}>Schedule your dental treatment</Text>
+            <Text style={styles.headerTitle}>Book Appointment</Text>
+            <Text style={styles.headerSub}>Schedule your dental appointment</Text>
           </View>
           <View style={{ width: 38 }} />
         </View>
@@ -397,7 +397,7 @@ export default function BookingScreen({ route, navigation }) {
             </View>
             <TextInput
               style={styles.notesInput}
-              placeholder="Describe your symptoms or reason for this campaign…"
+              placeholder="Describe your symptoms or reason for this appointment…"
               placeholderTextColor="#94A3B8"
               value={description}
               onChangeText={setDescription}
@@ -448,7 +448,7 @@ export default function BookingScreen({ route, navigation }) {
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                <Text style={styles.confirmBtnText}>Confirm Campaign</Text>
+                <Text style={styles.confirmBtnText}>Confirm Appointment</Text>
               </View>
             )}
           </TouchableOpacity>

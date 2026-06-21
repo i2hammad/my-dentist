@@ -344,15 +344,12 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
 
       {/* ── BLUE HEADER ── */}
-      {/* On web the brand + action icons live in the top navbar (WebTopNav),
-          so we drop Row 1 here and keep only the location row. */}
+      {/* AnimatedHeader — mobile only (web uses WebTopNav) */}
+      {!isWeb && (
       <AnimatedHeader style={styles.blueHeader}>
-        {/* Row 1 — mobile only */}
-        {!isWeb && (
         <View style={styles.headerRow1}>
           <Text style={styles.headerTitle}>My Dentist PK</Text>
           <View style={styles.headerRight}>
-            {/* Saved Doctors */}
             <PressableScale
               style={styles.bellWrapper}
               hitSlop={8}
@@ -360,7 +357,6 @@ export default function HomeScreen({ navigation }) {
             >
               <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
             </PressableScale>
-            {/* Chat Inbox Icon */}
             <PressableScale
               style={styles.bellWrapper}
               hitSlop={8}
@@ -373,7 +369,6 @@ export default function HomeScreen({ navigation }) {
                 </View>
               )}
             </PressableScale>
-            {/* Notification bell */}
             <PressableScale
               style={styles.bellWrapper}
               hitSlop={8}
@@ -386,7 +381,6 @@ export default function HomeScreen({ navigation }) {
                 </View>
               )}
             </PressableScale>
-            {/* Profile photo */}
             <PressableScale
               style={styles.profilePhotoWrapper}
               scaleTo={0.9}
@@ -403,9 +397,8 @@ export default function HomeScreen({ navigation }) {
             </PressableScale>
           </View>
         </View>
-        )}
-
       </AnimatedHeader>
+      )}
 
       {/* ── SCROLLABLE BODY ── */}
       <ScrollView
@@ -458,9 +451,9 @@ export default function HomeScreen({ navigation }) {
 
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location-outline" size={16} color="#0A2470" />
+          <Ionicons name="location-outline" size={16} color="#FFFFFF" />
           <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
-          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#0A2470" />
+          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#FFFFFF" />
         </TouchableOpacity>
 
         {/* Inline City Picker — works on web + native */}
@@ -668,7 +661,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#0A2470',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -678,7 +671,7 @@ const styles = StyleSheet.create({
   },
   locationTextBody: {
     flex: 1,
-    color: '#0A2470',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
   },

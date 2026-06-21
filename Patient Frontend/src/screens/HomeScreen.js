@@ -451,9 +451,9 @@ export default function HomeScreen({ navigation }) {
 
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location-outline" size={16} color="#FFFFFF" />
+          <Ionicons name="location-outline" size={16} color="#0A2470" />
           <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
-          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#FFFFFF" />
+          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#0A2470" />
         </TouchableOpacity>
 
         {/* Inline City Picker — works on web + native */}
@@ -661,19 +661,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#0A2470',
+    backgroundColor: '#EFF6FF',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#BFDBFE',
   },
   locationTextBody: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#0A2470',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   // Scrollable body

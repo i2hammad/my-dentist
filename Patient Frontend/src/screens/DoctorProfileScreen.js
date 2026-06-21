@@ -251,7 +251,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
       // Fetch reviews (paginated list)
       try {
         const revRes = await axios.get(`${API_BASE_URL}/api/reviews/doctor/${docId}`);
-        if (revRes.data?.success) setReviews(revRes.data.data || []);
+        if (revRes.data?.success) setReviews(Array.isArray(revRes.data.data) ? revRes.data.data : []);
       } catch (e) {
         console.log('Error fetching reviews:', e?.message);
       }
@@ -1146,12 +1146,16 @@ Thank you for visiting!
                 </View>
                 <View style={styles.starBarsCol}>
                   {starCounts.map(({ star, count }) => {
-                    const pct = totalReviewCount > 0 ? count / totalReviewCount : 0;
+                    const pct = totalReviewCount > 0 ? Math.min(1, Math.max(0, count / totalReviewCount)) : 0;
+                    const fillColor = star >= 4 ? '#16A34A' : star === 3 ? '#F59E0B' : '#EF4444';
                     return (
                       <View key={star} style={styles.starBarRow}>
                         <Text style={styles.starBarLabel}>{star}★</Text>
                         <View style={styles.starBarBg}>
-                          <View style={[styles.starBarFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: star >= 4 ? '#16A34A' : star === 3 ? '#F59E0B' : '#EF4444' }]} />
+                          <View style={{ flexDirection: 'row', flex: 1, height: 7 }}>
+                            {pct > 0 && <View style={{ flex: pct, height: 7, backgroundColor: fillColor, borderRadius: 4 }} />}
+                            {pct < 1 && <View style={{ flex: 1 - pct, height: 7 }} />}
+                          </View>
                         </View>
                         <Text style={styles.starBarCount}>{count}</Text>
                       </View>
@@ -1189,7 +1193,7 @@ Thank you for visiting!
                       </View>
                     </View>
                   </View>
-                  <Text style={styles.reviewCommentNew}>{r.comment}</Text>
+                  <Text style={styles.reviewCommentNew}>{r.comment ? String(r.comment) : ''}</Text>
                   {(r.doctorReply?.text || (typeof r.doctorReply === 'string' && r.doctorReply)) ? (
                     <View style={{ backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#0052FF' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
@@ -1200,7 +1204,7 @@ Thank you for visiting!
                     </View>
                   ) : null}
                   <TouchableOpacity>
-                    <Text style={styles.helpfulLink}>Helpful ({r.helpful || 0})</Text>
+                    <Text style={styles.helpfulLink}>Helpful ({Number(r.helpful) || 0})</Text>
                   </TouchableOpacity>
                 </View>
               )) : (

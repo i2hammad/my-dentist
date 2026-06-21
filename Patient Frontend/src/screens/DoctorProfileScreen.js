@@ -646,8 +646,8 @@ Thank you for visiting!
   // Reviews Stats — prefer backend aggregate (all reviews); fall back to the
   // fetched page if the stats endpoint is unavailable.
   const avgRating   = reviewStats
-    ? (reviewStats.avgRating || 0).toFixed(1)
-    : (reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : '0.0');
+    ? Number(reviewStats.avgRating || 0).toFixed(1)
+    : (reviews.length ? (reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviews.length).toFixed(1) : '0.0');
   const recommendPct = reviewStats
     ? (reviewStats.recommendPercentage || 0)
     : (reviews.length ? Math.round((reviews.filter(r => r.rating >= 4).length / reviews.length) * 100) : 0);
@@ -1184,7 +1184,7 @@ Thank you for visiting!
                           ))}
                         </View>
                         <Text style={styles.reviewDateNew}>
-                          {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' }) : r.date || ''}
+                          {r.createdAt ? (() => { try { return new Date(r.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return r.date || ''; } })() : r.date || ''}
                         </Text>
                       </View>
                     </View>
@@ -2051,7 +2051,7 @@ const styles = StyleSheet.create({
   starBarRow:      { flexDirection: 'row', alignItems: 'center', gap: 6 },
   starBarLabel:    { fontSize: 11, color: '#64748B', width: 22, textAlign: 'right' },
   starBarBg:       { flex: 1, height: 7, backgroundColor: '#E2E8F0', borderRadius: 4, overflow: 'hidden' },
-  starBarFill:     { height: '100%', borderRadius: 4 },
+  starBarFill:     { height: 7, borderRadius: 4 },
   starBarCount:    { fontSize: 11, color: '#94A3B8', width: 22 },
 
   reviewCardNew:   { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9' },

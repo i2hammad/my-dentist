@@ -114,18 +114,7 @@ export default function WebTopNav({ navRef, navInfo }) {
           )}
         </View>
 
-        {/* RIGHT: Tab links */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.links}>
-          {tabs.map((t) => {
-            const active = isActive(t.name);
-            return (
-              <Pressable key={t.name} onPress={() => goTab(t)} style={[styles.link, active && styles.linkActive]}>
-                <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={20} color={active ? '#0052FF' : '#64748B'} />
-                <Text style={[styles.linkText, active && styles.linkTextActive]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* Tab links removed as per user request */}
       </View>
     </View>
   );

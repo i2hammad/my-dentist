@@ -38,24 +38,27 @@ const HIDDEN_ON = new Set([
 export default function WebTopNav({ navRef, navInfo }) {
   const { unreadChatCount = 0, unreadCount = 0 } = useNotifications() || {};
   const [patientPhoto, setPatientPhoto] = useState(null);
+  const rootRoute = navInfo?.root;
 
   useEffect(() => {
+    if (!rootRoute || HIDDEN_ON.has(rootRoute)) { setPatientPhoto(null); return; }
     const loadPhoto = async () => {
       try {
         const token = await storage.getItem('userToken');
-        if (!token) return;
+        if (!token) { setPatientPhoto(null); return; }
         const res = await axios.get(`${API_BASE_URL}/api/patients/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.data?.success && res.data.data?.profileImage) {
           setPatientPhoto(imgUrl(res.data.data.profileImage));
+        } else {
+          setPatientPhoto(null);
         }
-      } catch {}
+      } catch { setPatientPhoto(null); }
     };
     loadPhoto();
-  }, []);
+  }, [rootRoute]);
 
-  const rootRoute = navInfo?.root;
   if (!rootRoute || HIDDEN_ON.has(rootRoute)) return null;
   const navigate = (...args) => { try { navRef?.navigate?.(...args); } catch {} };
 

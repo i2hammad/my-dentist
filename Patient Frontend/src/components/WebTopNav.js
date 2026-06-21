@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
 import storage from '../config/storage';
+import axios from 'axios';
+import API_BASE_URL from '../config/api';
+import imgUrl from '../config/imgUrl';
 
 // Root-level top navigation bar for the WEB build. Rendered once ABOVE the stack
 // navigator so it stays fixed on every logged-in screen (home, treatment tabs,
@@ -34,6 +37,23 @@ const HIDDEN_ON = new Set([
 // render OUTSIDE the navigator context without crashing.
 export default function WebTopNav({ navRef, navInfo }) {
   const { unreadChatCount = 0, unreadCount = 0 } = useNotifications() || {};
+  const [patientPhoto, setPatientPhoto] = useState(null);
+
+  useEffect(() => {
+    const loadPhoto = async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        if (!token) return;
+        const res = await axios.get(`${API_BASE_URL}/api/patients/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.data?.success && res.data.data?.profileImage) {
+          setPatientPhoto(imgUrl(res.data.data.profileImage));
+        }
+      } catch {}
+    };
+    loadPhoto();
+  }, []);
 
   const rootRoute = navInfo?.root;
   if (!rootRoute || HIDDEN_ON.has(rootRoute)) return null;
@@ -88,7 +108,10 @@ export default function WebTopNav({ navRef, navInfo }) {
                 onPress={goProfile}
                 style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
               >
-                <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
+                {patientPhoto
+                  ? <Image source={{ uri: patientPhoto }} style={styles.profileAvatar} />
+                  : <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
+                }
                 <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
               </Pressable>
               <Pressable style={styles.logoutBtn} onPress={handleLogout}>
@@ -162,6 +185,7 @@ const styles = StyleSheet.create({
   },
   profileBtnActive: { borderColor: '#0052FF', backgroundColor: '#EFF4FF' },
   profileText: { fontSize: 14, fontWeight: '600', color: '#334155' },
+  profileAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: '#CBD5E1' },
 
   badge: {
     position: 'absolute', top: 2, right: 2,

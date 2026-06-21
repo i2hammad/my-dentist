@@ -451,9 +451,9 @@ export default function HomeScreen({ navigation }) {
 
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location-outline" size={16} color="#0A2470" />
+          <Ionicons name="location-outline" size={16} color="#FFFFFF" />
           <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
-          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#0A2470" />
+          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#FFFFFF" />
         </TouchableOpacity>
 
         {/* Inline City Picker — works on web + native */}
@@ -661,17 +661,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#0052FF',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#0052FF',
   },
   locationTextBody: {
     flex: 1,
-    color: '#0A2470',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },

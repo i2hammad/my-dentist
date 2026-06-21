@@ -11,7 +11,6 @@ import {
   Pressable,
   Alert,
   Platform,
-  Modal,
 } from 'react-native';
 
 const PK_CITIES = [
@@ -457,41 +456,39 @@ export default function HomeScreen({ navigation }) {
           <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
         </TouchableOpacity>
 
-        {/* LOCATION ROW — below My Appointments, tap to change city */}
-        <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(true)}>
+        {/* LOCATION ROW — tap to toggle city picker */}
+        <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
           <Ionicons name="location-outline" size={16} color="#0052FF" />
           <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
-          <Ionicons name="chevron-down" size={14} color="#0052FF" />
+          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#0052FF" />
         </TouchableOpacity>
 
-        {/* City Picker Modal */}
-        <Modal visible={showCityPicker} transparent animationType="slide" onRequestClose={() => setShowCityPicker(false)}>
-          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} activeOpacity={1} onPress={() => setShowCityPicker(false)}>
-            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32 }}>
-              <View style={{ alignItems: 'center', paddingTop: 14, paddingBottom: 10 }}>
-                <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0' }} />
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
-                <Ionicons name="location" size={20} color="#0052FF" style={{ marginRight: 8 }} />
-                <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A' }}>Select City</Text>
-              </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10 }}>
-                {PK_CITIES.map(city => {
-                  const active = city === selectedCity;
-                  return (
-                    <TouchableOpacity
-                      key={city}
-                      style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: active ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: active ? '#0052FF' : '#E2E8F0' }}
-                      onPress={() => { setSelectedCity(city); setShowCityPicker(false); }}
-                    >
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: active ? '#FFF' : '#334155' }}>{city}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+        {/* Inline City Picker — works on web + native */}
+        {showCityPicker && (
+          <View style={{ backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#DBEAFE', padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="location" size={16} color="#0052FF" style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Select Your City</Text>
+              <TouchableOpacity onPress={() => setShowCityPicker(false)} style={{ marginLeft: 'auto' }}>
+                <Ionicons name="close" size={18} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </Modal>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {PK_CITIES.map(city => {
+                const active = city === selectedCity;
+                return (
+                  <TouchableOpacity
+                    key={city}
+                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: active ? '#0052FF' : '#E2E8F0' }}
+                    onPress={() => { setSelectedCity(city); setShowCityPicker(false); }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#FFF' : '#334155' }}>{city}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* ── SEARCH BAR ── */}
         <TouchableOpacity

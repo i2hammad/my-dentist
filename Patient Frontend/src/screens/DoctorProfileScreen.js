@@ -1190,13 +1190,13 @@ Thank you for visiting!
                     </View>
                   </View>
                   <Text style={styles.reviewCommentNew}>{r.comment}</Text>
-                  {r.doctorReply ? (
+                  {(r.doctorReply?.text || (typeof r.doctorReply === 'string' && r.doctorReply)) ? (
                     <View style={{ backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#0052FF' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                         <Ionicons name="chatbubble-outline" size={13} color="#0052FF" style={{ marginRight: 4 }} />
                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#0052FF' }}>Doctor's Reply</Text>
                       </View>
-                      <Text style={{ fontSize: 13, color: '#1E3A8A', lineHeight: 18 }}>{r.doctorReply}</Text>
+                      <Text style={{ fontSize: 13, color: '#1E3A8A', lineHeight: 18 }}>{r.doctorReply?.text || r.doctorReply}</Text>
                     </View>
                   ) : null}
                   <TouchableOpacity>

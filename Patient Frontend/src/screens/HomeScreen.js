@@ -39,21 +39,23 @@ import useResponsive from '../hooks/useResponsive';
 
 // ─── Filter tab config ──────────────────────────────────────────────
 const FILTER_TABS = [
-  { key: 'Nearby',   label: 'Nearby',           icon: 'navigate-outline' },
-  { key: 'Elite',    label: 'Elite Clinic',      icon: 'ribbon-outline' },
-  { key: 'Modern',   label: 'Modern Clinic',     icon: 'diamond-outline' },
-  { key: 'Standard', label: 'Standard Clinic',   icon: 'shield-outline' },
+  { key: 'Nearby',    label: 'Nearby',           icon: 'navigate-outline' },
+  { key: 'Favorites', label: 'Favorites',        icon: 'heart' },
+  { key: 'Elite',     label: 'Elite Clinic',     icon: 'ribbon-outline' },
+  { key: 'Modern',    label: 'Modern Clinic',    icon: 'diamond-outline' },
+  { key: 'Standard',  label: 'Standard Clinic',  icon: 'shield-outline' },
 ];
 
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
-function filterDoctors(doctors, tab) {
-  if (tab === 'Nearby')   return doctors;
-  if (tab === 'Elite')    return doctors.filter(d => (d.facilityScore || 0) >= 31);
-  if (tab === 'Modern')   return doctors.filter(d => {
+function filterDoctors(doctors, tab, favorites) {
+  if (tab === 'Nearby')    return doctors;
+  if (tab === 'Favorites') return doctors.filter(d => favorites && (favorites[String(d._id)] || favorites[String(d.userId)]));
+  if (tab === 'Elite')     return doctors.filter(d => (d.facilityScore || 0) >= 31);
+  if (tab === 'Modern')    return doctors.filter(d => {
     const s = d.facilityScore || 0;
     return s >= 16 && s <= 30;
   });
-  if (tab === 'Standard') return doctors.filter(d => {
+  if (tab === 'Standard')  return doctors.filter(d => {
     const s = d.facilityScore || 0;
     return s >= 1 && s <= 15;
   });
@@ -119,10 +121,25 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
             )}
           </View>
 
-          {/* Specialty */}
-          <Text style={styles.doctorSpecialty} numberOfLines={1}>
-            {doc.specialization || 'Dentist'}
-          </Text>
+          {/* Specialty + Distance inline */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
+            <Text style={styles.doctorSpecialty} numberOfLines={1}>
+              {doc.specialization || 'Dentist'}
+            </Text>
+            {(() => {
+              if (!patientCoords) return null;
+              const dc = doc.coordinates ? String(doc.coordinates).split(',').map(Number) : null;
+              if (!dc || dc.length < 2 || isNaN(dc[0])) return null;
+              const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
+              if (km === null) return null;
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Ionicons name="navigate" size={11} color="#2563EB" style={{ marginRight: 3 }} />
+                  <Text style={{ fontSize: 11, color: '#2563EB', fontWeight: '700' }}>{fmtKm(km)}</Text>
+                </View>
+              );
+            })()}
+          </View>
 
           {/* Popular badge — green = earned, blue = paid */}
           {doc.isPopular && (
@@ -313,7 +330,7 @@ export default function HomeScreen({ navigation }) {
     } catch (e) { /* ignore */ }
   };
 
-  const filteredDoctors = filterDoctors(doctors, filterTab);
+  const filteredDoctors = filterDoctors(doctors, filterTab, favorites);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>

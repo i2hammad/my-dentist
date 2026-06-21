@@ -228,8 +228,14 @@ export default function ProfileScreen({ navigation }) {
         familyMembers,
       };
 
-      // Check if image is local and needs upload
-      const isLocalImage = profileImage && (profileImage.startsWith('file://') || profileImage.startsWith('content://') || profileImage.startsWith('ph://'));
+      // Check if image is local and needs upload (covers native file URIs + web blob URIs)
+      const isLocalImage = profileImage && (
+        profileImage.startsWith('file://') ||
+        profileImage.startsWith('content://') ||
+        profileImage.startsWith('ph://') ||
+        profileImage.startsWith('blob:') ||
+        profileImage.startsWith('data:')
+      );
 
       const method = profileExists ? 'put' : 'post';
       const res = await axios[method](`${API_BASE_URL}/api/users/patient-profile`, payload, {

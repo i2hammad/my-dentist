@@ -508,41 +508,6 @@ export default function HomeScreen({ navigation }) {
           </ScrollView>
         )}
 
-        {/* MY APPOINTMENTS BANNER */}
-        <TouchableOpacity
-          style={styles.myApptsCard}
-          onPress={() => navigation.navigate('Appointments')}
-          activeOpacity={0.8}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={styles.myApptsIconBg}>
-              <Ionicons name="calendar" size={22} color="#0052FF" />
-            </View>
-            <View>
-              <Text style={styles.myApptsTitle}>My Appointments</Text>
-              <Text style={styles.myApptsSub}>View upcoming & past visits</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-        </TouchableOpacity>
-
-        {/* QUICK ACTIONS — colorful shortcuts */}
-        <View style={styles.quickRow}>
-          {[
-            { key: 'find', label: 'Find\nDoctor', icon: 'search', bg: '#EFF6FF', fg: '#2563EB', onPress: () => navigation.navigate('Search') },
-            { key: 'saved', label: 'Saved\nDoctors', icon: 'heart', bg: '#FEF2F2', fg: '#EF4444', onPress: () => navigation.navigate('SavedDoctors') },
-            { key: 'appts', label: 'My\nVisits', icon: 'calendar', bg: '#ECFDF5', fg: '#10B981', onPress: () => navigation.navigate('Appointments') },
-            { key: 'chat', label: 'Messages', icon: 'chatbubble-ellipses', bg: '#FFF7ED', fg: '#F59E0B', onPress: () => navigation.navigate('PatientInbox') },
-          ].map(q => (
-            <TouchableOpacity key={q.key} style={styles.quickTile} activeOpacity={0.8} onPress={q.onPress}>
-              <View style={[styles.quickIconBg, { backgroundColor: q.bg }]}>
-                <Ionicons name={q.icon} size={20} color={q.fg} />
-              </View>
-              <Text style={styles.quickLabel}>{q.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
           <Ionicons name="location" size={16} color="#0052FF" />

@@ -56,8 +56,10 @@ export default function AppointmentsScreen({ navigation }) {
         setUpcoming(data.upcoming || []);
         setPast(data.past || []);
       }
-      if (campRes.status === 'fulfilled' && campRes.value.data?.success && campRes.value.data.data?.length > 0) {
-        setCampaign(campRes.value.data.data[0]);
+      if (campRes.status === 'fulfilled' && campRes.value.data?.success) {
+        const d = campRes.value.data.data;
+        const c = Array.isArray(d) ? d[0] : d;
+        if (c) setCampaign(c);
       }
     } catch (error) {
       console.error(error);
@@ -139,8 +141,8 @@ export default function AppointmentsScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </PressableScale>
         <View>
-          <Text style={styles.headerTitle}>My Campaigns</Text>
-          <Text style={styles.headerSub}>Your treatment campaigns</Text>
+          <Text style={styles.headerTitle}>My Appointments</Text>
+          <Text style={styles.headerSub}>Your dental appointments</Text>
         </View>
         <TouchableOpacity
           style={styles.addBtn}
@@ -220,12 +222,12 @@ export default function AppointmentsScreen({ navigation }) {
                 <Ionicons name="calendar-outline" size={44} color="#0052FF" />
               </View>
               <Text style={styles.emptyTitle}>
-                {activeTab === 'upcoming' ? 'No Upcoming Campaigns' : 'No Past Campaigns'}
+                {activeTab === 'upcoming' ? 'No Upcoming Appointments' : 'No Past Appointments'}
               </Text>
               <Text style={styles.emptySub}>
                 {activeTab === 'upcoming'
-                  ? 'Book your first dental campaign with a specialist!'
-                  : 'Your completed campaigns will appear here.'}
+                  ? 'Book your first dental appointment with a specialist!'
+                  : 'Your completed appointments will appear here.'}
               </Text>
               {activeTab === 'upcoming' && (
                 <TouchableOpacity

@@ -28,6 +28,7 @@ export default function ProfileScreen({ navigation }) {
   const [gender, setGender] = useState('Select your gender');
   const [age, setAge] = useState('');
   const [profileImage, setProfileImage] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [profileExists, setProfileExists] = useState(false);
   const [referral, setReferral] = useState(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
@@ -277,12 +278,31 @@ export default function ProfileScreen({ navigation }) {
         quality: 0.5,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setProfileImage(result.assets[0].uri);
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const localUri = result.assets[0].uri;
+      // Show the local preview immediately, then auto-upload + save.
+      setProfileImage(localUri);
+
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+
+      try {
+        setUploadingImage(true);
+        const uploadedUrl = await uploadAvatar(localUri, token);
+        if (uploadedUrl) {
+          setProfileImage(uploadedUrl.startsWith('http') ? uploadedUrl : `${API_BASE_URL}${uploadedUrl}`);
+        }
+      } catch (uploadErr) {
+        console.log('Error uploading avatar:', uploadErr?.message || uploadErr);
+        alert('Failed to upload photo. Please try again.');
+        // Keep the local preview so the user can retry via Save.
+      } finally {
+        setUploadingImage(false);
       }
     } catch (error) {
       console.log('Error picking image:', error);
-      alert('Failed to pick an image');
+      alert('Failed to pick an image: ' + (error?.message || error));
     }
   };
 
@@ -376,8 +396,13 @@ export default function ProfileScreen({ navigation }) {
                 ) : (
                   <Ionicons name="person" size={40} color="#2563EB" />
                 )}
+                {uploadingImage && (
+                  <View style={styles.avatarUploadOverlay}>
+                    <ActivityIndicator color="#FFF" size="small" />
+                  </View>
+                )}
               </View>
-              <TouchableOpacity style={styles.addPhotoBadge} onPress={handlePickImage}>
+              <TouchableOpacity style={styles.addPhotoBadge} onPress={handlePickImage} disabled={uploadingImage}>
                 <Ionicons name="add" size={16} color="#2563EB" />
               </TouchableOpacity>
             </View>
@@ -732,6 +757,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#DBEAFE',
+    overflow: 'hidden',
+  },
+  avatarUploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addPhotoBadge: {
     position: 'absolute',

@@ -99,7 +99,7 @@ function MainTabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Implants" component={ImplantsScreen} />
-      <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Campaigns' }} />
+      <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Appointments' }} />
       <Tab.Screen name="Orthodontics" component={OrthodonticsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

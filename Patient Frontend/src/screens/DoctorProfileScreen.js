@@ -17,6 +17,24 @@ import { drName } from '../utils/doctorName';
 // Component layout uses the live useResponsive() hook instead.
 const { width } = Dimensions.get('window');
 
+// ─── Distance helpers (match HomeScreen) ──────────────────────────────────────
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+// Parse a "lat, lng" string into { lat, lng } or null.
+const parseCoords = (s) => {
+  if (!s) return null;
+  const p = String(s).split(',').map(Number);
+  if (p.length < 2 || isNaN(p[0]) || isNaN(p[1])) return null;
+  return { lat: p[0], lng: p[1] };
+};
+
 // ─── No Default Facilities ────────────────────────────────────────────────────────
 
 // ─── Clinic Tier Helper ─── Standard 1-15 · Modern 16-30 · Elite 31+ ──────────
@@ -662,6 +680,14 @@ Thank you for visiting!
     ? doctor.services.filter(Boolean).map(f => ({ label: typeof f === 'string' ? f : (f.name || f.label || ''), icon: 'checkmark-circle-outline' }))
     : [];
 
+  // Distance between the patient and this doctor (null if either lacks coords).
+  const patientCoords = parseCoords(patientProfile?.coordinates);
+  const doctorCoords = parseCoords(doctor.coordinates);
+  const distanceKm = (patientCoords && doctorCoords)
+    ? haversineKm(patientCoords.lat, patientCoords.lng, doctorCoords.lat, doctorCoords.lng)
+    : null;
+  const distanceLabel = distanceKm !== null ? fmtKm(distanceKm) : null;
+
   // Clinic Tier
   const facilityScore = doctor.facilityScore || 0;
   const tier = getClinicTier(facilityScore);
@@ -697,10 +723,18 @@ Thank you for visiting!
             <Text style={styles.clinicText}>{doctor.clinicName}</Text>
           </View>
         )}
-        {doctor.address && (
+        {(doctor.address || distanceLabel) && (
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={14} color="#64748B" />
-            <Text style={styles.distanceText}>{doctor.address}, {doctor.city || ''}</Text>
+            {!!doctor.address && (
+              <Text style={styles.distanceText}>{doctor.address}{doctor.city ? `, ${doctor.city}` : ''}</Text>
+            )}
+            {distanceLabel && (
+              <View style={styles.distanceChip}>
+                <Ionicons name="navigate" size={11} color="#2563EB" />
+                <Text style={styles.distanceChipText}>{distanceLabel} away</Text>
+              </View>
+            )}
           </View>
         )}
         {doctor.consultationFee ? (
@@ -851,10 +885,18 @@ Thank you for visiting!
                   <Text style={styles.clinicText}>{doctor.clinicName}</Text>
                 </View>
               )}
-              {doctor.address && (
+              {(doctor.address || distanceLabel) && (
                 <View style={styles.locationRow}>
                   <Ionicons name="location-outline" size={14} color="#64748B" />
-                  <Text style={styles.distanceText}>{doctor.address}, {doctor.city || ''}</Text>
+                  {!!doctor.address && (
+                    <Text style={styles.distanceText}>{doctor.address}{doctor.city ? `, ${doctor.city}` : ''}</Text>
+                  )}
+                  {distanceLabel && (
+                    <View style={styles.distanceChip}>
+                      <Ionicons name="navigate" size={11} color="#2563EB" />
+                      <Text style={styles.distanceChipText}>{distanceLabel} away</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -1973,8 +2015,10 @@ const styles = StyleSheet.create({
   ratingText:      { fontSize: 13, fontWeight: 'bold', color: '#D97706', marginLeft: 4 },
   clinicTag:       { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 10 },
   clinicText:      { color: '#0052FF', fontSize: 12, fontWeight: '600' },
-  locationRow:     { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  locationRow:     { flexDirection: 'row', alignItems: 'center', marginTop: 8, flexWrap: 'wrap', gap: 6 },
   distanceText:    { fontSize: 12, color: '#64748B', marginLeft: 4 },
+  distanceChip:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, gap: 2 },
+  distanceChipText:{ fontSize: 11, color: '#2563EB', fontWeight: '700' },
 
   // Tabs
   tabsScroll:         { marginTop: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },

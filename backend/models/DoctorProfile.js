@@ -130,6 +130,10 @@ const doctorProfileSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Human-readable "lat, lng" string mirrored to the frontend (matches
+    // PatientProfile.coordinates). The 2dsphere `location` below is the
+    // canonical geo field used for proximity queries.
+    coordinates: { type: String, default: '' },
     location: {
       type: {
         type: String,

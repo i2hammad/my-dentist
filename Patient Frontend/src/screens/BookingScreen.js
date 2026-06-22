@@ -93,8 +93,9 @@ export default function BookingScreen({ route, navigation }) {
           setDoctorTreatments(treatRes.value.data.data || []);
         }
         if (campRes.status === 'fulfilled' && campRes.value.data?.success) {
-          const camps = campRes.value.data.data || [];
-          if (camps.length > 0) setCampaign(camps[0]);
+          const d = campRes.value.data.data;
+          const c = Array.isArray(d) ? d[0] : d;
+          if (c) setCampaign(c);
         }
       } catch {}
     })();

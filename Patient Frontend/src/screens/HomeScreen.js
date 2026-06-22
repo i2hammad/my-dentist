@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
   Pressable,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 const PK_CITIES = [
   'Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar',
@@ -286,7 +288,10 @@ export default function HomeScreen({ navigation }) {
         const token = await storage.getItem('userToken');
         if (token) {
           const res = await axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } });
-          if (res.data?.success && res.data.data?.length > 0) setCampaign(res.data.data[0]);
+          if (res.data?.success) {
+            const c = Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
+            if (c) setCampaign(c);
+          }
         }
       } catch (e) { /* non-critical */ }
     } finally {
@@ -340,15 +345,61 @@ export default function HomeScreen({ navigation }) {
 
   const filteredDoctors = filterDoctors(doctors, filterTab, favorites);
 
+  // Greeting + first name for the header.
+  const firstName = (profile?.fullName || '').trim().split(/\s+/)[0] || '';
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  // Collapsing header: the greeting block shrinks + fades as the body scrolls.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const COLLAPSE = 70; // px of scroll over which the greeting collapses
+  const greetingHeight = scrollY.interpolate({
+    inputRange: [0, COLLAPSE],
+    outputRange: [64, 0],
+    extrapolate: 'clamp',
+  });
+  const greetingOpacity = scrollY.interpolate({
+    inputRange: [0, COLLAPSE * 0.6],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+  const headerPadBottom = scrollY.interpolate({
+    inputRange: [0, COLLAPSE],
+    outputRange: [22, 12],
+    extrapolate: 'clamp',
+  });
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* White status-bar icons so the bar blends with the blue header (edge-to-edge) */}
+      {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
 
       {/* ── BLUE HEADER ── */}
-      {/* AnimatedHeader — mobile only (web uses WebTopNav) */}
+      {/* Collapsing header — mobile only (web uses WebTopNav) */}
       {!isWeb && (
-      <AnimatedHeader style={styles.blueHeader}>
+      <Animated.View style={[styles.blueHeader, { paddingBottom: headerPadBottom }]}>
+        {/* Decorative accent blobs for depth */}
+        <View pointerEvents="none" style={styles.headerBlobA} />
+        <View pointerEvents="none" style={styles.headerBlobB} />
+        {/* Faint dental glyphs scattered in the background */}
+        <View pointerEvents="none" style={styles.headerGlyphs}>
+          <Ionicons name="medical-outline"   size={64} color="rgba(255,255,255,0.07)" style={{ position: 'absolute', top: -8,  right: 60 }} />
+          <Ionicons name="happy-outline"      size={40} color="rgba(255,255,255,0.08)" style={{ position: 'absolute', top: 54,  right: 8 }} />
+          <Ionicons name="sparkles-outline"   size={28} color="rgba(255,255,255,0.10)" style={{ position: 'absolute', top: 22,  left: 6 }} />
+          <Ionicons name="shield-checkmark-outline" size={34} color="rgba(255,255,255,0.07)" style={{ position: 'absolute', bottom: 4, left: 80 }} />
+          <Ionicons name="pulse-outline"      size={30} color="rgba(255,255,255,0.08)" style={{ position: 'absolute', bottom: 10, right: 110 }} />
+        </View>
         <View style={styles.headerRow1}>
-          <Text style={styles.headerTitle}>My Dentist PK</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={styles.headerLogoBadge}>
+              <Ionicons name="medical" size={18} color="#0052FF" />
+            </View>
+            <Text style={styles.headerTitle}>My Dentist PK</Text>
+          </View>
           <View style={styles.headerRight}>
             <PressableScale
               style={styles.bellWrapper}
@@ -397,11 +448,18 @@ export default function HomeScreen({ navigation }) {
             </PressableScale>
           </View>
         </View>
-      </AnimatedHeader>
+
+        {/* Personalized greeting — collapses on scroll */}
+        <Animated.View style={{ height: greetingHeight, opacity: greetingOpacity, overflow: 'hidden' }}>
+          <Text style={styles.headerGreeting}>{greeting()}{firstName ? ',' : ''}</Text>
+          {!!firstName && <Text style={styles.headerName}>{firstName} 👋</Text>}
+          <Text style={styles.headerTagline}>Find the right dentist near you</Text>
+        </Animated.View>
+      </Animated.View>
       )}
 
       {/* ── SCROLLABLE BODY ── */}
-      <ScrollView
+      <Animated.ScrollView
         style={styles.body}
         contentContainerStyle={[
           styles.bodyContent,
@@ -409,6 +467,11 @@ export default function HomeScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
       >
 
         {/* ADMIN CAMPAIGN BANNER */}
@@ -449,11 +512,28 @@ export default function HomeScreen({ navigation }) {
           <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
         </TouchableOpacity>
 
+        {/* QUICK ACTIONS — colorful shortcuts */}
+        <View style={styles.quickRow}>
+          {[
+            { key: 'find', label: 'Find\nDoctor', icon: 'search', bg: '#EFF6FF', fg: '#2563EB', onPress: () => navigation.navigate('Search') },
+            { key: 'saved', label: 'Saved\nDoctors', icon: 'heart', bg: '#FEF2F2', fg: '#EF4444', onPress: () => navigation.navigate('SavedDoctors') },
+            { key: 'appts', label: 'My\nVisits', icon: 'calendar', bg: '#ECFDF5', fg: '#10B981', onPress: () => navigation.navigate('Appointments') },
+            { key: 'chat', label: 'Messages', icon: 'chatbubble-ellipses', bg: '#FFF7ED', fg: '#F59E0B', onPress: () => navigation.navigate('PatientInbox') },
+          ].map(q => (
+            <TouchableOpacity key={q.key} style={styles.quickTile} activeOpacity={0.8} onPress={q.onPress}>
+              <View style={[styles.quickIconBg, { backgroundColor: q.bg }]}>
+                <Ionicons name={q.icon} size={20} color={q.fg} />
+              </View>
+              <Text style={styles.quickLabel}>{q.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location-outline" size={16} color="#FFFFFF" />
+          <Ionicons name="location" size={16} color="#0052FF" />
           <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
-          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#FFFFFF" />
+          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
         </TouchableOpacity>
 
         {/* Inline City Picker — works on web + native */}
@@ -573,7 +653,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
@@ -590,7 +670,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#0052FF',
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  headerBlobA: {
+    position: 'absolute',
+    top: -50,
+    right: -30,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  headerBlobB: {
+    position: 'absolute',
+    bottom: -60,
+    left: -40,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(56,189,248,0.18)',
+  },
+  headerGlyphs: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  headerLogoBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   headerRow1: {
     flexDirection: 'row',
@@ -599,10 +713,28 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 0.3,
+  },
+  headerGreeting: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  headerName: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    marginTop: 1,
+  },
+  headerTagline: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12.5,
+    marginTop: 4,
   },
   headerRight: {
     flexDirection: 'row',
@@ -660,18 +792,20 @@ const styles = StyleSheet.create({
   locationRowBody: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#0052FF',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 10,
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
     borderWidth: 1,
-    borderColor: '#0052FF',
+    borderColor: '#E2E8F0',
   },
   locationTextBody: {
     flex: 1,
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -724,6 +858,45 @@ const styles = StyleSheet.create({
   myApptsSub: {
     fontSize: 12,
     color: '#64748B',
+  },
+
+  // Quick action tiles
+  quickRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 2,
+    gap: 10,
+  },
+  quickTile: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  quickIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    textAlign: 'center',
+    lineHeight: 14,
   },
 
   // Search bar

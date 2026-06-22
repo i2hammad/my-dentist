@@ -4,12 +4,14 @@ import {
   SquaresFour, ShieldCheck, Tooth, Users, Heartbeat,
   Image, Star, CalendarBlank, Receipt, Gift, SignOut, Bell, MagnifyingGlass,
   Gear, CaretDown, UserCircle, Megaphone, Sparkle, List, X,
+  ChartLine, PaperPlaneTilt, ClockCounterClockwise, Percent,
 } from '@phosphor-icons/react';
 import { useAuth } from '../lib/auth.jsx';
 import { imgUrl } from '../lib/api';
 
 const NAV = [
   { to: '/', label: 'Dashboard', Icon: SquaresFour, end: true },
+  { to: '/analytics', label: 'Analytics', Icon: ChartLine },
   { to: '/admins', label: 'Admins', Icon: ShieldCheck },
   { to: '/dentists', label: 'Dentists', Icon: Tooth },
   { to: '/patients', label: 'Patients', Icon: Users },
@@ -19,8 +21,11 @@ const NAV = [
   { to: '/appointments', label: 'Appointments', Icon: CalendarBlank },
   { to: '/bills', label: 'Bills & Bill History', Icon: Receipt },
   { to: '/rewards', label: 'Rewards & Payments', Icon: Gift },
+  { to: '/commission', label: 'Commission', Icon: Percent },
   { to: '/campaigns', label: 'Dr. Promotions', Icon: Megaphone },
   { to: '/patient-campaigns', label: 'Patient Promotions', Icon: Sparkle },
+  { to: '/broadcast', label: 'Broadcast', Icon: PaperPlaneTilt },
+  { to: '/audit-logs', label: 'Activity Log', Icon: ClockCounterClockwise },
   { to: '/settings', label: 'Settings', Icon: Gear },
 ];
 

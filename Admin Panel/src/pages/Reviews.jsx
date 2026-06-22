@@ -1,11 +1,22 @@
+import { useState } from 'react';
 import { Star, SealCheck, TrendUp, ChatCircle, Trash } from '@phosphor-icons/react';
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Stars, Pagination, fmtDate } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
+import ExportButton from '../components/ExportButton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
 
+const REVIEW_CSV_COLS = [
+  { header: 'Patient', value: (r) => r.patientId?.fullName },
+  { header: 'Dentist', value: (r) => r.doctorId?.fullName },
+  { header: 'Rating', value: (r) => r.rating },
+  { header: 'Comment', value: (r) => r.comment },
+  { header: 'Date', value: (r) => fmtDate(r.createdAt) },
+];
+
 export default function Reviews() {
-  const L = useList('/api/admin/reviews');
+  const [rating, setRating] = useState('all');
+  const L = useList('/api/admin/reviews', { rating });
   const c = L.counts;
   const toast = useToast();
   const confirm = useConfirm();
@@ -17,7 +28,8 @@ export default function Reviews() {
 
   return (
     <div className="card">
-      <PageHeader title="Reviews & Ratings" crumb="Reviews & Ratings" />
+      <PageHeader title="Reviews & Ratings" crumb="Reviews & Ratings"
+        actions={<ExportButton path="/api/admin/reviews" params={{ rating }} columns={REVIEW_CSV_COLS} filename="reviews.csv" />} />
       {L.loading ? <SkeletonStatCards /> : (
       <StatCards items={[
         { label: 'Total Reviews', value: c.total ?? '—', icon: Star, tone: 'blue' },
@@ -26,6 +38,17 @@ export default function Reviews() {
         { label: 'All Reviews', value: c.total ?? '—', icon: ChatCircle, tone: 'purple' },
       ]} />
       )}
+
+      <div className="toolbar">
+        <select value={rating} onChange={(e) => setRating(e.target.value)}>
+          <option value="all">All Ratings</option>
+          <option value="5">★★★★★ (5)</option>
+          <option value="4">★★★★ (4)</option>
+          <option value="3">★★★ (3)</option>
+          <option value="2">★★ (2)</option>
+          <option value="1">★ (1)</option>
+        </select>
+      </div>
 
       {L.loading ? <SkeletonTable cols={6} /> : (
         <>

@@ -6,7 +6,17 @@ import { PageHeader, StatCards, Pagination, fmtDate } from '../components/ui.jsx
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import Modal from '../components/Modal.jsx';
 import Field from '../components/Field.jsx';
+import ExportButton from '../components/ExportButton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
+
+const TREATMENT_CSV_COLS = [
+  { header: 'Treatment', value: (r) => r.name },
+  { header: 'Dentist', value: (r) => r.doctorId?.fullName },
+  { header: 'Price Min', value: (r) => r.priceMin },
+  { header: 'Price Max', value: (r) => r.priceMax },
+  { header: 'Status', value: (r) => (r.isActive ? 'Active' : 'Inactive') },
+  { header: 'Created', value: (r) => fmtDate(r.createdAt) },
+];
 
 export default function Treatments() {
   const [search, setSearch] = useState('');
@@ -24,7 +34,10 @@ export default function Treatments() {
   return (
     <div className="card">
       <PageHeader title="Treatments" crumb="Treatments"
-        actions={<button className="btn primary" onClick={() => setEdit({})}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Treatment</button>} />
+        actions={<>
+          <ExportButton path="/api/admin/treatments" params={{ search }} columns={TREATMENT_CSV_COLS} filename="treatments.csv" />
+          <button className="btn primary" onClick={() => setEdit({})}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Treatment</button>
+        </>} />
 
       {L.loading ? <SkeletonStatCards /> : (
         <StatCards items={[

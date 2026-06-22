@@ -182,6 +182,12 @@ const doctorProfileSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Total commission the doctor has paid/cleared to the platform over time (PKR).
+    commissionPaid: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     // 'earned' = reached 20k points (green) · 'paid' = admin-granted (blue) · null = not popular
     popularType: {
       type: String,

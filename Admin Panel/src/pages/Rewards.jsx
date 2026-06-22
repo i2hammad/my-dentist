@@ -4,7 +4,16 @@ import api from '../lib/api';
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate, PopularBadge } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
+import ExportButton from '../components/ExportButton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
+
+const REWARD_CSV_COLS = [
+  { header: 'Patient', value: (r) => r.patientId?.fullName },
+  { header: 'Description', value: (r) => r.description },
+  { header: 'Points', value: (r) => r.points },
+  { header: 'Status', value: (r) => (r.isRedeemed ? 'Redeemed' : 'Active') },
+  { header: 'Date', value: (r) => fmtDate(r.createdAt) },
+];
 
 export default function Rewards() {
   const [tab, setTab] = useState('patients');
@@ -33,6 +42,9 @@ function PatientRewards() {
           { label: 'Redeemed', value: c.redeemed ?? '—', icon: Trophy, tone: 'purple' },
         ]} />
       )}
+      <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
+        <ExportButton path="/api/admin/rewards" columns={REWARD_CSV_COLS} filename="patient-rewards.csv" />
+      </div>
       {L.loading ? <SkeletonTable cols={5} /> : (
         <>
           <table>

@@ -137,21 +137,23 @@ export default function AppointmentsScreen({ navigation }) {
     <SafeAreaView edges={['top']} style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <PressableScale hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
+        <View pointerEvents="none" style={styles.headerBlob} />
+        <PressableScale style={styles.headerBtn} hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
+          <Ionicons name="arrow-back" size={22} color="#FFF" />
         </PressableScale>
-        <View>
+        <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>My Appointments</Text>
           <Text style={styles.headerSub}>Your dental appointments</Text>
         </View>
         <TouchableOpacity
-          style={styles.addBtn}
+          style={styles.headerBtn}
           onPress={() => navigation.navigate('Search')}
         >
           <Ionicons name="add" size={22} color="#FFF" />
         </TouchableOpacity>
       </View>
 
+      <View style={styles.body}>
       {/* Admin Campaign Banner */}
       {campaign && (
         <View style={{ backgroundColor: '#7C3AED', margin: 12, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
@@ -243,45 +245,70 @@ export default function AppointmentsScreen({ navigation }) {
           ListFooterComponent={<View style={{ height: 32 }} />}
         />
       )}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F0F4FF' },
+  safe: { flex: 1, backgroundColor: '#0052FF' },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: 20,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 22,
     backgroundColor: '#0052FF',
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: 'hidden',
+    position: 'relative',
+    ...(typeof document !== 'undefined' ? { boxShadow: '0 6px 18px rgba(0,82,255,0.25)' } : {
+      shadowColor: '#0052FF', shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+    }),
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', textAlign: 'center' },
-  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  headerBlob: {
+    position: 'absolute',
+    top: -40, right: -20,
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  headerTitleWrap: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', textAlign: 'center', letterSpacing: 0.2 },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: 2 },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
+
+  body: { flex: 1, backgroundColor: '#F1F5F9' },
 
   statsBar: {
     flexDirection: 'row',
     backgroundColor: '#FFF',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8EFFF',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    ...(typeof document !== 'undefined' ? { boxShadow: '0 4px 14px rgba(15,23,42,0.05)' } : {
+      shadowColor: '#0F172A', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+    }),
   },
   statItem: { flex: 1, alignItems: 'center' },
   statNum: { fontSize: 22, fontWeight: '900', color: '#0052FF' },
   statLabel: { fontSize: 11, color: '#94A3B8', marginTop: 2, fontWeight: '600' },
-  statDivider: { width: 1, backgroundColor: '#E8EFFF', marginHorizontal: 8 },
+  statDivider: { width: 1, backgroundColor: '#EEF2F7', marginHorizontal: 8 },
 
   tabContainer: {
     flexDirection: 'row',

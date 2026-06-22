@@ -9,6 +9,35 @@ const Review = require('../models/Review');
 const Appointment = require('../models/Appointment');
 const Bill = require('../models/Bill');
 const Reward = require('../models/Reward');
+const Notification = require('../models/Notification');
+const AuditLog = require('../models/AuditLog');
+const CommissionLog = require('../models/CommissionLog');
+
+// Record a commission dues change for a doctor (best-effort).
+async function logCommission(req, doc, { type, amount, note = '' }) {
+  try {
+    await CommissionLog.create({
+      doctorId: doc._id,
+      doctorName: doc.fullName || '',
+      type, amount,
+      balanceAfter: doc.commissionDue || 0,
+      note,
+      actorName: req.user?.fullName || req.user?.email || 'Admin',
+    });
+  } catch (_) { /* logging must not break the action */ }
+}
+
+// Record an admin action for the activity log. Best-effort (never throws into
+// the request flow). `req` carries the acting admin on req.user.
+async function logAudit(req, { action, entity = '', entityId = '', description = '' }) {
+  try {
+    await AuditLog.create({
+      actorId: req.user?._id,
+      actorName: req.user?.fullName || req.user?.email || 'Admin',
+      action, entity, entityId: String(entityId || ''), description,
+    });
+  } catch (_) { /* logging must not break the action */ }
+}
 
 const startOfMonth = () => {
   const d = new Date();
@@ -177,6 +206,7 @@ exports.deleteDentist = async (req, res) => {
     if (!doc) return fail(res, 404, 'Dentist not found');
     await DoctorProfile.findByIdAndDelete(req.params.id);
     await User.findByIdAndDelete(doc.userId);
+    await logAudit(req, { action: 'delete', entity: 'dentist', entityId: doc._id, description: `Deleted dentist "${doc.fullName}"` });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
@@ -207,6 +237,7 @@ exports.deletePatient = async (req, res) => {
     if (!p) return fail(res, 404, 'Patient not found');
     await PatientProfile.findByIdAndDelete(req.params.id);
     await User.findByIdAndDelete(p.userId);
+    await logAudit(req, { action: 'delete', entity: 'patient', entityId: p._id, description: `Deleted patient "${p.fullName}"` });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
@@ -237,6 +268,7 @@ exports.deleteTreatment = async (req, res) => {
   try {
     const t = await Treatment.findByIdAndDelete(req.params.id);
     if (!t) return fail(res, 404, 'Treatment not found');
+    await logAudit(req, { action: 'delete', entity: 'treatment', entityId: t._id, description: `Deleted treatment "${t.name}"` });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
@@ -273,9 +305,11 @@ exports.deleteGallery = async (req, res) => {
 // @route GET /api/admin/reviews
 exports.listReviews = async (req, res) => {
   try {
-    const { page, limit } = req.query;
+    const { page, limit, rating } = req.query;
+    const query = {};
+    if (rating && rating !== 'all') query.rating = parseInt(rating, 10);
     const result = await paginate(Review, {
-      query: {}, page, limit,
+      query, page, limit,
       populate: [
         { path: 'patientId', select: 'fullName profileImage' },
         { path: 'doctorId', select: 'fullName photo' },
@@ -296,6 +330,7 @@ exports.deleteReview = async (req, res) => {
   try {
     const r = await Review.findByIdAndDelete(req.params.id);
     if (!r) return fail(res, 404, 'Review not found');
+    await logAudit(req, { action: 'delete', entity: 'review', entityId: r._id, description: 'Deleted a review' });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
@@ -328,9 +363,20 @@ exports.listAppointments = async (req, res) => {
 // @route GET /api/admin/bills
 exports.listBills = async (req, res) => {
   try {
-    const { page, limit, status } = req.query;
+    const { page, limit, status, search, from, to } = req.query;
     const query = {};
     if (status && status !== 'all') query.status = status;
+    if (search) {
+      query.$or = [
+        { invoiceNumber: { $regex: search, $options: 'i' } },
+        { treatmentName: { $regex: search, $options: 'i' } },
+      ];
+    }
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); query.createdAt.$lte = end; }
+    }
     const result = await paginate(Bill, {
       query, page, limit,
       populate: [
@@ -338,12 +384,17 @@ exports.listBills = async (req, res) => {
         { path: 'doctorId', select: 'fullName photo' },
       ],
     });
-    const allBills = await Bill.find().select('finalAmount status').lean();
+    // Summary reflects the CURRENT filter so totals match what's listed.
+    const filtered = await Bill.find(query).select('finalAmount paidAmount status').lean();
+    const collected = filtered.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
+    const billed = filtered.reduce((s, b) => s + (b.finalAmount || 0), 0);
     const counts = {
-      total: await Bill.countDocuments(),
-      paid: await Bill.countDocuments({ status: 'paid' }),
-      pending: await Bill.countDocuments({ status: { $ne: 'paid' } }),
-      totalAmount: allBills.reduce((s, b) => s + (b.finalAmount || 0), 0),
+      total: result.total,
+      paid: filtered.filter((b) => b.status === 'paid').length,
+      pending: filtered.filter((b) => b.status !== 'paid').length,
+      totalAmount: billed,
+      collected,
+      outstanding: Math.max(0, billed - collected),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
@@ -454,19 +505,54 @@ exports.getDentist = async (req, res) => {
   try {
     const doctor = await DoctorProfile.findById(req.params.id).populate('userId', 'email role createdAt').lean();
     if (!doctor) return fail(res, 404, 'Dentist not found');
-    const [treatments, reviews, appointments, gallery] = await Promise.all([
+    const [treatments, reviews, appointments, gallery, bills, commissionLog] = await Promise.all([
       Treatment.find({ doctorId: doctor._id }).lean(),
       Review.find({ doctorId: doctor._id }).populate('patientId', 'fullName profileImage').sort({ createdAt: -1 }).limit(10).lean(),
       Appointment.find({ doctorId: doctor._id }).populate('patientId', 'fullName').sort({ createdAt: -1 }).limit(10).lean(),
       Gallery.find({ doctorId: doctor._id }).lean(),
+      Bill.find({ doctorId: doctor._id }).populate('patientId', 'fullName profileImage').sort({ createdAt: -1 }).lean(),
+      CommissionLog.find({ doctorId: doctor._id }).sort({ createdAt: -1 }).limit(20).lean(),
     ]);
     const ratingAgg = await Review.aggregate([
       { $match: { doctorId: doctor._id } },
       { $group: { _id: null, avg: { $avg: '$rating' }, n: { $sum: 1 } } },
     ]);
+
+    // Earnings: what this doctor has actually collected from patients (paidAmount,
+    // falling back to finalAmount on paid bills) vs what's still billed/outstanding.
+    const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
+    const billed = bills.reduce((s, b) => s + (b.finalAmount || 0), 0);
+
+    // Commission: the platform's share of the doctor's collected billings.
+    const settings = await getOrCreateSettings();
+    const commissionRate = settings.commissionRate ?? 10;
+    const commissionEarned = Math.round(collected * (commissionRate / 100));
+
+    const earnings = {
+      totalEarned: collected,
+      totalBilled: billed,
+      outstanding: Math.max(0, billed - collected),
+      paidCount: bills.filter((b) => b.status === 'paid').length,
+      billCount: bills.length,
+      // Platform commission tracking.
+      commissionRate,
+      commissionEarned,                              // total platform share to date
+      commissionDue: doctor.commissionDue || 0,      // currently outstanding (admin-managed)
+      commissionPaid: doctor.commissionPaid || 0,    // cleared to date
+    };
+
+    // Attach per-bill platform commission (rate % of the paid/collected amount).
+    const billsWithCommission = bills.slice(0, 20).map((b) => {
+      const paid = b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0;
+      return { ...b, commission: Math.round(paid * (commissionRate / 100)) };
+    });
+
     ok(res, {
       doctor,
       treatments, reviews, appointments, gallery,
+      bills: billsWithCommission,
+      earnings,
+      commissionLog,
       rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : 0,
       reviewCount: ratingAgg[0]?.n || 0,
     });
@@ -537,7 +623,7 @@ exports.updateSettings = async (req, res) => {
     const me = await AdminProfile.findOne({ userId: req.user._id });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can change app settings');
     const s = await getOrCreateSettings();
-    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments'];
+    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'commissionRate'];
     for (const k of allowed) if (k in req.body) s[k] = req.body[k];
     await s.save();
     ok(res, s);
@@ -600,8 +686,15 @@ exports.setCommission = async (req, res) => {
     const doc = await DoctorProfile.findById(req.params.id);
     if (!doc) return fail(res, 404, 'Dentist not found');
 
-    if (typeof req.body.commissionDue === 'number') doc.commissionDue = Math.max(0, req.body.commissionDue);
-    else if (typeof req.body.addCommission === 'number') doc.commissionDue = Math.max(0, (doc.commissionDue || 0) + req.body.addCommission);
+    const before = doc.commissionDue || 0;
+    let logType = 'set', delta = 0;
+    if (typeof req.body.commissionDue === 'number') {
+      doc.commissionDue = Math.max(0, req.body.commissionDue);
+      logType = 'set'; delta = doc.commissionDue - before;
+    } else if (typeof req.body.addCommission === 'number') {
+      doc.commissionDue = Math.max(0, before + req.body.addCommission);
+      logType = 'add'; delta = doc.commissionDue - before;
+    }
 
     // Auto-block at threshold; clearing dues below threshold does NOT auto-unblock
     // (admin must explicitly unblock after verifying payment).
@@ -610,7 +703,105 @@ exports.setCommission = async (req, res) => {
       doc.blockReason = `Outstanding commission dues of PKR ${doc.commissionDue.toLocaleString()} exceeded the limit. Clear dues and contact admin to unblock.`;
     }
     await doc.save();
+    await logCommission(req, doc, { type: logType, amount: delta });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Set commission dues for "${doc.fullName}" to PKR ${(doc.commissionDue || 0).toLocaleString()}` });
     ok(res, doc);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route PATCH /api/admin/dentists/:id/commission/sync
+// Auto-set outstanding dues = (commission earned from collected bills) − already paid.
+exports.syncDues = async (req, res) => {
+  try {
+    const doc = await DoctorProfile.findById(req.params.id);
+    if (!doc) return fail(res, 404, 'Dentist not found');
+
+    const bills = await Bill.find({ doctorId: doc._id }).select('finalAmount paidAmount status').lean();
+    const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
+    const settings = await getOrCreateSettings();
+    const rate = settings.commissionRate ?? 10;
+    const earned = Math.round(collected * (rate / 100));
+    const owed = Math.max(0, earned - (doc.commissionPaid || 0));
+
+    doc.commissionDue = owed;
+    if (owed >= COMMISSION_BLOCK_THRESHOLD && !doc.isBlocked) {
+      doc.isBlocked = true;
+      doc.blockReason = `Outstanding commission dues of PKR ${owed.toLocaleString()} exceeded the limit. Clear dues and contact admin to unblock.`;
+    }
+    await doc.save();
+    await logCommission(req, doc, { type: 'sync', amount: owed, note: `${rate}% of ${collected.toLocaleString()} collected − ${(doc.commissionPaid || 0).toLocaleString()} paid` });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Synced commission dues for "${doc.fullName}" to PKR ${owed.toLocaleString()}` });
+    ok(res, { doc, owed, earned, collected, rate });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route PATCH /api/admin/dentists/:id/commission/clear
+// Marks the doctor's outstanding commission dues as paid. Records the amount to
+// commissionPaid (cumulative) and resets commissionDue to 0.
+exports.clearDues = async (req, res) => {
+  try {
+    const doc = await DoctorProfile.findById(req.params.id);
+    if (!doc) return fail(res, 404, 'Dentist not found');
+    const cleared = doc.commissionDue || 0;
+    if (cleared <= 0) return fail(res, 400, 'No outstanding dues to clear');
+    doc.commissionPaid = (doc.commissionPaid || 0) + cleared;
+    doc.commissionDue = 0;
+    // Clearing dues below the block threshold auto-unblocks (dues were the reason).
+    if (doc.isBlocked && /commission/i.test(doc.blockReason || '')) {
+      doc.isBlocked = false;
+      doc.blockReason = '';
+    }
+    await doc.save();
+    await logCommission(req, doc, { type: 'clear', amount: cleared, note: req.body?.note || '' });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Cleared PKR ${cleared.toLocaleString()} commission dues for "${doc.fullName}"` });
+    ok(res, { doc, cleared });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route GET /api/admin/commission
+// Platform-wide commission overview across all doctors.
+exports.getCommissionOverview = async (req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    const rate = settings.commissionRate ?? 10;
+
+    // Collected per doctor from bills.
+    const collectedAgg = await Bill.aggregate([
+      { $group: {
+        _id: '$doctorId',
+        collected: { $sum: { $ifNull: ['$paidAmount', { $cond: [{ $eq: ['$status', 'paid'] }, '$finalAmount', 0] }] } },
+        billed: { $sum: '$finalAmount' },
+      } },
+    ]);
+    const byDoctor = {};
+    collectedAgg.forEach((c) => { byDoctor[String(c._id)] = c; });
+
+    const doctors = await DoctorProfile.find().select('fullName photo city commissionDue commissionPaid isBlocked').lean();
+    const rows = doctors.map((d) => {
+      const agg = byDoctor[String(d._id)] || { collected: 0, billed: 0 };
+      const earned = Math.round(agg.collected * (rate / 100));
+      return {
+        _id: d._id, fullName: d.fullName, photo: d.photo, city: d.city,
+        collected: agg.collected, commissionEarned: earned,
+        commissionPaid: d.commissionPaid || 0,
+        commissionDue: d.commissionDue || 0,
+        isBlocked: !!d.isBlocked,
+      };
+    }).sort((a, b) => b.commissionEarned - a.commissionEarned);
+
+    const totals = rows.reduce((t, r) => ({
+      earned: t.earned + r.commissionEarned,
+      paid: t.paid + r.commissionPaid,
+      due: t.due + r.commissionDue,
+      collected: t.collected + r.collected,
+    }), { earned: 0, paid: 0, due: 0, collected: 0 });
+
+    ok(res, {
+      rate,
+      totals,
+      overdueCount: rows.filter((r) => r.commissionDue > 0).length,
+      doctors: rows,
+    });
   } catch (e) { fail(res, 500, e.message); }
 };
 
@@ -624,5 +815,103 @@ exports.unblockDentist = async (req, res) => {
     );
     if (!doc) return fail(res, 404, 'Dentist not found');
     ok(res, doc);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Analytics ──────────────────────────────────────────────
+// @route GET /api/admin/analytics
+// Richer time-series + breakdowns for the analytics dashboard.
+exports.getAnalytics = async (req, res) => {
+  try {
+    const months = Math.min(24, Math.max(3, parseInt(req.query.months, 10) || 6));
+    const since = new Date();
+    since.setMonth(since.getMonth() - (months - 1));
+    since.setDate(1); since.setHours(0, 0, 0, 0);
+
+    const monthGroup = (extra = {}) => ([
+      { $match: { createdAt: { $gte: since }, ...extra } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const [apptSeries, patientSeries, dentistSeries, revenueAgg, statusAgg, cityAgg, topTreatments] = await Promise.all([
+      Appointment.aggregate(monthGroup()),
+      PatientProfile.aggregate(monthGroup()),
+      DoctorProfile.aggregate(monthGroup()),
+      // Revenue per month from paid bills.
+      Bill.aggregate([
+        { $match: { status: 'paid', createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, total: { $sum: { $ifNull: ['$paidAmount', '$finalAmount'] } } } },
+        { $sort: { _id: 1 } },
+      ]),
+      // Appointment status breakdown (for a pie/donut).
+      Appointment.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      // Patients by city (top 8).
+      PatientProfile.aggregate([
+        { $match: { city: { $nin: [null, ''] } } },
+        { $group: { _id: '$city', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }, { $limit: 8 },
+      ]),
+      // Most-booked treatment types.
+      Appointment.aggregate([
+        { $match: { treatmentType: { $nin: [null, ''] } } },
+        { $group: { _id: '$treatmentType', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }, { $limit: 8 },
+      ]),
+    ]);
+
+    ok(res, {
+      months,
+      appointmentSeries: apptSeries,
+      patientSeries,
+      dentistSeries,
+      revenueSeries: revenueAgg,
+      statusBreakdown: statusAgg,
+      patientsByCity: cityAgg,
+      topTreatments,
+    });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Broadcast notifications ────────────────────────────────
+// @route POST /api/admin/broadcast
+// Body: { title, message, audience: 'all'|'patient'|'doctor' }
+// Creates one Notification per targeted user (shows in their in-app inbox).
+exports.broadcast = async (req, res) => {
+  try {
+    const { title, message, audience = 'all' } = req.body;
+    if (!title || !message) return fail(res, 400, 'Title and message are required');
+    if (!['all', 'patient', 'doctor'].includes(audience)) return fail(res, 400, 'Invalid audience');
+
+    const userQuery = audience === 'all' ? { role: { $in: ['patient', 'doctor'] } } : { role: audience };
+    const users = await User.find(userQuery).select('_id').lean();
+    if (!users.length) return fail(res, 404, 'No users found for this audience');
+
+    const docs = users.map((u) => ({ userId: u._id, title, message, type: 'system' }));
+    await Notification.insertMany(docs);
+
+    await logAudit(req, {
+      action: 'broadcast', entity: 'notification',
+      description: `Broadcast "${title}" to ${docs.length} ${audience} user(s)`,
+    });
+
+    ok(res, { sent: docs.length, audience });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Audit log ──────────────────────────────────────────────
+// @route GET /api/admin/audit-logs
+exports.listAuditLogs = async (req, res) => {
+  try {
+    const { page, limit, action } = req.query;
+    const query = {};
+    if (action && action !== 'all') query.action = action;
+    const result = await paginate(AuditLog, { query, page, limit });
+    const counts = {
+      total: await AuditLog.countDocuments(),
+      deletes: await AuditLog.countDocuments({ action: 'delete' }),
+      broadcasts: await AuditLog.countDocuments({ action: 'broadcast' }),
+    };
+    ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };

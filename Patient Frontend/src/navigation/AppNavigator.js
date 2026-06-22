@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -52,26 +52,29 @@ const Tab = createBottomTabNavigator();
 // Tab bar styling shared by patient + doctor navigators.
 function useTabBarOptions() {
   const insets = useSafeAreaInsets();
-  if (isWeb) {
-    // Hide the in-navigator tab bar entirely — the root WebTopNav replaces it.
+  const { width } = useWindowDimensions();
+  if (isWeb && width >= 1024) {
+    // Wide web: the top WebTopNav shows the nav links, so hide the bottom tabs.
+    // Narrow web keeps the bottom tab bar (the top links are hidden there).
     return { tabBarStyle: { display: 'none' } };
   }
-  // Add the device's bottom safe-area inset (gesture nav bar) so labels aren't
-  // clipped in edge-to-edge mode. Min 8 ensures spacing on devices with no inset.
-  const bottomInset = Math.max(insets.bottom, 8);
+  // Web has no gesture nav bar, so no safe-area inset is needed there — adding it
+  // pushes the labels into the rounded container and clips them. Native keeps the
+  // inset (min 8) so labels clear the device gesture bar.
+  const bottomInset = isWeb ? 10 : Math.max(insets.bottom, 8);
   return {
     tabBarPosition: 'bottom',
     tabBarActiveTintColor: '#0052FF',
     tabBarInactiveTintColor: '#94A3B8',
     tabBarStyle: {
-      height: 58 + bottomInset,
+      height: 64 + bottomInset,
       paddingBottom: bottomInset,
       paddingTop: 8,
       backgroundColor: '#FFFFFF',
       borderTopWidth: 1,
       borderTopColor: '#E2E8F0',
     },
-    tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
+    tabBarLabelStyle: { fontSize: 11, lineHeight: 14, fontWeight: '600', marginBottom: 4, includeFontPadding: false },
     tabBarIconStyle: { marginTop: 2 },
   };
 }

@@ -81,6 +81,31 @@ input, select { font-family: inherit; font-size: 14px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .card-head h3 { font-size: 16px; font-weight: 700; }
 
+/* View toggle (Table / Cards) */
+.view-toggle { display: inline-flex; background: #F1F5F9; border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+.view-toggle button { border: none; background: transparent; border-radius: 8px; padding: 6px 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+.view-toggle button.active { background: #fff; color: var(--blue); box-shadow: 0 1px 3px rgba(2,6,23,.12); }
+
+/* Entity preview cards (dentists / patients) */
+.entity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.entity-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; transition: box-shadow .15s ease, transform .15s ease; }
+.entity-card:hover { box-shadow: 0 8px 24px rgba(2,6,23,.10); transform: translateY(-2px); }
+.entity-card .ec-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.entity-card .ec-top.clickable { cursor: pointer; }
+.entity-card .ec-top.clickable:hover .ec-name { color: var(--blue); }
+.entity-card .ec-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #E9EEF5; flex-shrink: 0; }
+.entity-card .ec-name { font-weight: 700; font-size: 15px; color: var(--text, #0F172A); display: flex; align-items: center; gap: 4px; }
+.entity-card .ec-sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.entity-card .ec-rows { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; }
+.entity-card .ec-row { display: flex; align-items: center; gap: 7px; color: #475569; font-size: 13px; }
+.entity-card .ec-row svg { color: var(--muted); flex-shrink: 0; }
+.entity-card .ec-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid #F1F5F9; }
+.entity-card .ec-actions { display: flex; gap: 6px; }
+
+/* Inline date-range filter */
+.date-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.date-filter input { width: auto; }
+
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .toolbar input[type=text], .toolbar select {
   padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff;
@@ -94,6 +119,8 @@ tr:hover td { background: #FAFBFF; }
 .cell-user { display: flex; align-items: center; gap: 10px; }
 .cell-user .name { font-weight: 600; }
 .cell-user .sub { color: var(--muted); font-size: 12px; }
+.cell-user.clickable { cursor: pointer; }
+.cell-user.clickable:hover .name { color: var(--blue); text-decoration: underline; }
 
 .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
 .badge.green { background: #DCFCE7; color: #15803D; }
@@ -128,6 +155,8 @@ tr:hover td { background: #FAFBFF; }
   animation: shimmer 1.2s infinite linear;
   border-radius: 8px;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; }
 .sk-line { height: 12px; margin: 6px 0; }
 .sk-circle { width: 36px; height: 36px; border-radius: 50%; }
 .sk-cell { display: flex; align-items: center; gap: 10px; }

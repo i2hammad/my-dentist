@@ -178,6 +178,7 @@ function AppTab({ isSuper }) {
         rewardPointsPerAppointment: Number(s.rewardPointsPerAppointment),
         rewardPointValuePkr: Number(s.rewardPointValuePkr),
         defaultConsultationFee: Number(s.defaultConsultationFee),
+        commissionRate: Number(s.commissionRate),
         supportEmail: s.supportEmail, payments: s.payments,
       });
       toast('Settings saved');
@@ -194,6 +195,11 @@ function AppTab({ isSuper }) {
         <div className="field-row">
           <Field label="Points per Appointment" type="number" value={s.rewardPointsPerAppointment} onChange={set('rewardPointsPerAppointment')} />
           <Field label="Point Value (PKR)" type="number" value={s.rewardPointValuePkr} onChange={set('rewardPointValuePkr')} />
+        </div>
+        <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Commission</h4>
+        <div className="field-row">
+          <Field label="Platform Commission Rate (%)" type="number" value={s.commissionRate ?? 10} onChange={set('commissionRate')} />
+          <div />
         </div>
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>General</h4>
         <div className="field-row">

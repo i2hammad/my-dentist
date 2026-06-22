@@ -8,6 +8,13 @@ const admin = require('../controllers/admin.controller');
 router.use(protect, authorize('admin'));
 
 router.get('/dashboard', admin.getDashboard);
+router.get('/analytics', admin.getAnalytics);
+
+// Broadcast a notification to patients/doctors
+router.post('/broadcast', admin.broadcast);
+
+// Admin activity / audit log
+router.get('/audit-logs', admin.listAuditLogs);
 
 // Own account + app settings
 router.patch('/me', admin.updateMyProfile);
@@ -26,7 +33,10 @@ router.post('/dentists', admin.createDentist);
 router.get('/dentists/:id', admin.getDentist);
 router.patch('/dentists/:id', admin.updateDentist);
 router.patch('/dentists/:id/popular', admin.setPopular);
+router.get('/commission', admin.getCommissionOverview);
 router.patch('/dentists/:id/commission', admin.setCommission);
+router.patch('/dentists/:id/commission/clear', admin.clearDues);
+router.patch('/dentists/:id/commission/sync', admin.syncDues);
 router.patch('/dentists/:id/unblock', admin.unblockDentist);
 router.delete('/dentists/:id', admin.deleteDentist);
 

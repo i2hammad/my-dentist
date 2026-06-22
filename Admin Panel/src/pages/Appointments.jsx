@@ -3,8 +3,18 @@ import { CalendarBlank, CheckCircle, Clock, XCircle } from '@phosphor-icons/reac
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
+import ExportButton from '../components/ExportButton.jsx';
 
 const map = { completed: 'green', confirmed: 'blue', pending: 'amber', cancelled: 'red' };
+
+const APPT_CSV_COLS = [
+  { header: 'Patient', value: (r) => r.patientId?.fullName },
+  { header: 'Dentist', value: (r) => r.doctorId?.fullName },
+  { header: 'Date', value: (r) => fmtDate(r.date) },
+  { header: 'Time', value: (r) => r.time },
+  { header: 'Treatment', value: (r) => r.treatmentType },
+  { header: 'Status', value: (r) => r.status },
+];
 
 export default function Appointments() {
   const [status, setStatus] = useState('all');
@@ -13,7 +23,8 @@ export default function Appointments() {
 
   return (
     <div className="card">
-      <PageHeader title="Appointments" crumb="Appointments" />
+      <PageHeader title="Appointments" crumb="Appointments"
+        actions={<ExportButton path="/api/admin/appointments" params={{ status }} columns={APPT_CSV_COLS} filename="appointments.csv" />} />
       {L.loading ? <SkeletonStatCards /> : (
       <StatCards items={[
         { label: 'Total Appointments', value: c.total ?? '—', icon: CalendarBlank, tone: 'blue' },

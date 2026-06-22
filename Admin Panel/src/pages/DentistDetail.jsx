@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, SealCheck, Check, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, SealCheck, Check, Trash, Wallet, Receipt, WarningCircle, CheckCircle } from '@phosphor-icons/react';
 import api, { imgUrl } from '../lib/api';
-import { Stars, fmtDate, money, PopularBadge } from '../components/ui.jsx';
+import { Stars, fmtDate, money, PopularBadge, StatCards } from '../components/ui.jsx';
 import { SkeletonStatCards } from '../components/Skeleton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
 
 const Row = ({ k, v }) => (
   <div><div className="k">{k}</div><div className="v">{v ?? '—'}</div></div>
+);
+
+const CommRow = ({ k, v, bold, green, red }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+    <span className="muted" style={{ fontSize: 13 }}>{k}</span>
+    <span style={{ fontWeight: bold ? 700 : 600, color: red ? '#B91C1C' : green ? '#15803D' : '#0F172A' }}>{v}</span>
+  </div>
 );
 
 export default function DentistDetail() {
@@ -51,6 +58,26 @@ export default function DentistDetail() {
     try { await api.patch(`/api/admin/dentists/${id}/commission`, { commissionDue: num }); toast('Commission updated'); load(); }
     catch { toast('Failed', 'error'); }
   };
+  const addDues = async () => {
+    const earned = d.earnings?.commissionEarned || 0;
+    const val = window.prompt(`Add commission dues (PKR) for ${doc.fullName}.\nPlatform has earned PKR ${earned.toLocaleString()} (${d.earnings?.commissionRate ?? 10}% of collected).`, String(earned - (doc.commissionPaid || 0) > 0 ? earned - (doc.commissionPaid || 0) : earned));
+    if (val == null) return;
+    const num = Number(val);
+    if (isNaN(num) || num <= 0) return toast('Enter a valid amount', 'error');
+    try { await api.patch(`/api/admin/dentists/${id}/commission`, { addCommission: num }); toast(`Added PKR ${num.toLocaleString()} dues`); load(); }
+    catch { toast('Failed', 'error'); }
+  };
+  const clearDues = async () => {
+    if (!(doc.commissionDue > 0)) return toast('No outstanding dues to clear', 'error');
+    if (!(await confirm({ title: 'Clear Dues', message: `Mark PKR ${doc.commissionDue.toLocaleString()} commission dues as PAID for ${doc.fullName}? This also unblocks them if they were blocked for dues.`, confirmText: 'Clear Dues' }))) return;
+    try { await api.patch(`/api/admin/dentists/${id}/commission/clear`); toast('Dues cleared'); load(); }
+    catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
+  };
+  const syncDues = async () => {
+    if (!(await confirm({ title: 'Sync Dues', message: `Auto-set ${doc.fullName}'s outstanding dues to (commission earned − already paid)? This recalculates from their collected bills.`, confirmText: 'Sync' }))) return;
+    try { const r = await api.patch(`/api/admin/dentists/${id}/commission/sync`); toast(`Dues synced to Rs. ${(r.data.data.owed || 0).toLocaleString()}`); load(); }
+    catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
+  };
   const del = async () => {
     if (!(await confirm({ title: 'Delete Dentist', message: `Delete ${doc.fullName}?`, confirmText: 'Delete', destructive: true }))) return;
     try { await api.delete(`/api/admin/dentists/${id}`); toast('Deleted'); nav('/dentists'); }
@@ -70,7 +97,8 @@ export default function DentistDetail() {
         <div className="row-actions">
           {doc.approvalStatus !== 'approved' && <button className="btn primary" onClick={approve}><Check size={16} weight="bold" style={{ verticalAlign: -2, marginRight: 6 }} />Approve</button>}
           {doc.approvalStatus === 'pending' && <button className="btn ghost" onClick={reject}>Reject</button>}
-          <button className="btn ghost" onClick={setCommission}>Commission: Rs. {(doc.commissionDue || 0).toLocaleString()}</button>
+          <button className="btn ghost" onClick={addDues}>+ Add Dues</button>
+          {doc.commissionDue > 0 && <button className="btn primary" onClick={clearDues}>Clear Dues (Rs. {doc.commissionDue.toLocaleString()})</button>}
           <button className={`btn ${doc.isBlocked ? 'primary' : 'ghost'}`} onClick={toggleBlock}>{doc.isBlocked ? 'Unblock' : 'Block'}</button>
           <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
         </div>
@@ -95,6 +123,16 @@ export default function DentistDetail() {
           </div>
         </div>
       </div>
+
+      {/* Earnings summary */}
+      {d.earnings && (
+        <StatCards items={[
+          { label: 'Total Earned', value: money(d.earnings.totalEarned), icon: Wallet, tone: 'green' },
+          { label: 'Total Billed', value: money(d.earnings.totalBilled), icon: Receipt, tone: 'blue' },
+          { label: 'Outstanding', value: money(d.earnings.outstanding), icon: WarningCircle, tone: 'amber' },
+          { label: 'Paid Bills', value: `${d.earnings.paidCount} / ${d.earnings.billCount}`, icon: CheckCircle, tone: 'purple' },
+        ]} />
+      )}
 
       <div className="dash-grid" style={{ alignItems: 'start' }}>
         <div>
@@ -181,7 +219,7 @@ export default function DentistDetail() {
               </div>
             )) : <span className="muted">No reviews</span>}
           </div>
-          <div className="card">
+          <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-head"><h3>Recent Appointments</h3></div>
             {d.appointments.length ? d.appointments.map((a) => (
               <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #F1F5F9' }}>
@@ -189,6 +227,59 @@ export default function DentistDetail() {
               </div>
             )) : <span className="muted">No appointments</span>}
           </div>
+
+          {/* Bills & earnings */}
+          <div className="card">
+            <div className="card-head">
+              <h3>Bills &amp; Earnings ({d.earnings?.billCount ?? (d.bills?.length || 0)})</h3>
+              {d.earnings && <span className="badge green">Earned {money(d.earnings.totalEarned)}</span>}
+            </div>
+            {d.bills?.length ? d.bills.map((b) => (
+              <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{b.invoiceNumber || b.treatmentName || 'Bill'}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{b.patientId?.fullName || 'Patient'} · {fmtDate(b.createdAt)}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 700 }}>{money(b.finalAmount)}</div>
+                  <span className={`badge ${b.status === 'paid' ? 'green' : b.status === 'draft' ? 'gray' : 'amber'}`} style={{ fontSize: 10 }}>{b.status}</span>
+                  {b.commission > 0 && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Comm. {money(b.commission)}</div>}
+                </div>
+              </div>
+            )) : <span className="muted">No bills yet</span>}
+          </div>
+
+          {/* Platform commission */}
+          {d.earnings && (
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="card-head"><h3>Platform Commission ({d.earnings.commissionRate}%)</h3></div>
+              <CommRow k={`Commission earned (${d.earnings.commissionRate}% of ${money(d.earnings.totalEarned)})`} v={money(d.earnings.commissionEarned)} bold />
+              <CommRow k="Cleared / paid to date" v={money(d.earnings.commissionPaid)} green />
+              <CommRow k="Outstanding dues" v={money(d.earnings.commissionDue)} red={d.earnings.commissionDue > 0} bold />
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <button className="btn ghost" style={{ flex: 1 }} onClick={syncDues}>↻ Sync from Bills</button>
+                <button className="btn ghost" style={{ flex: 1 }} onClick={addDues}>+ Add Dues</button>
+                <button className="btn primary" style={{ flex: 1 }} disabled={!(doc.commissionDue > 0)} onClick={clearDues}>Clear Dues</button>
+              </div>
+              {doc.commissionDue >= 50000 && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠ Dues at/above PKR 50,000 auto-block the doctor.</p>}
+
+              {/* Commission payment history */}
+              {d.commissionLog?.length > 0 && (
+                <div style={{ marginTop: 14, borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
+                  <h4 style={{ fontSize: 13, margin: '0 0 8px' }}>Payment History</h4>
+                  {d.commissionLog.map((l) => (
+                    <div key={l._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #F8FAFC' }}>
+                      <div>
+                        <span className={`badge ${l.type === 'clear' ? 'green' : l.type === 'sync' ? 'blue' : 'amber'}`} style={{ fontSize: 10, textTransform: 'capitalize' }}>{l.type}</span>
+                        <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>{fmtDate(l.createdAt)} · {l.actorName}</span>
+                      </div>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{money(l.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {d.gallery?.length > 0 && (
             <div className="card" style={{ marginTop: 16 }}>
               <div className="card-head"><h3>Gallery ({d.gallery.length})</h3></div>

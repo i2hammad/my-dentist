@@ -18,6 +18,8 @@ const appSettingsSchema = new mongoose.Schema(
     // Popular badge thresholds
     popularPointsThreshold: { type: Number, default: 20000 }, // green/earned at this many points
     popularPaidAmountPkr: { type: Number, default: 100000 },   // paid (blue) badge fee
+    // Platform commission: percent of each doctor's collected billings owed to the platform.
+    commissionRate: { type: Number, default: 10 }, // %
   },
   { timestamps: true }
 );

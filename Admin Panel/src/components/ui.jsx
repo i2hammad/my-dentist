@@ -1,4 +1,19 @@
 import { imgUrl } from '../lib/api';
+import { Rows, SquaresFour } from '@phosphor-icons/react';
+
+// Table / Cards view switcher. `view` is 'table' | 'cards'.
+export function ViewToggle({ view, onChange }) {
+  return (
+    <div className="view-toggle">
+      <button className={view === 'table' ? 'active' : ''} onClick={() => onChange('table')} title="Table view">
+        <Rows size={16} weight="bold" /> Table
+      </button>
+      <button className={view === 'cards' ? 'active' : ''} onClick={() => onChange('cards')} title="Card view">
+        <SquaresFour size={16} weight="bold" /> Cards
+      </button>
+    </div>
+  );
+}
 
 export function PageHeader({ title, crumb, actions }) {
   return (
@@ -42,9 +57,10 @@ export function StatCards({ items }) {
   );
 }
 
-export function UserCell({ name, sub, img }) {
+// When `onClick` is provided the whole cell becomes clickable (e.g. open detail).
+export function UserCell({ name, sub, img, onClick }) {
   return (
-    <div className="cell-user">
+    <div className={'cell-user' + (onClick ? ' clickable' : '')} onClick={onClick} role={onClick ? 'button' : undefined}>
       {img ? <img className="avatar" src={imgUrl(img)} alt="" /> : <div className="avatar" />}
       <div>
         <div className="name">{name || '—'}</div>

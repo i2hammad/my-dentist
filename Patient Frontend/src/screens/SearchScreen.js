@@ -31,12 +31,27 @@ export default function SearchScreen({ navigation, route }) {
   const [activeFilter, setActiveFilter] = useState('Nearby');
   const [profile, setProfile] = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
+  const [favorites, setFavorites] = useState({});
   const { unreadCount } = useNotifications();
 
   useEffect(() => {
     fetchDoctors();
     fetchProfile();
+    (async () => {
+      try {
+        const favs = await storage.getItem('patient_favorites');
+        if (favs) setFavorites(JSON.parse(favs));
+      } catch (e) { /* ignore */ }
+    })();
   }, []);
+
+  const toggleFavorite = async (id) => {
+    const key = String(id);
+    const newFavs = { ...favorites, [key]: !favorites[key] };
+    if (!newFavs[key]) delete newFavs[key];
+    setFavorites(newFavs);
+    try { await storage.setItem('patient_favorites', JSON.stringify(newFavs)); } catch (e) { /* ignore */ }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -67,7 +82,7 @@ export default function SearchScreen({ navigation, route }) {
   const fetchDoctors = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_BASE_URL}/api/doctors`);
+      const res = await axios.get(`${API_BASE_URL}/api/doctors`, { params: { limit: 100 } });
       setDoctors(res.data.data || []);
     } catch (error) {
       console.error(error);
@@ -77,13 +92,17 @@ export default function SearchScreen({ navigation, route }) {
   };
 
   const filteredDoctors = doctors.filter(d => {
-    const q = searchQuery.toLowerCase();
-    const matchesQuery = (
-      d.fullName?.toLowerCase().includes(q) ||
-      d.specialization?.toLowerCase().includes(q) ||
-      d.clinicName?.toLowerCase().includes(q)
-    );
+    // Tokenized match: every word the user typed must appear somewhere in the
+    // doctor's searchable text. Strip punctuation (e.g. the "Dr." prefix) so
+    // "Dr komal" matches "Dr. Komal Raza".
+    const haystack = [d.fullName, d.specialization, d.clinicName, d.city]
+      .filter(Boolean).join(' ').toLowerCase().replace(/[^\w\s]/g, ' ');
+    const words = searchQuery.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
+    const matchesQuery = words.every(w => haystack.includes(w));
 
+    if (activeFilter === 'Favorites') {
+      return matchesQuery && (favorites[String(d._id)] || favorites[String(d.userId)]);
+    }
     if (activeFilter === 'Elite Clinic') {
       return matchesQuery && (d.clinicTier === 'elite' || d.clinicTier === 'Elite Clinic');
     }
@@ -99,6 +118,7 @@ export default function SearchScreen({ navigation, route }) {
 
   const filters = [
     { id: 'Nearby', label: 'Nearby', icon: 'navigate' },
+    { id: 'Favorites', label: 'Favorites', icon: 'heart' },
     { id: 'Elite Clinic', label: 'Elite Clinic', icon: 'star' },
     { id: 'Modern Clinic', label: 'Modern Clinic', icon: 'star-half' },
     { id: 'Standard Clinic', label: 'Standard Clinic', icon: 'shield-checkmark' },
@@ -151,8 +171,16 @@ export default function SearchScreen({ navigation, route }) {
               {item.onlineStatus === 'online' ? 'Online' : 'Busy'}
             </Text>
           </View>
-          <TouchableOpacity style={styles.heartButton}>
-            <Ionicons name="heart-outline" size={24} color="#0066FF" />
+          <TouchableOpacity
+            style={styles.heartButton}
+            onPress={() => toggleFavorite(item._id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={favorites[String(item._id)] ? 'heart' : 'heart-outline'}
+              size={24}
+              color={favorites[String(item._id)] ? '#EF4444' : '#0066FF'}
+            />
           </TouchableOpacity>
         </View>
       </View>

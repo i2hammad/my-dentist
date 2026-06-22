@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, UserCheck, Prohibit, Crown, Power, Trash, Plus } from '@phosphor-icons/react';
+import { ShieldCheck, UserCheck, Prohibit, Crown, ToggleLeft, ToggleRight, Trash, Plus } from '@phosphor-icons/react';
 import api from '../lib/api';
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate } from '../components/ui.jsx';
@@ -60,7 +60,11 @@ export default function Admins() {
                   <td>{a.lastLogin ? fmtDate(a.lastLogin) : '—'}</td>
                   <td>{fmtDate(a.createdAt)}</td>
                   <td className="row-actions">
-                    <button className="icon-btn" title="Toggle status" onClick={() => toggle(a)}><Power size={16} /></button>
+                    <button className="icon-btn" title={a.status === 'active' ? 'Deactivate admin' : 'Activate admin'} onClick={() => toggle(a)}>
+                      {a.status === 'active'
+                        ? <ToggleRight size={20} weight="fill" color="#16A34A" />
+                        : <ToggleLeft size={20} weight="fill" color="#94A3B8" />}
+                    </button>
                     {a.adminRole !== 'super_admin' && <button className="icon-btn del" title="Delete" onClick={() => del(a)}><Trash size={16} /></button>}
                   </td>
                 </tr>

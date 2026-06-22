@@ -17,6 +17,10 @@ import Rewards from './pages/Rewards.jsx';
 import Settings from './pages/Settings.jsx';
 import Campaigns from './pages/Campaigns.jsx';
 import PatientCampaigns from './pages/PatientCampaigns.jsx';
+import Analytics from './pages/Analytics.jsx';
+import Broadcast from './pages/Broadcast.jsx';
+import AuditLog from './pages/AuditLog.jsx';
+import Commission from './pages/Commission.jsx';
 
 function Protected({ children }) {
   const { admin, loading } = useAuth();
@@ -34,6 +38,7 @@ export default function App() {
         element={<Protected><Layout /></Protected>}
       >
         <Route index element={<Dashboard />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="admins" element={<Admins />} />
         <Route path="dentists" element={<Dentists />} />
         <Route path="dentists/:id" element={<DentistDetail />} />
@@ -45,8 +50,11 @@ export default function App() {
         <Route path="appointments" element={<Appointments />} />
         <Route path="bills" element={<Bills />} />
         <Route path="rewards" element={<Rewards />} />
+        <Route path="commission" element={<Commission />} />
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="patient-campaigns" element={<PatientCampaigns />} />
+        <Route path="broadcast" element={<Broadcast />} />
+        <Route path="audit-logs" element={<AuditLog />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

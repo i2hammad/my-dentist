@@ -6,6 +6,7 @@ import storage from '../config/storage';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
+import useResponsive from '../hooks/useResponsive';
 
 // Root-level top navigation bar for the WEB build. Rendered once ABOVE the stack
 // navigator so it stays fixed on every logged-in screen (home, treatment tabs,
@@ -37,6 +38,9 @@ const HIDDEN_ON = new Set([
 // render OUTSIDE the navigator context without crashing.
 export default function WebTopNav({ navRef, navInfo }) {
   const { unreadChatCount = 0, unreadCount = 0 } = useNotifications() || {};
+  const { width } = useResponsive();
+  // Center nav links only fit alongside the brand + icon cluster on wide screens.
+  const showLinks = width >= 1024;
   const [patientPhoto, setPatientPhoto] = useState(null);
   const rootRoute = navInfo?.root;
 
@@ -46,14 +50,11 @@ export default function WebTopNav({ navRef, navInfo }) {
       try {
         const token = await storage.getItem('userToken');
         if (!token) { setPatientPhoto(null); return; }
-        const res = await axios.get(`${API_BASE_URL}/api/patients/profile`, {
+        const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.data?.success && res.data.data?.profileImage) {
-          setPatientPhoto(imgUrl(res.data.data.profileImage));
-        } else {
-          setPatientPhoto(null);
-        }
+        const img = res.data?.data?.profile?.profileImage;
+        setPatientPhoto(img ? imgUrl(img) : null);
       } catch { setPatientPhoto(null); }
     };
     loadPhoto();
@@ -91,8 +92,19 @@ export default function WebTopNav({ navRef, navInfo }) {
           <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
         </Pressable>
 
-        {/* SPACER */}
-        <View style={{ flex: 1 }} />
+        {/* CENTER: primary nav links (wide screens only) */}
+        {showLinks ? (
+          <View style={styles.links}>
+            {tabs.map((t) => (
+              <Pressable key={t.name} style={[styles.link, isActive(t.name) && styles.linkActive]} onPress={() => goTab(t)}>
+                <Ionicons name={(t.icon || 'ellipse') + '-outline'} size={17} color={isActive(t.name) ? '#0052FF' : '#64748B'} />
+                <Text style={[styles.linkText, isActive(t.name) && styles.linkTextActive]}>{t.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
 
         {/* RIGHT: Patient icons */}
         {isPatient && (
@@ -100,40 +112,38 @@ export default function WebTopNav({ navRef, navInfo }) {
               {/* Chat */}
               <Pressable style={styles.iconPill} onPress={() => goStack('PatientInbox')}>
                 <View style={styles.iconCircle}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={19} color="#0052FF" />
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color="#0052FF" />
                   {unreadChatCount > 0 && (
                     <View style={styles.badge}><Text style={styles.badgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text></View>
                   )}
                 </View>
-                <Text style={styles.iconLabel}>Chat</Text>
               </Pressable>
 
               {/* Notifications */}
               <Pressable style={styles.iconPill} onPress={() => goStack('Notifications')}>
                 <View style={styles.iconCircle}>
-                  <Ionicons name="notifications-outline" size={19} color="#7C3AED" />
+                  <Ionicons name="notifications-outline" size={18} color="#7C3AED" />
                   {unreadCount > 0 && (
                     <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
                   )}
                 </View>
-                <Text style={styles.iconLabel}>Alerts</Text>
               </Pressable>
 
               {/* Profile */}
-              <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive]} onPress={goProfile}>
+              <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
                 {patientPhoto
                   ? <Image source={{ uri: patientPhoto }} style={styles.profileAvatar} />
                   : <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
                       <Ionicons name="person-outline" size={18} color="#0052FF" />
                     </View>
                 }
-                <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>
+                {showLinks && <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>}
               </Pressable>
 
               {/* Logout */}
-              <Pressable style={styles.logoutPill} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={18} color="#DC2626" />
-                <Text style={styles.logoutLabel}>Logout</Text>
+              <Pressable style={[styles.logoutPill, !showLinks && styles.logoutPillBare]} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+                {showLinks && <Text style={styles.logoutLabel}>Logout</Text>}
               </Pressable>
             </View>
           )}
@@ -141,15 +151,15 @@ export default function WebTopNav({ navRef, navInfo }) {
         {/* RIGHT: Doctor icons */}
         {!isPatient && (
           <View style={styles.iconGroup}>
-            <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive]} onPress={goProfile}>
+            <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
               <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
                 <Ionicons name="person-outline" size={18} color="#0052FF" />
               </View>
-              <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>
+              {showLinks && <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>}
             </Pressable>
-            <Pressable style={styles.logoutPill} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={18} color="#DC2626" />
-              <Text style={styles.logoutLabel}>Logout</Text>
+            <Pressable style={[styles.logoutPill, !showLinks && styles.logoutPillBare]} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+              {showLinks && <Text style={styles.logoutLabel}>Logout</Text>}
             </Pressable>
           </View>
         )}
@@ -183,28 +193,20 @@ const styles = StyleSheet.create({
   brandAccent: { color: '#0052FF' },
 
   leftCluster: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  links: { flexDirection: 'row', alignItems: 'center', gap: 4, flexGrow: 1, justifyContent: 'flex-end' },
+  links: { flexDirection: 'row', alignItems: 'center', gap: 4, flexGrow: 1, justifyContent: 'center', marginHorizontal: 16 },
   link: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
   },
   linkActive: { backgroundColor: '#EFF4FF' },
-  linkText: { fontSize: 14.5, fontWeight: '600', color: '#64748B' },
+  linkText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
   linkTextActive: { color: '#0052FF' },
 
   iconGroup: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginLeft: 16,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
   },
   iconPill: {
     alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 6, paddingVertical: 2,
   },
   iconCircle: {
     width: 36, height: 36, borderRadius: 18,
@@ -221,6 +223,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   profilePillActive: { borderColor: '#0052FF', backgroundColor: '#EFF4FF' },
+  // Icon-only (mobile web): strip the rounded-rect chrome so just the round avatar shows.
+  profilePillBare: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 },
   profilePillText: { fontSize: 13, fontWeight: '700', color: '#334155' },
   profileAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#0052FF' },
   logoutPill: {
@@ -230,6 +234,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#FEE2E2',
     backgroundColor: '#FEF2F2',
   },
+  logoutPillBare: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 4, paddingVertical: 4 },
   logoutLabel: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
 
   badge: {

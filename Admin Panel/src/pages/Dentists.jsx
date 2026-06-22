@@ -1,17 +1,30 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, Plus } from '@phosphor-icons/react';
+import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, Plus, MapPin, Briefcase, EnvelopeSimple } from '@phosphor-icons/react';
 import api from '../lib/api';
+import { imgUrl } from '../lib/api';
 import useList from '../lib/useList';
-import { PageHeader, StatCards, UserCell, Pagination, fmtDate, PopularBadge } from '../components/ui.jsx';
+import { PageHeader, StatCards, UserCell, Pagination, fmtDate, PopularBadge, ViewToggle } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import Modal from '../components/Modal.jsx';
 import Field from '../components/Field.jsx';
+import ExportButton from '../components/ExportButton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
+
+const DENTIST_CSV_COLS = [
+  { header: 'Name', value: (r) => r.fullName },
+  { header: 'Email', value: (r) => r.userId?.email },
+  { header: 'Specialization', value: (r) => r.specialization },
+  { header: 'City', value: (r) => r.city },
+  { header: 'Verification', value: (r) => (r.pmdcVerified ? 'Verified' : 'Pending') },
+  { header: 'Popular', value: (r) => r.popularType || '' },
+  { header: 'Joined', value: (r) => fmtDate(r.userId?.createdAt || r.createdAt) },
+];
 
 export default function Dentists() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+  const [view, setView] = useState('table');
   const L = useList('/api/admin/dentists', { search, status });
   const c = L.counts;
   const toast = useToast();
@@ -33,7 +46,10 @@ export default function Dentists() {
   return (
     <div className="card">
       <PageHeader title="Dentists" crumb="Dentists"
-        actions={<button className="btn primary" onClick={() => setShowAdd(true)}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Dentist</button>} />
+        actions={<>
+          <ExportButton path="/api/admin/dentists" params={{ search, status }} columns={DENTIST_CSV_COLS} filename="dentists.csv" />
+          <button className="btn primary" onClick={() => setShowAdd(true)}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Dentist</button>
+        </>} />
 
       {L.loading ? <SkeletonStatCards /> : (
         <StatCards items={[
@@ -51,16 +67,55 @@ export default function Dentists() {
           <option value="verified">Verified</option>
           <option value="pending">Pending</option>
         </select>
+        <div style={{ marginLeft: 'auto' }}><ViewToggle view={view} onChange={setView} /></div>
       </div>
 
-      {L.loading ? <SkeletonTable cols={6} /> : (
+      {L.loading ? <SkeletonTable cols={6} /> : view === 'cards' ? (
+        <>
+          {!L.data.length ? <div className="empty">No dentists found</div> : (
+            <div className="entity-grid">
+              {L.data.map((d) => (
+                <div key={d._id} className="entity-card">
+                  <div className="ec-top clickable" onClick={() => nav(`/dentists/${d._id}`)}>
+                    {d.photo ? <img className="ec-avatar" src={imgUrl(d.photo)} alt="" /> : <div className="ec-avatar" />}
+                    <div style={{ minWidth: 0 }}>
+                      <div className="ec-name">
+                        {d.fullName || '—'}
+                        {d.pmdcVerified && <SealCheck size={15} weight="fill" color="#2563EB" />}
+                      </div>
+                      <div className="ec-sub">{d.specialization || 'Dentist'}</div>
+                    </div>
+                  </div>
+                  <div className="ec-rows">
+                    <div className="ec-row"><EnvelopeSimple size={14} />{d.userId?.email || '—'}</div>
+                    <div className="ec-row"><MapPin size={14} />{d.city || '—'}</div>
+                    <div className="ec-row"><Briefcase size={14} />{d.clinicName || 'Private Clinic'}</div>
+                  </div>
+                  <div className="ec-foot">
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span className={`badge ${d.pmdcVerified ? 'green' : 'amber'}`}>{d.pmdcVerified ? 'Verified' : 'Pending'}</span>
+                      {d.popularType && <PopularBadge type={d.popularType} />}
+                    </div>
+                    <div className="ec-actions">
+                      <button className="icon-btn" title="View" onClick={() => nav(`/dentists/${d._id}`)}><Eye size={16} /></button>
+                      {!d.pmdcVerified && <button className="icon-btn" title="Approve" onClick={() => approve(d)}><Check size={16} /></button>}
+                      <button className="icon-btn del" title="Delete" onClick={() => del(d)}><Trash size={16} /></button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
+        </>
+      ) : (
         <>
           <table>
             <thead><tr><th>Dentist</th><th>Specialization</th><th>City</th><th>Verification</th><th>Popular</th><th>Joined</th><th>Actions</th></tr></thead>
             <tbody>
               {L.data.map((d) => (
                 <tr key={d._id}>
-                  <td><UserCell name={d.fullName} sub={d.userId?.email} img={d.photo} /></td>
+                  <td><UserCell name={d.fullName} sub={d.userId?.email} img={d.photo} onClick={() => nav(`/dentists/${d._id}`)} /></td>
                   <td>{d.specialization || '—'}</td>
                   <td>{d.city || '—'}</td>
                   <td><span className={`badge ${d.pmdcVerified ? 'green' : 'amber'}`}>{d.pmdcVerified ? 'Verified' : 'Pending'}</span></td>

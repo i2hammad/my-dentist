@@ -478,7 +478,7 @@ export default function HomeScreen({ navigation }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 12, marginHorizontal: 16 }}
           contentContainerStyle={{ gap: 10, paddingRight: 4 }}
         >
           {/* Admin dynamic campaign (if active) */}

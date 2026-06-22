@@ -87,7 +87,7 @@ export default function DoctorAppointmentsScreen({ navigation }) {
   };
 
   const renderAppointmentCard = (item, isPast) => (
-    <View key={item._id} style={styles.card}>
+    <TouchableOpacity key={item._id} activeOpacity={0.85} style={styles.card} onPress={() => navigation.navigate('DoctorAppointmentDetail', { appointment: item })}>
       <View style={styles.cardHeader}>
         <View style={styles.patientInfo}>
           <View style={styles.patientAvatar}>
@@ -142,7 +142,7 @@ export default function DoctorAppointmentsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {

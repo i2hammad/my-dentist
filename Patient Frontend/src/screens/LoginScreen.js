@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ export default function LoginScreen({ route, navigation }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef(null);
   const [role, setRole] = useState(route.params?.role || 'patient'); // 'patient' or 'doctor'
 
   React.useEffect(() => {
@@ -111,12 +112,17 @@ export default function LoginScreen({ route, navigation }) {
           <Text style={styles.label}>Email Address</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput 
-              style={styles.input} 
-              placeholder="Enter your email address" 
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email address"
               placeholderTextColor="#94A3B8"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              blurOnSubmit={false}
               value={email}
               onChangeText={setEmail}
             />
@@ -126,20 +132,29 @@ export default function LoginScreen({ route, navigation }) {
           <Text style={styles.label}>Password</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput 
-              style={styles.input} 
-              placeholder="Enter your password" 
+            <TextInput
+              ref={passwordRef}
+              style={styles.input}
+              placeholder="Enter your password"
               placeholderTextColor="#94A3B8"
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
+              returnKeyType="go"
+              onSubmitEditing={handleLogin}
               value={password}
               onChangeText={setPassword}
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons 
-                name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                size={20} 
-                color="#94A3B8" 
+            <TouchableOpacity
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={{ padding: 6, marginLeft: 4 }}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#94A3B8"
               />
             </TouchableOpacity>
           </View>
@@ -241,9 +256,14 @@ export default function LoginScreen({ route, navigation }) {
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-      <ScrollView contentContainerStyle={[styles.scrollContent, webForm]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, webForm]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
 
         {/* Back Button */}
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('RoleSelection')}>
@@ -279,8 +299,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
-    paddingBottom: 32,
-    justifyContent: 'center',
+    paddingBottom: 40,
+    // Center vertically only on web/large screens; on mobile top-align so the
+    // ScrollView can scroll a focused field above the keyboard.
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-start',
   },
   backButton: {
     width: 40,

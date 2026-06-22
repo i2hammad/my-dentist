@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const isWeb = Platform.OS === 'web';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
@@ -9,6 +11,7 @@ import API_BASE_URL from '../config/api';
 // Full-page promotional content for a campaign. Records a click on open.
 export default function PromoScreen({ route, navigation }) {
   const campaign = route?.params?.campaign;
+  const insets = useSafeAreaInsets();
 
   const isPatientPromo = campaign?.targetAudience === 'patient';
 
@@ -38,23 +41,24 @@ export default function PromoScreen({ route, navigation }) {
   const imgUri = img ? (img.startsWith('http') ? img : `${API_BASE_URL}${img}`) : null;
 
   return (
-    <SafeAreaView edges={['top']} style={styles.container}>
+    <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, !isWeb && styles.scrollPhone]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          {/* Hero — image or gradient-style placeholder with the close button overlaid */}
+        <View style={[styles.card, !isWeb && styles.cardPhone]}>
+          {/* Hero — image or gradient-style placeholder with the close button overlaid.
+              On phone it extends behind the status bar (edge-to-edge). */}
           <View style={styles.heroWrap}>
             {imgUri
-              ? <Image source={{ uri: imgUri }} style={styles.hero} resizeMode="cover" />
-              : <View style={[styles.hero, styles.heroPlaceholder]}>
+              ? <Image source={{ uri: imgUri }} style={[styles.hero, !isWeb && { height: 200 + insets.top, paddingTop: insets.top }]} resizeMode="cover" />
+              : <View style={[styles.hero, styles.heroPlaceholder, !isWeb && { height: 200 + insets.top, paddingTop: insets.top }]}>
                   <Ionicons name="megaphone" size={56} color="rgba(255,255,255,0.9)" />
                 </View>}
-            <View style={styles.heroTagWrap}>
+            <View style={[styles.heroTagWrap, !isWeb && { top: insets.top + 14 }]}>
               <Text style={styles.adTag}>SPONSORED</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+            <TouchableOpacity style={[styles.closeBtn, !isWeb && { top: insets.top + 12 }]} onPress={() => navigation.goBack()}>
               <Ionicons name="close" size={20} color="#0F172A" />
             </TouchableOpacity>
           </View>
@@ -89,14 +93,17 @@ export default function PromoScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  container: { flex: 1, backgroundColor: isWeb ? '#F1F5F9' : '#FFFFFF' },
   scroll: { padding: 16, paddingBottom: 40, alignItems: 'center' },
+  // Phone: full-bleed, no outer padding/gap, fill height so white extends to the bottom.
+  scrollPhone: { padding: 0, paddingBottom: 0, alignItems: 'stretch', flexGrow: 1 },
   card: {
     width: '100%', maxWidth: 560, backgroundColor: '#FFFFFF', borderRadius: 20, overflow: 'hidden',
     ...(typeof document !== 'undefined' ? { boxShadow: '0 12px 40px rgba(15,23,42,0.10)' } : {
       shadowColor: '#0F172A', shadowOpacity: 0.10, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 6,
     }),
   },
+  cardPhone: { maxWidth: undefined, borderRadius: 0, elevation: 0, shadowOpacity: 0 },
   heroWrap: { position: 'relative' },
   hero: { width: '100%', height: 200, backgroundColor: '#EDE9FE' },
   heroPlaceholder: { backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center' },

@@ -6,7 +6,8 @@ import axios from 'axios';
 import storage from '../config/storage';
 import { SkeletonList } from '../components/Skeleton';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { setStatusBarStyle } from 'expo-status-bar';
 import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
 
@@ -39,6 +40,7 @@ export default function AppointmentsScreen({ navigation }) {
   const [loading, setLoading]   = useState(true);
   const [campaign, setCampaign] = useState(null);
   const isFocused = useIsFocused();
+  useFocusEffect(React.useCallback(() => { if (!isWeb) setStatusBarStyle('light'); }, [isWeb]));
 
   useEffect(() => {
     if (isFocused) fetchAppointments();
@@ -75,7 +77,11 @@ export default function AppointmentsScreen({ navigation }) {
     const treatmentList = (item.treatmentType || 'Consultation').split(',').map(t => t.trim());
 
     return (
-      <View style={[styles.card, { marginTop: index === 0 ? 0 : 14 }]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={[styles.card, { marginTop: index === 0 ? 0 : 14 }]}
+        onPress={() => navigation.navigate('AppointmentDetail', { appointment: item })}
+      >
         {/* Card top accent line */}
         <View style={[styles.cardAccent, { backgroundColor: cfg.text }]} />
 
@@ -129,14 +135,14 @@ export default function AppointmentsScreen({ navigation }) {
             </View>
           ))}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
   const activeData = activeTab === 'upcoming' ? upcoming : past;
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safe}>
+    <SafeAreaView edges={['top']} style={[styles.safe, !isWeb && { backgroundColor: '#0052FF' }]}>
       {/* Header */}
       <View style={styles.header}>
         <View pointerEvents="none" style={styles.headerBlob} />

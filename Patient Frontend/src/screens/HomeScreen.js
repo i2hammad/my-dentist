@@ -13,7 +13,7 @@ import {
   Platform,
   Animated,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 
 const PK_CITIES = [
   'Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar',
@@ -32,7 +32,7 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
@@ -247,6 +247,7 @@ export default function HomeScreen({ navigation }) {
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
   const { isWide, columns } = useResponsive();
+  const insets = useSafeAreaInsets();
 
   const fetchData = useCallback(async () => {
     try {
@@ -306,6 +307,8 @@ export default function HomeScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
+      // Blue header → light status-bar icons; re-assert on focus.
+      if (!isWeb) setStatusBarStyle('light');
       const onBackPress = () => {
         Alert.alert(
           'Exit App',
@@ -354,34 +357,16 @@ export default function HomeScreen({ navigation }) {
     return 'Good evening';
   };
 
-  // Collapsing header: the greeting block shrinks + fades as the body scrolls.
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const COLLAPSE = 70; // px of scroll over which the greeting collapses
-  const greetingHeight = scrollY.interpolate({
-    inputRange: [0, COLLAPSE],
-    outputRange: [64, 0],
-    extrapolate: 'clamp',
-  });
-  const greetingOpacity = scrollY.interpolate({
-    inputRange: [0, COLLAPSE * 0.6],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-  const headerPadBottom = scrollY.interpolate({
-    inputRange: [0, COLLAPSE],
-    outputRange: [22, 12],
-    extrapolate: 'clamp',
-  });
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
       {/* White status-bar icons so the bar blends with the blue header (edge-to-edge) */}
       {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
 
       {/* ── BLUE HEADER ── */}
-      {/* Collapsing header — mobile only (web uses WebTopNav) */}
+      {/* Static header — mobile only (web uses WebTopNav).
+          paddingTop includes the status-bar inset so the blue + glyphs fill behind it. */}
       {!isWeb && (
-      <Animated.View style={[styles.blueHeader, { paddingBottom: headerPadBottom }]}>
+      <View style={[styles.blueHeader, { paddingTop: insets.top + 4 }]}>
         {/* Decorative accent blobs for depth */}
         <View pointerEvents="none" style={styles.headerBlobA} />
         <View pointerEvents="none" style={styles.headerBlobB} />
@@ -406,14 +391,14 @@ export default function HomeScreen({ navigation }) {
               hitSlop={8}
               onPress={() => navigation.navigate('SavedDoctors')}
             >
-              <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
+              <Ionicons name="heart-outline" size={21} color="#FFFFFF" />
             </PressableScale>
             <PressableScale
               style={styles.bellWrapper}
               hitSlop={8}
               onPress={() => navigation.navigate('PatientInbox')}
             >
-              <Ionicons name="chatbubbles-outline" size={26} color="#FFFFFF" />
+              <Ionicons name="chatbubbles-outline" size={22} color="#FFFFFF" />
               {unreadChatCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text>
@@ -425,7 +410,7 @@ export default function HomeScreen({ navigation }) {
               hitSlop={8}
               onPress={() => navigation.navigate('Notifications')}
             >
-              <Ionicons name="notifications-outline" size={28} color="#FFFFFF" />
+              <Ionicons name="notifications-outline" size={23} color="#FFFFFF" />
               {unreadCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
@@ -449,17 +434,17 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Personalized greeting — collapses on scroll */}
-        <Animated.View style={{ height: greetingHeight, opacity: greetingOpacity, overflow: 'hidden' }}>
+        {/* Personalized greeting */}
+        <View>
           <Text style={styles.headerGreeting}>{greeting()}{firstName ? ',' : ''}</Text>
           {!!firstName && <Text style={styles.headerName}>{firstName} 👋</Text>}
           <Text style={styles.headerTagline}>Find the right dentist near you</Text>
-        </Animated.View>
-      </Animated.View>
+        </View>
+      </View>
       )}
 
       {/* ── SCROLLABLE BODY ── */}
-      <Animated.ScrollView
+      <ScrollView
         style={styles.body}
         contentContainerStyle={[
           styles.bodyContent,
@@ -467,11 +452,6 @@ export default function HomeScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
       >
 
         {/* ── ADMIN CAMPAIGNS (dynamic, from admin panel) ── */}
@@ -632,7 +612,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-      </Animated.ScrollView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -647,11 +627,11 @@ const styles = StyleSheet.create({
   // Blue header
   blueHeader: {
     backgroundColor: '#0052FF',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -689,31 +669,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
     letterSpacing: 0.3,
   },
   headerGreeting: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 2,
   },
   headerName: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.2,
-    marginTop: 1,
   },
   headerTagline: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12.5,
-    marginTop: 4,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10.5,
+    marginTop: 1,
   },
   headerRight: {
     flexDirection: 'row',
@@ -742,9 +720,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   profilePhotoWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.6)',

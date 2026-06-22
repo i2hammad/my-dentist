@@ -14,7 +14,8 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { setStatusBarStyle } from 'expo-status-bar';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { SkeletonTreatmentList } from '../components/Skeleton';
 import webContent, { isWeb } from '../config/webLayout';
@@ -142,6 +143,7 @@ export default function CosmeticScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState({});
   const isFocused = useIsFocused();
+  useFocusEffect(useCallback(() => { if (!isWeb) setStatusBarStyle('light'); }, []));
 
   const fetchDoctors = useCallback(async () => {
     try {

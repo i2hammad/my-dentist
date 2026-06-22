@@ -50,6 +50,14 @@ const appointmentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Pending reschedule request raised by the patient. The actual date/time
+    // above stay unchanged until the doctor approves the request.
+    rescheduleRequest: {
+      requested: { type: Boolean, default: false },
+      date: { type: Date, default: null },
+      time: { type: String, default: null },
+      requestedAt: { type: Date, default: null },
+    },
   },
   {
     timestamps: true,

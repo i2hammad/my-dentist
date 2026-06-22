@@ -14,6 +14,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
 import AppointmentsScreen from '../screens/AppointmentsScreen';
+import AppointmentDetailScreen from '../screens/AppointmentDetailScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import PatientSetupScreen from '../screens/PatientSetupScreen';
 import BookingScreen from '../screens/BookingScreen';
@@ -28,6 +29,8 @@ import SavedDoctorsScreen from '../screens/SavedDoctorsScreen';
 import DoctorHomeScreen from '../screens/doctor/DoctorHomeScreen';
 import DoctorAppointmentsScreen from '../screens/doctor/DoctorAppointmentsScreen';
 import DoctorPatientsScreen from '../screens/doctor/DoctorPatientsScreen';
+import DoctorPatientDetailScreen from '../screens/doctor/DoctorPatientDetailScreen';
+import DoctorAppointmentDetailScreen from '../screens/doctor/DoctorAppointmentDetailScreen';
 import DoctorProfileScreenDoc from '../screens/doctor/DoctorProfileScreen';
 import DoctorRegisterScreen from '../screens/doctor/DoctorRegisterScreen';
 import ClinicSetupScreen from '../screens/doctor/ClinicSetupScreen';
@@ -198,6 +201,9 @@ export default function AppNavigator() {
         <Stack.Screen name="DoctorRegister" component={DoctorRegisterScreen} />
         <Stack.Screen name="ClinicSetup" component={ClinicSetupScreen} />
         <Stack.Screen name="DoctorProfile" component={DoctorProfileScreen} />
+        <Stack.Screen name="AppointmentDetail" component={AppointmentDetailScreen} />
+        <Stack.Screen name="DoctorPatientDetail" component={DoctorPatientDetailScreen} />
+        <Stack.Screen name="DoctorAppointmentDetail" component={DoctorAppointmentDetailScreen} />
         <Stack.Screen name="Promo" component={PromoScreen} />
         <Stack.Screen name="Booking" component={BookingScreen} />
         <Stack.Screen name="Chat" component={ChatScreen} />

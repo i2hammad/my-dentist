@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,8 @@ export default function RegisterScreen({ route, navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
   const [role, setRole] = useState(route.params?.role || 'patient'); // 'patient' or 'doctor'
 
   React.useEffect(() => {
@@ -105,12 +107,17 @@ export default function RegisterScreen({ route, navigation }) {
           <Text style={styles.label}>Email Address</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput 
-              style={styles.input} 
-              placeholder="Enter your email address" 
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email address"
               placeholderTextColor="#94A3B8"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              blurOnSubmit={false}
               value={email}
               onChangeText={setEmail}
             />
@@ -120,20 +127,26 @@ export default function RegisterScreen({ route, navigation }) {
           <Text style={styles.label}>Password</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput 
-              style={styles.input} 
-              placeholder="Create a password" 
+            <TextInput
+              ref={passwordRef}
+              style={styles.input}
+              placeholder="Create a password"
               placeholderTextColor="#94A3B8"
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+              returnKeyType="next"
+              onSubmitEditing={() => confirmRef.current?.focus()}
+              blurOnSubmit={false}
               value={password}
               onChangeText={setPassword}
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons 
-                name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                size={20} 
-                color="#94A3B8" 
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 6, marginLeft: 4 }}>
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#94A3B8"
               />
             </TouchableOpacity>
           </View>
@@ -142,20 +155,25 @@ export default function RegisterScreen({ route, navigation }) {
           <Text style={styles.label}>Confirm Password</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput 
-              style={styles.input} 
-              placeholder="Confirm your password" 
+            <TextInput
+              ref={confirmRef}
+              style={styles.input}
+              placeholder="Confirm your password"
               placeholderTextColor="#94A3B8"
               secureTextEntry={!showConfirmPassword}
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+              returnKeyType="go"
+              onSubmitEditing={handleRegister}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
             />
-            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-              <Ionicons 
-                name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} 
-                size={20} 
-                color="#94A3B8" 
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 6, marginLeft: 4 }}>
+              <Ionicons
+                name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#94A3B8"
               />
             </TouchableOpacity>
           </View>

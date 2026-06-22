@@ -5,18 +5,25 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 import { SkeletonProfile } from '../components/Skeleton';
 import { webForm, isWeb } from '../config/webLayout';
+import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 
 export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const isFocused = useIsFocused();
+
+  // White header → dark status-bar icons. Re-assert on focus since other screens
+  // set it to 'light' (status-bar style is global / last-write-wins).
+  useFocusEffect(
+    React.useCallback(() => { if (!isWeb) setStatusBarStyle('dark'); }, [])
+  );
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -363,6 +370,8 @@ export default function ProfileScreen({ navigation }) {
     </Modal>
 
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      {/* Dark status-bar icons for the white header */}
+      {!isWeb && <StatusBar style="dark" translucent backgroundColor="transparent" />}
       {/* Top Blue Header */}
       <View style={styles.blueHeader}>
         <View style={[styles.blueHeaderInner, webForm]}>
@@ -714,8 +723,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingTop: 18,
+    paddingBottom: 16,
   },
   blueHeaderInner: {
     flexDirection: 'row',

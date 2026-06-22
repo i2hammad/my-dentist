@@ -261,23 +261,44 @@ const rescheduleAppointment = async (req, res) => {
       });
     }
 
+    if (isPatient) {
+      // Patient reschedule is a REQUEST — store the proposed slot; the doctor
+      // must approve it (via confirm) before the actual date/time change.
+      appointment.rescheduleRequest = {
+        requested: true,
+        date: new Date(date),
+        time,
+        requestedAt: new Date(),
+      };
+      await appointment.save();
+
+      await Notification.create({
+        userId: appointment.doctorId.userId,
+        type: 'appointment',
+        title: 'Reschedule Requested',
+        message: `${appointment.patientId.fullName} requested to reschedule to ${new Date(date).toLocaleDateString()} at ${time}. Review and confirm.`,
+        relatedModel: 'Appointment',
+        relatedId: appointment._id
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Reschedule request sent. Awaiting doctor confirmation.',
+        data: appointment
+      });
+    }
+
+    // Doctor reschedule applies immediately and clears any pending request.
     appointment.date = new Date(date);
     appointment.time = time;
+    appointment.rescheduleRequest = { requested: false, date: null, time: null, requestedAt: null };
     await appointment.save();
 
-    // Notify the other party
-    const recipientUserId = isPatient
-      ? appointment.doctorId.userId
-      : appointment.patientId.userId;
-    const rescheduledBy = isPatient
-      ? appointment.patientId.fullName
-      : appointment.doctorId.fullName;
-
     await Notification.create({
-      userId: recipientUserId,
+      userId: appointment.patientId.userId,
       type: 'appointment',
       title: 'Appointment Rescheduled',
-      message: `Your appointment has been rescheduled by ${rescheduledBy} to ${new Date(date).toLocaleDateString()} at ${time}.`,
+      message: `Your appointment has been rescheduled by ${appointment.doctorId.fullName} to ${new Date(date).toLocaleDateString()} at ${time}.`,
       relatedModel: 'Appointment',
       relatedId: appointment._id
     });
@@ -628,6 +649,12 @@ const confirmAppointment = async (req, res) => {
     if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
     const doctorProfile = await DoctorProfile.findOne({ userId: req.user._id });
     if (!doctorProfile || appointment.doctorId.toString() !== doctorProfile._id.toString()) return res.status(403).json({ success: false, message: 'Not authorized' });
+    // If the patient requested a reschedule, approving applies the new slot.
+    if (appointment.rescheduleRequest?.requested) {
+      appointment.date = appointment.rescheduleRequest.date;
+      appointment.time = appointment.rescheduleRequest.time;
+      appointment.rescheduleRequest = { requested: false, date: null, time: null, requestedAt: null };
+    }
     appointment.status = 'confirmed';
     await appointment.save();
     res.status(200).json({ success: true, data: appointment });

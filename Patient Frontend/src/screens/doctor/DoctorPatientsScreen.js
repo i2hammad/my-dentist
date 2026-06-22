@@ -42,12 +42,16 @@ export default function DoctorPatientsScreen({ navigation }) {
               patientMap[pid] = {
                 id: pid,
                 name: apt.patientId.fullName || 'Unknown',
+                profileImage: apt.patientId.profileImage || null,
+                mobileNumber: apt.patientId.mobileNumber || null,
                 totalVisits: 0,
-                lastVisit: null
+                lastVisit: null,
+                appointments: [],
               };
             }
             patientMap[pid].totalVisits += 1;
-            
+            patientMap[pid].appointments.push(apt);
+
             const aptDate = new Date(apt.date);
             if (!patientMap[pid].lastVisit || aptDate > new Date(patientMap[pid].lastVisit)) {
               patientMap[pid].lastVisit = apt.date;
@@ -86,7 +90,12 @@ export default function DoctorPatientsScreen({ navigation }) {
         <PromoBanner />
         {patients.length > 0 ? (
           patients.map(p => (
-            <View key={p.id} style={styles.patientCard}>
+            <TouchableOpacity
+              key={p.id}
+              activeOpacity={0.8}
+              style={styles.patientCard}
+              onPress={() => navigation.navigate('DoctorPatientDetail', { patient: p })}
+            >
               <View style={styles.patientAvatar}>
                 <Text style={styles.patientAvatarText}>{p.name.charAt(0)}</Text>
               </View>
@@ -99,7 +108,8 @@ export default function DoctorPatientsScreen({ navigation }) {
               <View style={styles.visitBadge}>
                 <Text style={styles.visitBadgeText}>{p.totalVisits} Visits</Text>
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E1" style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
           ))
         ) : (
           <View style={styles.emptyContainer}>

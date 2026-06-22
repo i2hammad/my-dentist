@@ -489,7 +489,7 @@ export default function HomeScreen({ navigation }) {
                 <TouchableOpacity
                   key={c._id || idx}
                   activeOpacity={0.85}
-                  onPress={() => {}}
+                  onPress={() => navigation.navigate('Appointments')}
                   style={{ width: 300, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
                 >
                   <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>

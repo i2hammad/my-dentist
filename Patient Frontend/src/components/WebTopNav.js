@@ -92,51 +92,64 @@ export default function WebTopNav({ navRef, navInfo }) {
             <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
           </Pressable>
 
-          {/* Patient icons — chat, bell, profile, logout — right after brand */}
+          {/* Patient icons */}
           {isPatient && (
-            <>
-              <Pressable style={styles.iconBtn} onPress={() => goStack('PatientInbox')}>
-                <Ionicons name="chatbubbles-outline" size={22} color="#334155" />
-                {unreadChatCount > 0 && (
-                  <View style={styles.badge}><Text style={styles.badgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text></View>
-                )}
+            <View style={styles.iconGroup}>
+              {/* Chat */}
+              <Pressable style={styles.iconPill} onPress={() => goStack('PatientInbox')}>
+                <View style={styles.iconCircle}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={19} color="#0052FF" />
+                  {unreadChatCount > 0 && (
+                    <View style={styles.badge}><Text style={styles.badgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text></View>
+                  )}
+                </View>
+                <Text style={styles.iconLabel}>Chat</Text>
               </Pressable>
-              <Pressable style={styles.iconBtn} onPress={() => goStack('Notifications')}>
-                <Ionicons name="notifications-outline" size={22} color="#334155" />
-                {unreadCount > 0 && (
-                  <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
-                )}
+
+              {/* Notifications */}
+              <Pressable style={styles.iconPill} onPress={() => goStack('Notifications')}>
+                <View style={styles.iconCircle}>
+                  <Ionicons name="notifications-outline" size={19} color="#7C3AED" />
+                  {unreadCount > 0 && (
+                    <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
+                  )}
+                </View>
+                <Text style={styles.iconLabel}>Alerts</Text>
               </Pressable>
-              <Pressable
-                onPress={goProfile}
-                style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
-              >
+
+              {/* Profile */}
+              <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive]} onPress={goProfile}>
                 {patientPhoto
                   ? <Image source={{ uri: patientPhoto }} style={styles.profileAvatar} />
-                  : <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
+                  : <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                      <Ionicons name="person-outline" size={18} color="#0052FF" />
+                    </View>
                 }
-                <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
+                <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>
               </Pressable>
-              <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+
+              {/* Logout */}
+              <Pressable style={styles.logoutPill} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+                <Text style={styles.logoutLabel}>Logout</Text>
               </Pressable>
-            </>
+            </View>
           )}
 
-          {/* Doctor profile + logout */}
+          {/* Doctor icons */}
           {!isPatient && (
-            <>
-              <Pressable
-                onPress={goProfile}
-                style={[styles.profileBtn, isActive('Profile') && styles.profileBtnActive]}
-              >
-                <Ionicons name="person-circle-outline" size={24} color={isActive('Profile') ? '#0052FF' : '#334155'} />
-                <Text style={[styles.profileText, isActive('Profile') && styles.linkTextActive]}>Profile</Text>
+            <View style={styles.iconGroup}>
+              <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive]} onPress={goProfile}>
+                <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="person-outline" size={18} color="#0052FF" />
+                </View>
+                <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>
               </Pressable>
-              <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
+              <Pressable style={styles.logoutPill} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+                <Text style={styles.logoutLabel}>Logout</Text>
               </Pressable>
-            </>
+            </View>
           )}
         </View>
 
@@ -178,17 +191,45 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 14.5, fontWeight: '600', color: '#64748B' },
   linkTextActive: { color: '#0052FF' },
 
-  right: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  iconBtn: { position: 'relative', padding: 8, borderRadius: 10 },
-  logoutBtn: { padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#FEE2E2', backgroundColor: '#FEF2F2', marginLeft: 2 },
-  profileBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-    borderWidth: 1, borderColor: '#E2E8F0',
+  iconGroup: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginLeft: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  profileBtnActive: { borderColor: '#0052FF', backgroundColor: '#EFF4FF' },
-  profileText: { fontSize: 14, fontWeight: '600', color: '#334155' },
-  profileAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: '#CBD5E1' },
+  iconPill: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  iconCircle: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center', alignItems: 'center',
+    position: 'relative',
+  },
+  iconLabel: { fontSize: 10, color: '#64748B', fontWeight: '600', marginTop: 2 },
+  profilePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+  },
+  profilePillActive: { borderColor: '#0052FF', backgroundColor: '#EFF4FF' },
+  profilePillText: { fontSize: 13, fontWeight: '700', color: '#334155' },
+  profileAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#0052FF' },
+  logoutPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
+  },
+  logoutLabel: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
 
   badge: {
     position: 'absolute', top: 2, right: 2,

@@ -10,12 +10,16 @@ import API_BASE_URL from '../config/api';
 export default function PromoScreen({ route, navigation }) {
   const campaign = route?.params?.campaign;
 
+  const isPatientPromo = campaign?.targetAudience === 'patient';
+
   useEffect(() => {
     if (!campaign?._id) return;
     (async () => {
       try {
         const token = await storage.getItem('userToken');
-        await axios.post(`${API_BASE_URL}/api/campaigns/${campaign._id}/click`, {}, {
+        // Patient and doctor campaigns have separate click endpoints.
+        const path = isPatientPromo ? 'patient-click' : 'click';
+        await axios.post(`${API_BASE_URL}/api/campaigns/${campaign._id}/${path}`, {}, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch (e) { /* non-critical */ }
@@ -35,57 +39,78 @@ export default function PromoScreen({ route, navigation }) {
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
-      {/* Close button */}
-      <View style={styles.topBar}>
-        <Text style={styles.adTag}>SPONSORED</Text>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={22} color="#0F172A" />
-        </TouchableOpacity>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.card}>
+          {/* Hero — image or gradient-style placeholder with the close button overlaid */}
+          <View style={styles.heroWrap}>
+            {imgUri
+              ? <Image source={{ uri: imgUri }} style={styles.hero} resizeMode="cover" />
+              : <View style={[styles.hero, styles.heroPlaceholder]}>
+                  <Ionicons name="megaphone" size={56} color="rgba(255,255,255,0.9)" />
+                </View>}
+            <View style={styles.heroTagWrap}>
+              <Text style={styles.adTag}>SPONSORED</Text>
+            </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+              <Ionicons name="close" size={20} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
 
-      <ScrollView contentContainerStyle={[styles.content, Platform.OS === 'web' && { maxWidth: 720, alignSelf: 'center', width: '100%' }]} showsVerticalScrollIndicator={false}>
-        {imgUri && <Image source={{ uri: imgUri }} style={styles.hero} resizeMode="cover" />}
+          <View style={styles.body}>
+            <Text style={styles.title}>{campaign.title}</Text>
+            {(campaign.medicineName || campaign.company) && (
+              <Text style={styles.meta}>
+                {campaign.medicineName}{campaign.medicineName && campaign.company ? '  •  ' : ''}{campaign.company}
+              </Text>
+            )}
 
-        <Text style={styles.title}>{campaign.title}</Text>
-        {(campaign.medicineName || campaign.company) && (
-          <Text style={styles.meta}>
-            {campaign.medicineName}{campaign.medicineName && campaign.company ? '  •  ' : ''}{campaign.company}
-          </Text>
-        )}
+            {!!campaign.body && <Text style={styles.bodyText}>{campaign.body}</Text>}
 
-        {!!campaign.body && <Text style={styles.body}>{campaign.body}</Text>}
+            {!!campaign.ctaLink && (
+              <TouchableOpacity style={styles.cta} onPress={() => Linking.openURL(campaign.ctaLink)}>
+                <Text style={styles.ctaText}>{campaign.ctaLabel || 'Learn More'}</Text>
+                <Ionicons name="open-outline" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+            )}
 
-        {!!campaign.ctaLink && (
-          <TouchableOpacity style={styles.cta} onPress={() => Linking.openURL(campaign.ctaLink)}>
-            <Text style={styles.ctaText}>{campaign.ctaLabel || 'Learn More'}</Text>
-            <Ionicons name="open-outline" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
-          </TouchableOpacity>
-        )}
+            <TouchableOpacity style={styles.closeWide} onPress={() => navigation.goBack()}>
+              <Text style={styles.closeWideText}>Close</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.closeWide} onPress={() => navigation.goBack()}>
-          <Text style={styles.closeWideText}>Close</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.disclaimer}>This is a sponsored promotion shared with healthcare professionals.</Text>
+            <Text style={styles.disclaimer}>{isPatientPromo ? 'This is a sponsored promotion from My Dentist PK.' : 'This is a sponsored promotion shared with healthcare professionals.'}</Text>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  adTag: { fontSize: 10, fontWeight: '800', color: '#8B5CF6', letterSpacing: 0.5, backgroundColor: '#EDE9FE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, overflow: 'hidden' },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 20, paddingBottom: 40 },
-  hero: { width: '100%', height: 200, borderRadius: 16, backgroundColor: '#EDE9FE', marginBottom: 20 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scroll: { padding: 16, paddingBottom: 40, alignItems: 'center' },
+  card: {
+    width: '100%', maxWidth: 560, backgroundColor: '#FFFFFF', borderRadius: 20, overflow: 'hidden',
+    ...(typeof document !== 'undefined' ? { boxShadow: '0 12px 40px rgba(15,23,42,0.10)' } : {
+      shadowColor: '#0F172A', shadowOpacity: 0.10, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 6,
+    }),
+  },
+  heroWrap: { position: 'relative' },
+  hero: { width: '100%', height: 200, backgroundColor: '#EDE9FE' },
+  heroPlaceholder: { backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center' },
+  heroTagWrap: { position: 'absolute', top: 14, left: 14 },
+  adTag: { fontSize: 10, fontWeight: '800', color: '#7C3AED', letterSpacing: 0.5, backgroundColor: '#FFFFFF', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
+  closeBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', ...(typeof document !== 'undefined' ? { boxShadow: '0 2px 8px rgba(15,23,42,0.15)' } : { shadowColor: '#0F172A', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }) },
+  body: { padding: 24 },
   title: { fontSize: 24, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
   meta: { fontSize: 14, color: '#8B5CF6', fontWeight: '600', marginBottom: 16 },
-  body: { fontSize: 15.5, lineHeight: 24, color: '#334155', marginBottom: 24 },
-  cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15, marginBottom: 14 },
+  bodyText: { fontSize: 15.5, lineHeight: 24, color: '#334155', marginBottom: 24 },
+  cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15, marginBottom: 12 },
   ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   closeWide: { borderRadius: 14, paddingVertical: 14, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
   closeWideText: { color: '#0F172A', fontSize: 16, fontWeight: '600' },
-  disclaimer: { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 20 },
+  disclaimer: { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 18 },
   empty: { textAlign: 'center', marginTop: 60, color: '#64748B' },
 });

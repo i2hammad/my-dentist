@@ -489,7 +489,7 @@ export default function HomeScreen({ navigation }) {
                 <TouchableOpacity
                   key={c._id || idx}
                   activeOpacity={0.85}
-                  onPress={() => navigation.navigate('Appointments')}
+                  onPress={() => navigation.navigate('Promo', { campaign: c })}
                   style={{ width: 300, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
                 >
                   <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
@@ -517,7 +517,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* Inline City Picker — works on web + native */}
         {showCityPicker && (
-          <View style={{ backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#DBEAFE', padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 }}>
+          <View style={styles.cityPickerCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
               <Ionicons name="location" size={16} color="#0052FF" style={{ marginRight: 6 }} />
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Select Your City</Text>
@@ -787,6 +787,19 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 13,
     fontWeight: '700',
+  },
+  cityPickerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    padding: 14,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
   // Scrollable body

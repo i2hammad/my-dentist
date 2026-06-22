@@ -8,6 +8,7 @@ import { SkeletonList } from '../components/Skeleton';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useIsFocused } from '@react-navigation/native';
 import API_BASE_URL from '../config/api';
+import useResponsive from '../hooks/useResponsive';
 
 const STATUS_CONFIG = {
   confirmed: { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed' },
@@ -31,6 +32,7 @@ function formatTime(t) {
 }
 
 export default function AppointmentsScreen({ navigation }) {
+  const { isWide, isWeb } = useResponsive();
   const [upcoming, setUpcoming] = useState([]);
   const [past, setPast]         = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming');
@@ -138,25 +140,27 @@ export default function AppointmentsScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <View pointerEvents="none" style={styles.headerBlob} />
-        <PressableScale style={styles.headerBtn} hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
-          <Ionicons name="arrow-back" size={22} color="#FFF" />
-        </PressableScale>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>My Appointments</Text>
-          <Text style={styles.headerSub}>Your dental appointments</Text>
+        <View style={[styles.headerInner, isWide && styles.centeredColumn]}>
+          <PressableScale style={styles.headerBtn} hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
+            <Ionicons name="arrow-back" size={22} color="#FFF" />
+          </PressableScale>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>My Appointments</Text>
+            <Text style={styles.headerSub}>Your dental appointments</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('Search')}
+          >
+            <Ionicons name="add" size={22} color="#FFF" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => navigation.navigate('Search')}
-        >
-          <Ionicons name="add" size={22} color="#FFF" />
-        </TouchableOpacity>
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, isWide && styles.centeredColumn, isWide && { width: '100%' }]}>
       {/* Admin Campaign Banner */}
       {campaign && (
-        <View style={{ backgroundColor: '#7C3AED', margin: 12, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
+        <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('Promo', { campaign })} style={{ backgroundColor: '#7C3AED', margin: 12, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
             <Ionicons name="megaphone-outline" size={20} color="#FFF" />
           </View>
@@ -167,7 +171,7 @@ export default function AppointmentsScreen({ navigation }) {
           <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
             <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* Stats bar */}
@@ -251,13 +255,9 @@ export default function AppointmentsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0052FF' },
+  safe: { flex: 1, backgroundColor: '#F1F5F9' },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 22,
     backgroundColor: '#0052FF',
@@ -268,6 +268,18 @@ const styles = StyleSheet.create({
     ...(typeof document !== 'undefined' ? { boxShadow: '0 6px 18px rgba(0,82,255,0.25)' } : {
       shadowColor: '#0052FF', shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 6,
     }),
+  },
+  headerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    width: '100%',
+  },
+  // Centered, max-width column for large screens.
+  centeredColumn: {
+    maxWidth: 900,
+    alignSelf: 'center',
   },
   headerBlob: {
     position: 'absolute',

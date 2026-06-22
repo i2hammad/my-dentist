@@ -105,6 +105,8 @@ function MainTabNavigator() {
       <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Appointments' }} />
       <Tab.Screen name="Orthodontics" component={OrthodonticsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
+      {/* Cosmetic is reachable from the web top nav + search, but hidden from the bottom bar. */}
+      <Tab.Screen name="Cosmetic" component={CosmeticScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
     </Tab.Navigator>
   );
 }

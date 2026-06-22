@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
   Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable
@@ -89,6 +89,11 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const [payingBillId, setPayingBillId] = useState(null);
 
   const [activeTab, setActiveTab] = useState('About');
+  const [tabsScrollEnd, setTabsScrollEnd] = useState(false);
+  const [tabsScrollStart, setTabsScrollStart] = useState(true); // at the far-left start
+  const [tabsScrollable, setTabsScrollable] = useState(false); // content wider than viewport
+  const tabsLayoutW = useRef(0);
+  const tabsScrollRef = useRef(null);
   const [saved, setSaved] = useState(false);
   const [patientProfile, setPatientProfile] = useState(null);
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -701,7 +706,7 @@ Thank you for visiting!
       <View style={styles.webRailCard}>
         {photoUri
           ? <Image source={{ uri: photoUri }} style={styles.webRailPhoto} />
-          : <View style={[styles.webRailPhoto, styles.avatarPlaceholder]}><Ionicons name="person" size={48} color="#0052FF" /></View>}
+          : <View style={[styles.webRailPhoto, styles.webRailPhotoPlaceholder]}><Ionicons name="person" size={48} color="#0052FF" /></View>}
         <View style={styles.nameRow}>
           <Text style={styles.doctorName}>{drName(doctor.fullName)}</Text>
           {doctor.pmdcVerified && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 6 }} />}
@@ -781,7 +786,7 @@ Thank you for visiting!
           <View style={styles.webTopBar}>
             <TouchableOpacity style={styles.webBackBtn} onPress={() => navigation.goBack()}>
               <Ionicons name="arrow-back" size={20} color="#0F172A" />
-              <Text style={styles.webBackText}>Back</Text>
+              <Text style={styles.webBackText} numberOfLines={1}>Back</Text>
             </TouchableOpacity>
             <View style={styles.webCrumb}>
               <Text style={styles.webCrumbMuted}>Doctors</Text>
@@ -952,13 +957,46 @@ Thank you for visiting!
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
             </TouchableOpacity>
           ));
-          return isWide ? (
-            <View style={styles.tabsWrap}>{tabButtons}</View>
-          ) : (
-            <View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+          return (
+            <View style={{ position: 'relative' }}>
+              <ScrollView
+                ref={tabsScrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.tabsScroll}
+                contentContainerStyle={styles.tabsContent}
+                scrollEventThrottle={16}
+                onLayout={(e) => { tabsLayoutW.current = e.nativeEvent.layout.width; }}
+                onContentSizeChange={(w) => setTabsScrollable(w > tabsLayoutW.current + 4)}
+                onScroll={(e) => {
+                  const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                  // At end when scrolled within ~8px of the far edge; at start near 0.
+                  setTabsScrollEnd(contentOffset.x + layoutMeasurement.width >= contentSize.width - 8);
+                  setTabsScrollStart(contentOffset.x <= 8);
+                }}
+              >
                 {tabButtons}
               </ScrollView>
+              {/* Left-edge chevron — tap to scroll back. Shows once scrolled away from start. */}
+              {tabsScrollable && !tabsScrollStart && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={[styles.tabsScrollHint, styles.tabsScrollHintLeft]}
+                  onPress={() => tabsScrollRef.current?.scrollTo?.({ x: 0, animated: true })}
+                >
+                  <Ionicons name="chevron-back" size={18} color="#0052FF" />
+                </TouchableOpacity>
+              )}
+              {/* Right-edge chevron — tap to scroll the tabs forward. */}
+              {tabsScrollable && !tabsScrollEnd && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.tabsScrollHint}
+                  onPress={() => tabsScrollRef.current?.scrollToEnd?.({ animated: true })}
+                >
+                  <Ionicons name="chevron-forward" size={18} color="#0052FF" />
+                </TouchableOpacity>
+              )}
             </View>
           );
         })()}
@@ -2022,6 +2060,8 @@ const styles = StyleSheet.create({
 
   // Tabs
   tabsScroll:         { marginTop: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  tabsScrollHint:     { position: 'absolute', right: 0, top: 0, bottom: 1, width: 44, backgroundColor: 'rgba(255,255,255,0.92)', justifyContent: 'center', alignItems: 'flex-end', paddingRight: 6 },
+  tabsScrollHintLeft: { right: undefined, left: 0, alignItems: 'flex-start', paddingRight: 0, paddingLeft: 6 },
   tabsWrap:           { flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 2, paddingHorizontal: 20, marginTop: 8, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   tabsContent:        { paddingHorizontal: 20 },
   tabItem:            { paddingVertical: 10, paddingHorizontal: 4, marginRight: 16, borderBottomWidth: 2, borderBottomColor: 'transparent', alignItems: 'center' },
@@ -2283,10 +2323,10 @@ const styles = StyleSheet.create({
   popularPillText: { fontSize: 11, fontWeight: '700' },
 
   // ── Web / desktop two-column layout ──
-  webScrollContent: { width: '100%', maxWidth: 1160, alignSelf: 'center', paddingHorizontal: 24 },
-  webTopBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 18, paddingBottom: 14 },
-  webBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
-  webBackText: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  webScrollContent: { width: '100%', maxWidth: 1160, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 24 },
+  webTopBar: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 18, paddingBottom: 18 },
+  webBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', flexShrink: 0 },
+  webBackText: { fontSize: 14, fontWeight: '700', color: '#0F172A', flexShrink: 0 },
   webCrumb: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   webCrumbMuted: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
   webCrumbActive: { fontSize: 14, color: '#0052FF', fontWeight: '700' },
@@ -2295,6 +2335,8 @@ const styles = StyleSheet.create({
   webMain: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
   webRailCard: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', padding: 24, alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } },
   webRailPhoto: { width: 120, height: 120, borderRadius: 24, marginBottom: 14, backgroundColor: '#E2E8F0' },
+  // Centered placeholder for the web rail (NOT the absolute phone-cover avatar).
+  webRailPhotoPlaceholder: { backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
   webFeeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   webFeeLabel: { color: '#64748B', fontSize: 14 },
   webFeeValue: { color: '#0F172A', fontSize: 18, fontWeight: '700' },

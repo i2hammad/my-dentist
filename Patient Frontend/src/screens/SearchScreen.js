@@ -24,7 +24,7 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
 const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
 
 export default function SearchScreen({ navigation, route }) {
-  const { isWide, columns } = useResponsive();
+  const { isWide, columns, isWeb } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -220,6 +220,8 @@ export default function SearchScreen({ navigation, route }) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.blueHeader}>
+        {/* Toolbar — native only; on web the root WebTopNav already provides it. */}
+        {!isWeb && (
         <AnimatedHeader style={styles.headerTop}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <PressableScale style={{ marginRight: 12, marginTop: 2 }} hitSlop={10} onPress={() => navigation.goBack()}>
@@ -257,26 +259,39 @@ export default function SearchScreen({ navigation, route }) {
             </PressableScale>
           </View>
         </AnimatedHeader>
+        )}
 
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#94A3B8" />
-          <TextInput 
-            style={styles.searchInput}
-            placeholder="Search Dentist / Clinic / Treatment"
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <Ionicons name="mic-outline" size={20} color="#94A3B8" style={{ marginRight: 10 }} />
-          <View style={styles.searchDivider} />
-          <TouchableOpacity style={styles.filterBtn}>
-            <Ionicons name="options" size={20} color="#0066FF" />
-          </TouchableOpacity>
+        <View style={[{ flexDirection: 'row', alignItems: 'center' }, isWide && styles.centeredWide]}>
+          {/* Web back button — the native toolbar (with its back arrow) is hidden on web. */}
+          {isWeb && navigation.canGoBack() && (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.webBackBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+          <View style={[styles.searchBar, { flex: 1 }]}>
+            <Ionicons name="search" size={20} color="#94A3B8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search Dentist / Clinic / Treatment"
+              placeholderTextColor="#94A3B8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Ionicons name="mic-outline" size={20} color="#94A3B8" style={{ marginRight: 10 }} />
+            <View style={styles.searchDivider} />
+            <TouchableOpacity style={styles.filterBtn}>
+              <Ionicons name="options" size={20} color="#0066FF" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
       <View style={styles.bottomSheet}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={{ paddingHorizontal: 20 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filterScroll, isWide && styles.centeredWide]} contentContainerStyle={{ paddingHorizontal: 20 }}>
           {filters.map((f, i) => (
             <TouchableOpacity 
               key={f.id} 
@@ -296,7 +311,7 @@ export default function SearchScreen({ navigation, route }) {
           ))}
         </ScrollView>
 
-        <View style={styles.listHeader}>
+        <View style={[styles.listHeader, isWide && styles.centeredWide]}>
           <View>
             <Text style={styles.listTitle}>Nearby Doctors</Text>
             <Text style={styles.listSubtitle}>Top dentists near you</Text>
@@ -411,6 +426,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#0052FF',
   },
+  webBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -503,6 +527,13 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   listContentWide: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center',
+  },
+  // Centered max-width column for wide screens — keeps the search bar, filter
+  // chips, list header, and card grid all aligned to the same column.
+  centeredWide: {
     width: '100%',
     maxWidth: 1100,
     alignSelf: 'center',

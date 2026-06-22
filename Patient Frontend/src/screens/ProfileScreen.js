@@ -678,9 +678,10 @@ export default function ProfileScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* Save button flows right after the content (no floating gap) */}
+            {/* Save button — full-width on native; compact + right-aligned on web */}
+            <View style={[webForm, isWeb && styles.saveBarWeb]}>
             <TouchableOpacity
-              style={[styles.saveButton, webForm, { marginTop: 20 }, saving && { opacity: 0.7 }]}
+              style={[styles.saveButton, isWeb && styles.saveButtonWeb, { marginTop: 20 }, saving && { opacity: 0.7 }]}
               onPress={handleSaveChanges}
               disabled={saving}
             >
@@ -693,6 +694,7 @@ export default function ProfileScreen({ navigation }) {
                 </>
               )}
             </TouchableOpacity>
+            </View>
              </>
             )}
           </ScrollView>
@@ -962,6 +964,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Web: right-align the button within the form column...
+  saveBarWeb: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  // ...and size it to its content instead of full-width.
+  saveButtonWeb: {
+    alignSelf: 'flex-end',
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 28,
   },
   saveButtonText: {
     color: '#FFFFFF',

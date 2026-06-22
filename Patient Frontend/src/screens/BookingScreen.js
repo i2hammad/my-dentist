@@ -9,6 +9,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
+import { webContent } from '../config/webLayout';
 
 const getTreatIcon = (name = '') => {
   const n = name.toLowerCase();
@@ -195,21 +196,23 @@ export default function BookingScreen({ route, navigation }) {
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#FFF" />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>Book Appointment</Text>
-            <Text style={styles.headerSub}>Schedule your dental appointment</Text>
+          <View style={[styles.headerInner, webContent]}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={22} color="#FFF" />
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.headerTitle}>Book Appointment</Text>
+              <Text style={styles.headerSub}>Schedule your dental appointment</Text>
+            </View>
+            <View style={{ width: 38 }} />
           </View>
-          <View style={{ width: 38 }} />
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, webContent]} showsVerticalScrollIndicator={false}>
 
           {/* Campaign Banner from Admin */}
           {campaign && (
-            <View style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('Promo', { campaign })} style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center' }}>
               <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
                 <Ionicons name="megaphone-outline" size={22} color="#FFF" />
               </View>
@@ -220,7 +223,7 @@ export default function BookingScreen({ route, navigation }) {
               <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 11 }}>PROMO</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* Doctor Card */}
@@ -465,12 +468,15 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F4FF' },
 
   header: {
+    backgroundColor: '#0052FF',
+    paddingVertical: 16,
+  },
+  headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0052FF',
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    width: '100%',
   },
   backBtn: {
     width: 38,

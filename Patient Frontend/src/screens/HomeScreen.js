@@ -474,25 +474,87 @@ export default function HomeScreen({ navigation }) {
         )}
       >
 
-        {/* ADMIN CAMPAIGN BANNER */}
-        {campaign && (
+        {/* ── CAMPAIGN BANNERS ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 12 }}
+          contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+        >
+          {/* Admin dynamic campaign (if active) */}
+          {campaign && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {}}
+              style={{ width: 280, backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{campaign.title || 'Special Offer'}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{campaign.body || campaign.description || ''}</Text>
+              </View>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Campaign 1 — Free Consultation */}
           <TouchableOpacity
-            style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center' }}
             activeOpacity={0.85}
-            onPress={() => {}}
+            onPress={() => navigation.navigate('Appointments')}
+            style={{ width: 280, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: '#0052FF' }}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-              <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="gift-outline" size={22} color="#FFF" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>{campaign.title || 'Special Offer'}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }} numberOfLines={2}>{campaign.body || campaign.description || ''}</Text>
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>Free Consultation</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }}>Book today & get your first checkup FREE!</Text>
             </View>
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
+              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>FREE</Text>
             </View>
           </TouchableOpacity>
-        )}
+
+          {/* Campaign 2 — Teeth Whitening */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('Appointments')}
+            style={{ width: 280, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: '#0D9488' }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="sparkles-outline" size={22} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>Whitening Special 50% Off</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }}>Professional teeth whitening at half price!</Text>
+            </View>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
+              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>50% OFF</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Campaign 3 — Family Pack */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('Appointments')}
+            style={{ width: 280, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: '#D97706' }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="people-outline" size={22} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>Family Care Package</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }}>Dental checkup for the whole family — save big!</Text>
+            </View>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
+              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>FAMILY</Text>
+            </View>
+          </TouchableOpacity>
+        </ScrollView>
 
         {/* MY APPOINTMENTS BANNER */}
         <TouchableOpacity

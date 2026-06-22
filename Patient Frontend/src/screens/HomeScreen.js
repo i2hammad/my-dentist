@@ -479,7 +479,7 @@ export default function HomeScreen({ navigation }) {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: 12 }}
+            style={{ marginBottom: 12, marginTop: 12 }}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
           >
             {campaigns.map((c, idx) => {

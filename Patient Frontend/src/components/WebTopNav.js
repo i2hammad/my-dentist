@@ -85,15 +85,17 @@ export default function WebTopNav({ navRef, navInfo }) {
   return (
     <View style={styles.bar}>
       <View style={styles.inner}>
-        {/* LEFT: Brand + quick-action icons */}
-        <View style={styles.leftCluster}>
-          <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
-            <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
-          </Pressable>
+        {/* LEFT: Brand */}
+        <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
+          <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
+        </Pressable>
 
-          {/* Patient icons */}
-          {isPatient && (
+        {/* SPACER */}
+        <View style={{ flex: 1 }} />
+
+        {/* RIGHT: Patient icons */}
+        {isPatient && (
             <View style={styles.iconGroup}>
               {/* Chat */}
               <Pressable style={styles.iconPill} onPress={() => goStack('PatientInbox')}>
@@ -136,22 +138,21 @@ export default function WebTopNav({ navRef, navInfo }) {
             </View>
           )}
 
-          {/* Doctor icons */}
-          {!isPatient && (
-            <View style={styles.iconGroup}>
-              <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive]} onPress={goProfile}>
-                <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
-                  <Ionicons name="person-outline" size={18} color="#0052FF" />
-                </View>
-                <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>
-              </Pressable>
-              <Pressable style={styles.logoutPill} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={18} color="#DC2626" />
-                <Text style={styles.logoutLabel}>Logout</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
+        {/* RIGHT: Doctor icons */}
+        {!isPatient && (
+          <View style={styles.iconGroup}>
+            <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive]} onPress={goProfile}>
+              <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="person-outline" size={18} color="#0052FF" />
+              </View>
+              <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>
+            </Pressable>
+            <Pressable style={styles.logoutPill} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+              <Text style={styles.logoutLabel}>Logout</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Tab links removed as per user request */}
       </View>
@@ -169,12 +170,12 @@ const styles = StyleSheet.create({
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     height: 64,
     paddingHorizontal: 40,
     width: '100%',
     maxWidth: 1280,
     alignSelf: 'center',
-    gap: 16,
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   logo: { width: 32, height: 32, borderRadius: 8 },

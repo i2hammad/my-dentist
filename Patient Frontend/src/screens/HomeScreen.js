@@ -243,7 +243,7 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
   const [favorites, setFavorites]     = useState({});
-  const [campaign, setCampaign]       = useState(null);
+  const [campaigns, setCampaigns]     = useState([]);
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
   const { isWide, columns } = useResponsive();
@@ -289,8 +289,8 @@ export default function HomeScreen({ navigation }) {
         if (token) {
           const res = await axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } });
           if (res.data?.success) {
-            const c = Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
-            if (c) setCampaign(c);
+            const list = Array.isArray(res.data.data) ? res.data.data : (res.data.data ? [res.data.data] : []);
+            setCampaigns(list);
           }
         }
       } catch (e) { /* non-critical */ }
@@ -474,24 +474,38 @@ export default function HomeScreen({ navigation }) {
         )}
       >
 
-        {/* ── ADMIN CAMPAIGN BANNER (dynamic only) ── */}
-        {campaign && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => {}}
-            style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+        {/* ── ADMIN CAMPAIGNS (dynamic, from admin panel) ── */}
+        {campaigns.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 12 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-              <Ionicons name="megaphone-outline" size={22} color="#FFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }} numberOfLines={1}>{campaign.title || 'Special Offer'}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 }} numberOfLines={2}>{campaign.body || campaign.description || ''}</Text>
-            </View>
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8 }}>
-              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
-            </View>
-          </TouchableOpacity>
+            {campaigns.map((c, idx) => {
+              const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
+              const bg = colors[idx % colors.length];
+              return (
+                <TouchableOpacity
+                  key={c._id || idx}
+                  activeOpacity={0.85}
+                  onPress={() => {}}
+                  style={{ width: 300, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{c.bannerText || c.body || ''}</Text>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
+                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         )}
 
         {/* MY APPOINTMENTS BANNER */}

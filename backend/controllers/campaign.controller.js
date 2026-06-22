@@ -169,17 +169,18 @@ exports.getActiveForPatient = async (req, res) => {
     const city = profile?.city || '';
     const now = new Date();
 
-    const campaign = await Campaign.findOne({
+    const campaigns = await Campaign.find({
       targetAudience: 'patient',
       isActive: true,
       startAt: { $lte: now },
       endAt: { $gte: now },
       $or: [{ cities: { $size: 0 } }, { cities: city }],
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 }).limit(10);
 
-    if (!campaign) return ok(res, null);
-    Campaign.updateOne({ _id: campaign._id }, { $inc: { views: 1 } }).catch(() => {});
-    ok(res, campaign);
+    if (!campaigns.length) return ok(res, []);
+    const ids = campaigns.map(c => c._id);
+    Campaign.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(() => {});
+    ok(res, campaigns);
   } catch (e) { fail(res, 500, e.message); }
 };
 

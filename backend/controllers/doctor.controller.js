@@ -40,7 +40,7 @@ const getDoctors = async (req, res) => {
     }
 
     if (req.query.city) {
-      filter.city = { $regex: new RegExp(req.query.city, 'i') };
+      filter.city = { $regex: req.query.city, $options: 'i' };
     }
 
     // Get total count for pagination

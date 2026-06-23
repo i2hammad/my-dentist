@@ -807,23 +807,23 @@ Thank you for visiting!
         <View style={isWide ? styles.webGrid : undefined}>
           {isWide && leftRail}
           <View style={isWide ? styles.webMain : undefined}>
-        {/* Header bar + status bar — About tab, phone only (no cover photo) */}
+        {/* Header — About tab, phone only */}
         {activeTab === 'About' && !isWide && (
-          <View>
-            <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 4, paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                <Ionicons name="arrow-back" size={24} color="#0F172A" />
-              </TouchableOpacity>
+          <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 6, paddingHorizontal: 16, paddingBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            </TouchableOpacity>
+            {/* Right side: online badge + share */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: doctor.onlineStatus === 'online' ? '#DCFCE7' : '#F1F5F9', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: doctor.onlineStatus === 'online' ? '#86EFAC' : '#E2E8F0' }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: doctor.onlineStatus === 'online' ? '#16A34A' : '#94A3B8', marginRight: 5 }} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: doctor.onlineStatus === 'online' ? '#15803D' : '#64748B' }}>
+                  {doctor.onlineStatus === 'online' ? 'Online' : 'Offline'}
+                </Text>
+              </View>
               <TouchableOpacity style={styles.iconCircle} onPress={handleShare}>
-                <Ionicons name="share-social-outline" size={22} color="#0F172A" />
+                <Ionicons name="share-social-outline" size={20} color="#0F172A" />
               </TouchableOpacity>
-            </View>
-            {/* Online / Offline status bar */}
-            <View style={{ backgroundColor: doctor.onlineStatus === 'online' ? '#16A34A' : '#64748B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, gap: 6 }}>
-              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
-              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12, letterSpacing: 0.3 }}>
-                {doctor.onlineStatus === 'online' ? 'Online — Available Now' : 'Offline'}
-              </Text>
             </View>
           </View>
         )}
@@ -860,78 +860,114 @@ Thank you for visiting!
         {/* Floating Doctor Card — only on About tab (phone only) */}
         {activeTab === 'About' && !isWide && (
           <View style={styles.floatingCard}>
-            {doctor.photo || doctor.avatar ? (
-              <Image source={{ uri: imgUrl(doctor.photo || doctor.avatar) }} style={styles.doctorAvatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={40} color="#0052FF" />
-              </View>
-            )}
-            <View style={styles.doctorHeader}>
-              <View style={styles.nameRow}>
-                <Text style={styles.doctorName}>{drName(doctor.fullName)}</Text>
-                {doctor.pmdcVerified && (
-                  <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 6 }} />
-                )}
-              </View>
-              <Text style={styles.doctorSpecialty}>{doctor.specialization} • {doctor.qualification || 'BDS'}</Text>
-              <View style={styles.ratingRow}>
-                <Ionicons name="star" size={14} color="#F59E0B" />
-                <Text style={styles.ratingText}>
-                  {avgRating} <Text style={{ color: '#64748B', fontWeight: 'normal' }}>({totalReviewCount} Reviews)</Text>
-                </Text>
-              </View>
-              {doctor.clinicName && (
-                <View style={styles.clinicTag}>
-                  <Ionicons name="ribbon-outline" size={14} color="#0052FF" style={{ marginRight: 4 }} />
-                  <Text style={styles.clinicText}>{doctor.clinicName}</Text>
+            {/* Avatar + Name row */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              {doctor.photo || doctor.avatar ? (
+                <Image source={{ uri: imgUrl(doctor.photo || doctor.avatar) }} style={styles.doctorAvatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={38} color="#0052FF" />
                 </View>
               )}
-              {(doctor.address || distanceLabel) && (
-                <View style={styles.locationRow}>
-                  <Ionicons name="location-outline" size={14} color="#64748B" />
-                  {!!doctor.address && (
-                    <Text style={styles.distanceText}>{doctor.address}{doctor.city ? `, ${doctor.city}` : ''}</Text>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Text style={styles.doctorName}>{drName(doctor.fullName)}</Text>
+                  {doctor.pmdcVerified && (
+                    <Ionicons name="checkmark-circle" size={17} color="#0052FF" style={{ marginLeft: 5 }} />
                   )}
-                  {distanceLabel && (
-                    <View style={styles.distanceChip}>
-                      <Ionicons name="navigate" size={11} color="#2563EB" />
-                      <Text style={styles.distanceChipText}>{distanceLabel} away</Text>
+                </View>
+                <Text style={styles.doctorSpecialty}>{doctor.specialization} • {doctor.qualification || 'BDS'}</Text>
+                {/* Rating inline */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                  <Ionicons name="star" size={13} color="#F59E0B" />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{avgRating}</Text>
+                  <Text style={{ fontSize: 12, color: '#94A3B8' }}>({totalReviewCount} reviews)</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Divider */}
+            <View style={{ height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 }} />
+
+            {/* Clinic + Location row */}
+            <View style={{ gap: 6 }}>
+              {doctor.clinicName && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="ribbon-outline" size={14} color="#0052FF" />
+                  </View>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }}>{doctor.clinicName}</Text>
+                  {tier && (
+                    <View style={{ backgroundColor: tier.bg, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: tier.color }}>{tier.label}</Text>
                     </View>
                   )}
                 </View>
               )}
+              {(doctor.address || doctor.city) && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="location-outline" size={14} color="#16A34A" />
+                  </View>
+                  <Text style={{ fontSize: 13, color: '#475569', flex: 1 }} numberOfLines={1}>
+                    {[doctor.address, doctor.city].filter(Boolean).join(', ')}
+                  </Text>
+                  {distanceLabel && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
+                      <Ionicons name="navigate" size={10} color="#2563EB" />
+                      <Text style={{ fontSize: 11, color: '#2563EB', fontWeight: '700', marginLeft: 3 }}>{distanceLabel}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+              {doctor.consultationFee ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="cash-outline" size={14} color="#D97706" />
+                  </View>
+                  <Text style={{ fontSize: 13, color: '#475569' }}>Consultation Fee</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginLeft: 'auto' }}>Rs. {doctor.consultationFee}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
         )}
 
-        {/* Chat / Directions / Save action buttons — only on About tab (phone only) */}
+        {/* Action buttons — About tab, phone only */}
         {activeTab === 'About' && !isWide && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity 
-              style={styles.actionBtn} 
+          <View style={{ flexDirection: 'row', marginHorizontal: 14, marginTop: 10, gap: 8 }}>
+            {/* Book Appointment — primary CTA */}
+            <TouchableOpacity
+              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 13, gap: 6 }}
+              onPress={() => navigation.navigate('Booking', { doctor })}
+            >
+              <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>Book Appointment</Text>
+            </TouchableOpacity>
+            {/* Chat */}
+            <TouchableOpacity
+              style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
               onPress={() => {
                 const docUserId = doctor.userId?._id || doctor.userId;
-                if (!docUserId) {
-                  Alert.alert('Error', 'Unable to start chat. Doctor User ID not found.');
-                  return;
-                }
+                if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
                 navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
               }}
             >
               <Ionicons name="chatbubble-outline" size={20} color="#0052FF" />
-              <Text style={styles.actionBtnText}>Chat</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleOpenMap}>
-              <Ionicons name="navigate-outline" size={20} color="#0052FF" />
-              <Text style={styles.actionBtnText}>Directions</Text>
-            </TouchableOpacity>
+            {/* Directions */}
             <TouchableOpacity
-              style={[styles.actionBtn, saved && { backgroundColor: '#0052FF', borderColor: '#0052FF' }]}
+              style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
+              onPress={handleOpenMap}
+            >
+              <Ionicons name="navigate-outline" size={20} color="#0052FF" />
+            </TouchableOpacity>
+            {/* Save */}
+            <TouchableOpacity
+              style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: saved ? '#0052FF' : '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: saved ? '#0052FF' : '#DBEAFE' }}
               onPress={toggleSaved}
             >
               <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={20} color={saved ? '#FFFFFF' : '#0052FF'} />
-              <Text style={[styles.actionBtnText, saved && { color: '#FFFFFF' }]}>Save</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -2045,7 +2081,7 @@ const styles = StyleSheet.create({
   onlineText:      { fontSize: 12, fontWeight: 'bold' },
 
   // Floating Card
-  floatingCard:    { backgroundColor: '#FFFFFF', borderRadius: 24, marginHorizontal: 20, marginTop: 10, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  floatingCard:    { backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 14, marginTop: 6, padding: 18, shadowColor: '#0052FF', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: '#EFF6FF' },
   doctorAvatar:    { position: 'absolute', top: -35, left: 20, width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#FFFFFF' },
   avatarPlaceholder: { position: 'absolute', top: -35, left: 20, width: 70, height: 70, borderRadius: 35, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
   doctorHeader:    { marginTop: 35 },

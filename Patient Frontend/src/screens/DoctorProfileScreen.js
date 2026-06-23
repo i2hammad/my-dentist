@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
-  Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable
+  Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable, StatusBar
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -784,6 +784,7 @@ Thank you for visiting!
 
   return (
     <SafeAreaView edges={isWide ? ['top'] : []} style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ScrollView
         contentContainerStyle={[
           { paddingBottom: 150 + (isWide ? 0 : insets.bottom) },

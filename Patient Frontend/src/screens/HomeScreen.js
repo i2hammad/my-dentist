@@ -437,7 +437,7 @@ export default function HomeScreen({ navigation }) {
         {/* Personalized greeting */}
         <View>
           <Text style={styles.headerGreeting}>{greeting()}{firstName ? ',' : ''}</Text>
-          {!!firstName && <Text style={styles.headerName}>{firstName} 👋</Text>}
+          {!!firstName && <Text style={styles.headerName}>{firstName}</Text>}
           <Text style={styles.headerTagline}>Find the right dentist near you</Text>
         </View>
       </View>

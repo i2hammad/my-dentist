@@ -43,6 +43,7 @@ import OrthodonticsScreen from '../screens/OrthodonticsScreen';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
 import WebTopNav from '../components/WebTopNav';
+import CampaignBanner from '../components/CampaignBanner';
 
 // On web, a single root-level top navbar (WebTopNav, rendered above the stack)
 // handles all navigation, so the per-navigator tab bars are hidden. Native keeps
@@ -188,6 +189,7 @@ export default function AppNavigator() {
     >
       <View style={{ flex: 1 }}>
         {isWeb && <WebTopNav navRef={navRef} navInfo={navInfo} />}
+        <CampaignBanner navRef={navRef} navInfo={navInfo} />
         <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />

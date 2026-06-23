@@ -167,39 +167,69 @@ export function SkeletonProfile({ fields = 5 }) {
 export function SkeletonDoctorDetail({ topInset = 0 }) {
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      {/* Banner bleeds under the status bar (edge-to-edge): height absorbs the inset */}
-      <Shimmer style={{ width: '100%', height: 180 + topInset, borderRadius: 0 }} />
+      {/* Header bar — matches new design (no cover photo) */}
+      <View style={{ backgroundColor: '#FFFFFF', paddingTop: topInset + 6, paddingHorizontal: 16, paddingBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Shimmer style={{ width: 40, height: 40, borderRadius: 20 }} />
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          <Shimmer style={{ width: 80, height: 30, borderRadius: 20 }} />
+          <Shimmer style={{ width: 40, height: 40, borderRadius: 20 }} />
+        </View>
+      </View>
+
+      {/* Doctor card */}
       <View style={dStyles.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <SkeletonCircle size={68} />
+        {/* Avatar + name row */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <Shimmer style={{ width: 72, height: 72, borderRadius: 16 }} />
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <SkeletonLine width="65%" height={16} />
-            <SkeletonLine width="45%" height={12} style={{ marginTop: 8 }} />
-            <SkeletonLine width="35%" height={12} style={{ marginTop: 8 }} />
+            <SkeletonLine width="70%" height={16} />
+            <SkeletonLine width="50%" height={12} style={{ marginTop: 8 }} />
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, alignItems: 'center' }}>
+              <Shimmer style={{ width: 14, height: 14, borderRadius: 7 }} />
+              <SkeletonLine width="30%" height={12} />
+            </View>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-          <SkeletonLine width="32%" height={40} style={{ borderRadius: 12 }} />
-          <SkeletonLine width="32%" height={40} style={{ borderRadius: 12 }} />
-          <SkeletonLine width="32%" height={40} style={{ borderRadius: 12 }} />
-        </View>
+
+        {/* Divider */}
+        <View style={{ height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 }} />
+
+        {/* Clinic + location rows */}
+        {[1, 2, 3].map(i => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Shimmer style={{ width: 28, height: 28, borderRadius: 8 }} />
+            <SkeletonLine width={`${50 + i * 10}%`} height={12} />
+          </View>
+        ))}
       </View>
-      <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: 16, marginTop: 18 }}>
-        {Array.from({ length: 4 }).map((_, i) => <SkeletonLine key={i} width={56} height={44} style={{ borderRadius: 10 }} />)}
+
+      {/* Action buttons row */}
+      <View style={{ flexDirection: 'row', marginHorizontal: 14, marginTop: 10, gap: 8 }}>
+        <Shimmer style={{ flex: 2, height: 48, borderRadius: 14 }} />
+        <Shimmer style={{ width: 48, height: 48, borderRadius: 14 }} />
+        <Shimmer style={{ width: 48, height: 48, borderRadius: 14 }} />
       </View>
+
+      {/* Tabs row */}
+      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: 16 }}>
+        {[1, 2, 3, 4].map(i => (
+          <Shimmer key={i} style={{ width: 70, height: 40, borderRadius: 10 }} />
+        ))}
+      </View>
+
+      {/* Content lines */}
       <View style={{ padding: 16, marginTop: 8 }}>
-        <SkeletonLine width="40%" height={16} />
-        <SkeletonLine width="100%" height={12} style={{ marginTop: 14 }} />
-        <SkeletonLine width="92%" height={12} style={{ marginTop: 8 }} />
-        <SkeletonLine width="96%" height={12} style={{ marginTop: 8 }} />
-        <SkeletonLine width="70%" height={12} style={{ marginTop: 8 }} />
+        <SkeletonLine width="40%" height={15} />
+        {[100, 92, 96, 75, 85].map((w, i) => (
+          <SkeletonLine key={i} width={`${w}%`} height={12} style={{ marginTop: i === 0 ? 14 : 8 }} />
+        ))}
       </View>
     </View>
   );
 }
 
 const dStyles = StyleSheet.create({
-  card: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 16, marginHorizontal: 16, marginTop: -40 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#EFF6FF', padding: 18, marginHorizontal: 14, marginTop: 6, shadowColor: '#0052FF', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 },
 });
 
 const pStyles = StyleSheet.create({

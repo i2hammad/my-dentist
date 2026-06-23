@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Platform, Alert, Image, Modal, FlatList, Dimensions
 } from 'react-native';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -38,6 +39,7 @@ export default function DoctorProfileScreen({ navigation }) {
     clinicName: '',
     address: '',
     city: '',
+    coordinates: '',
     about: '',
     avatar: '',
     licenseCert: '',
@@ -71,6 +73,7 @@ export default function DoctorProfileScreen({ navigation }) {
           clinicContact: p.clinicContact || '',
           address: p.address || '',
           city: p.city || '',
+          coordinates: p.coordinates || '',
           about: p.about || '',
           avatar: p.photo || '',
           mobileNumber: p.phone || p.mobileNumber || '',
@@ -182,6 +185,7 @@ export default function DoctorProfileScreen({ navigation }) {
       if (formData.clinicName) payload.clinicName = formData.clinicName;
       if (formData.address) payload.address = formData.address;
       if (formData.city) payload.city = formData.city;
+      if (formData.coordinates) payload.coordinates = formData.coordinates;
       if (formData.mobileNumber) { payload.phone = formData.mobileNumber; payload.mobileNumber = formData.mobileNumber; }
       if (formData.pmdcNumber) payload.pmdcNumber = formData.pmdcNumber;
       if (formData.about) payload.about = formData.about;
@@ -286,6 +290,40 @@ export default function DoctorProfileScreen({ navigation }) {
           <FieldRow icon="business-outline" label="Clinic Name" placeholder="Clinic / Hospital name" value={formData.clinicName} onChangeText={t => setField('clinicName', t)} />
           <FieldRow icon="location-outline" label="Address" placeholder="Clinic address" value={formData.address} onChangeText={t => setField('address', t)} />
           <FieldRow icon="navigate-outline" label="City" placeholder="City" value={formData.city} onChangeText={t => setField('city', t)} />
+
+          {/* GPS Location */}
+          <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: formData.coordinates ? '#ECFDF5' : '#EFF6FF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: formData.coordinates ? '#16A34A' : '#0052FF' }}
+              onPress={async () => {
+                try {
+                  const { status } = await Location.requestForegroundPermissionsAsync();
+                  if (status !== 'granted') { Alert.alert('Permission denied', 'Location permission is required.'); return; }
+                  const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+                  const coords = `${loc.coords.latitude.toFixed(6)},${loc.coords.longitude.toFixed(6)}`;
+                  setField('coordinates', coords);
+                  Alert.alert('Location Set', `Coordinates saved: ${coords}`);
+                } catch (e) { Alert.alert('Error', 'Could not get location. Try again.'); }
+              }}
+            >
+              <Ionicons name={formData.coordinates ? 'checkmark-circle' : 'locate-outline'} size={20} color={formData.coordinates ? '#16A34A' : '#0052FF'} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: formData.coordinates ? '#16A34A' : '#0052FF' }}>
+                  {formData.coordinates ? 'Location Set ✓' : 'Set Clinic Location (GPS)'}
+                </Text>
+                {formData.coordinates ? (
+                  <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{formData.coordinates}</Text>
+                ) : (
+                  <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Tap to use your current GPS location</Text>
+                )}
+              </View>
+              {formData.coordinates && (
+                <TouchableOpacity onPress={() => setField('coordinates', '')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.fieldRow}>
             <View style={styles.labelCol}>

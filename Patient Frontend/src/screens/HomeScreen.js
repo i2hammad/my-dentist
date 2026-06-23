@@ -135,9 +135,10 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
               {doc.specialization || 'Dentist'}
             </Text>
             {(() => {
-              if (!patientCoords) return null;
-              const dc = doc.coordinates ? String(doc.coordinates).split(',').map(Number) : null;
-              if (!dc || dc.length < 2 || isNaN(dc[0])) return null;
+              if (!patientCoords || !doc.coordinates) return null;
+              const dc = String(doc.coordinates).split(',').map(Number);
+              if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return null;
+              if (Math.abs(dc[0]) < 0.001 && Math.abs(dc[1]) < 0.001) return null; // skip 0,0
               const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
               if (km === null) return null;
               return (
@@ -182,9 +183,10 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
             <Text style={styles.infoText} numberOfLines={1}>
               {doc.clinicCity || doc.address || 'Islamabad'}
               {(() => {
-                if (!patientCoords) return '';
-                const dc = doc.coordinates ? String(doc.coordinates).split(',').map(Number) : null;
-                if (!dc || dc.length < 2 || isNaN(dc[0])) return '';
+                if (!patientCoords || !doc.coordinates) return '';
+                const dc = String(doc.coordinates).split(',').map(Number);
+                if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return '';
+                if (Math.abs(dc[0]) < 0.001 && Math.abs(dc[1]) < 0.001) return '';
                 const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
                 return km !== null ? ` · ${fmtKm(km)} away` : '';
               })()}
@@ -246,6 +248,7 @@ export default function HomeScreen({ navigation }) {
   const [campaigns, setCampaigns]       = useState([]);
   const [rotationInterval, setRotationInterval] = useState(10);
   const [activeCampaignIdx, setActiveCampaignIdx] = useState(0);
+  const campaignScrollRef = useRef(null);
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
   const { isWide, columns } = useResponsive();
@@ -276,9 +279,9 @@ export default function HomeScreen({ navigation }) {
 
       }
 
-      // Fetch doctors
+      // Fetch doctors (city filtering handled by separate effect)
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=20`);
+        const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=50`);
         if (res.data?.success) {
           setDoctors(res.data.data || []);
         }
@@ -309,6 +312,18 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     if (isFocused) fetchData();
   }, [isFocused]);
+
+  // Re-fetch doctors whenever selected city changes
+  useEffect(() => {
+    const fetchByCity = async () => {
+      try {
+        const cityParam = selectedCity ? `&city=${encodeURIComponent(selectedCity)}` : '';
+        const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=50${cityParam}`);
+        if (res.data?.success) setDoctors(res.data.data || []);
+      } catch {}
+    };
+    fetchByCity();
+  }, [selectedCity]);
 
 
   useFocusEffect(
@@ -346,7 +361,13 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     if (campaigns.length <= 1) return;
     const timer = setInterval(() => {
-      setActiveCampaignIdx(i => (i + 1) % campaigns.length);
+      setActiveCampaignIdx(prev => {
+        const next = (prev + 1) % campaigns.length;
+        try {
+          campaignScrollRef.current?.scrollTo({ x: next * 316, animated: true });
+        } catch {}
+        return next;
+      });
     }, rotationInterval * 1000);
     return () => clearInterval(timer);
   }, [campaigns, rotationInterval]);
@@ -468,39 +489,52 @@ export default function HomeScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
 
-        {/* ── ADMIN CAMPAIGN BANNER (single, auto-rotating) ── */}
-        {campaigns.length > 0 && (() => {
-          const c = campaigns[activeCampaignIdx] || campaigns[0];
-          const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
-          const bg = colors[activeCampaignIdx % colors.length];
-          return (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('Promo', { campaign: c })}
-              style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+        {/* ── ADMIN CAMPAIGNS (horizontal scroll + auto-rotate) ── */}
+        {campaigns.length > 0 && (
+          <View style={{ marginTop: 16, marginBottom: 8 }}>
+            <ScrollView
+              ref={campaignScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
+              onMomentumScrollEnd={e => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / 316);
+                setActiveCampaignIdx(idx);
+              }}
             >
-              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+              {campaigns.map((c, i) => {
+                const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
+                const bg = colors[i % colors.length];
+                return (
+                  <TouchableOpacity
+                    key={c._id || i}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('Promo', { campaign: c })}
+                    style={{ width: 300, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{c.bannerText || c.body || ''}</Text>
+                    </View>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            {campaigns.length > 1 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+                {campaigns.map((_, i) => (
+                  <View key={i} style={{ width: i === activeCampaignIdx ? 16 : 6, height: 5, borderRadius: 3, backgroundColor: i === activeCampaignIdx ? '#0052FF' : '#CBD5E1' }} />
+                ))}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{c.bannerText || c.body || ''}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
-                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
-                </View>
-                {campaigns.length > 1 && (
-                  <View style={{ flexDirection: 'row', gap: 4 }}>
-                    {campaigns.map((_, i) => (
-                      <View key={i} style={{ width: i === activeCampaignIdx ? 14 : 6, height: 5, borderRadius: 3, backgroundColor: i === activeCampaignIdx ? '#FFF' : 'rgba(255,255,255,0.4)' }} />
-                    ))}
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })()}
+            )}
+          </View>
+        )}
 
 
         {/* ── SEARCH BAR ── */}

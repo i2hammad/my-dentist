@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Dimensions, Alert, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Dimensions, Alert, Platform, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -67,6 +67,29 @@ export default function DoctorHomeScreen({ route, navigation }) {
   useEffect(() => {
     if (isFocused) fetchData();
   }, [isFocused]);
+
+  // Auto online/offline based on app state
+  useEffect(() => {
+    const setStatus = async (status) => {
+      try {
+        const token = await storage.getItem('userToken');
+        if (!token) return;
+        await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { onlineStatus: status }, { headers: { Authorization: `Bearer ${token}` } });
+      } catch {}
+    };
+
+    setStatus('online'); // set online when screen mounts
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setStatus('online');
+      else if (state === 'background' || state === 'inactive') setStatus('offline');
+    });
+
+    return () => {
+      setStatus('offline'); // set offline when screen unmounts
+      sub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (route?.params?.initialTab) {

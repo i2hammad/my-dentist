@@ -378,20 +378,28 @@ export default function DoctorProfileScreen({ route, navigation }) {
     }
   };
 
+  // Returns true only when doctor has a real non-zero GPS coordinate set
+  const doctorHasLocation = (() => {
+    if (!doctor?.coordinates) return false;
+    const p = String(doctor.coordinates).split(',').map(Number);
+    if (p.length < 2 || isNaN(p[0]) || isNaN(p[1])) return false;
+    if (Math.abs(p[0]) < 0.001 && Math.abs(p[1]) < 0.001) return false;
+    return true;
+  })();
+
   const handleOpenMap = () => {
-    const query = encodeURIComponent(`${doctor?.clinicName || ''}, ${doctor?.address || ''}, ${doctor?.city || ''}`);
-    const url = Platform.select({
-      ios: `maps://0,0?q=${query}`,
-      android: `geo:0,0?q=${query}`,
-      default: `https://www.google.com/maps/search/?api=1&query=${query}`
-    });
-    if (url) {
-      Linking.openURL(url).catch(err => {
-        // Fallback to web maps
-        const webUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
-        Linking.openURL(webUrl).catch(() => {
-          Alert.alert('Error', 'Could not open map navigation.');
-        });
+    if (doctorHasLocation) {
+      const p = String(doctor.coordinates).split(',').map(Number);
+      const lat = p[0], lng = p[1];
+      const url = Platform.select({
+        ios: `maps://?ll=${lat},${lng}&q=${encodeURIComponent(doctor.clinicName || 'Clinic')}`,
+        android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(doctor.clinicName || 'Clinic')})`,
+        default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+      });
+      Linking.openURL(url).catch(() => {
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`).catch(() =>
+          Alert.alert('Error', 'Could not open map navigation.')
+        );
       });
     }
   };
@@ -771,9 +779,11 @@ Thank you for visiting!
           }}>
             <Ionicons name="chatbubble-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Chat</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.webRailAction} onPress={handleOpenMap}>
-            <Ionicons name="navigate-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Directions</Text>
-          </TouchableOpacity>
+          {doctorHasLocation && (
+            <TouchableOpacity style={styles.webRailAction} onPress={handleOpenMap}>
+              <Ionicons name="navigate-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Directions</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={[styles.webRailAction, saved && { backgroundColor: '#0052FF', borderColor: '#0052FF' }]} onPress={toggleSaved}>
             <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={18} color={saved ? '#FFFFFF' : '#0052FF'} /><Text style={[styles.actionBtnText, saved && { color: '#FFFFFF' }]}>Save</Text>
           </TouchableOpacity>
@@ -956,13 +966,15 @@ Thank you for visiting!
             >
               <Ionicons name="chatbubble-outline" size={20} color="#0052FF" />
             </TouchableOpacity>
-            {/* Directions */}
-            <TouchableOpacity
-              style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
-              onPress={handleOpenMap}
-            >
-              <Ionicons name="navigate-outline" size={20} color="#0052FF" />
-            </TouchableOpacity>
+            {/* Directions — only if GPS location is set */}
+            {doctorHasLocation && (
+              <TouchableOpacity
+                style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
+                onPress={handleOpenMap}
+              >
+                <Ionicons name="navigate-outline" size={20} color="#0052FF" />
+              </TouchableOpacity>
+            )}
             {/* Save */}
             <TouchableOpacity
               style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: saved ? '#0052FF' : '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: saved ? '#0052FF' : '#DBEAFE' }}

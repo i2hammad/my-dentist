@@ -1301,7 +1301,12 @@ Thank you for visiting!
               </View>
               {appointments.length > 0 ? (
                 appointments.map(apt => (
-                  <View key={apt._id} style={styles.apptCard}>
+                  <TouchableOpacity
+                    key={apt._id}
+                    activeOpacity={0.85}
+                    style={styles.apptCard}
+                    onPress={() => navigation.navigate('AppointmentDetail', { appointment: { ...apt, doctorId: apt.doctorId || doctor } })}
+                  >
                     <View style={styles.apptRow}>
                       <View style={styles.timeBadge}>
                         <Text style={styles.timeText}>{apt.time}</Text>
@@ -1319,6 +1324,7 @@ Thank you for visiting!
                           {apt.status.toUpperCase()}
                         </Text>
                       </View>
+                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginLeft: 6 }} />
                     </View>
                     {apt.visitSummary ? (
                       <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
@@ -1336,7 +1342,7 @@ Thank you for visiting!
                         </Text>
                       </View>
                     ) : null}
-                  </View>
+                  </TouchableOpacity>
                 ))
               ) : (
                 <Text style={styles.emptyText}>You haven't booked any appointments with this doctor.</Text>

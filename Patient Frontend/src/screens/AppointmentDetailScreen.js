@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +48,8 @@ export default function AppointmentDetailScreen({ route, navigation }) {
   const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
   const canModify = appt.status === 'pending' || appt.status === 'confirmed';
   const treatments = (appt.treatmentType || 'Consultation').split(',').map((t) => t.trim());
+  const doctorPhone = appt.doctorId?.phone || appt.doctorId?.clinicContact || '';
+  const clinicAddress = [appt.doctorId?.address, appt.doctorId?.city].filter(Boolean).join(', ');
 
   const authHeaders = async () => ({ Authorization: `Bearer ${await storage.getItem('userToken')}` });
 
@@ -153,8 +155,43 @@ export default function AppointmentDetailScreen({ route, navigation }) {
             label="Type"
             value={appt.consultationType === 'online' ? 'Video Call' : 'In-Clinic'}
           />
+          {appt.doctorId?.consultationFee ? (
+            <DetailRow icon="cash-outline" label="Consultation Fee" value={`Rs. ${Number(appt.doctorId.consultationFee).toLocaleString()}`} />
+          ) : null}
           <DetailRow icon="medkit-outline" label="Treatments" value={treatments.join(', ')} last />
         </View>
+
+        {/* Clinic & contact */}
+        {(doctorPhone || appt.doctorId?.clinicName || clinicAddress) && (
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Clinic & Contact</Text>
+            {!!appt.doctorId?.clinicName && (
+              <DetailRow icon="business-outline" label="Clinic" value={appt.doctorId.clinicName} />
+            )}
+            {!!clinicAddress && (
+              <DetailRow icon="location-outline" label="Address" value={clinicAddress} />
+            )}
+            {!!doctorPhone && (
+              <TouchableOpacity style={styles.detailRow} onPress={() => Linking.openURL(`tel:${doctorPhone}`)}>
+                <View style={styles.detailIcon}><Ionicons name="call-outline" size={18} color="#0052FF" /></View>
+                <Text style={styles.detailLabel}>Phone</Text>
+                <Text style={[styles.detailValue, { color: '#0052FF' }]}>{doctorPhone}</Text>
+              </TouchableOpacity>
+            )}
+            {!!doctorPhone && (
+              <View style={styles.contactBtnRow}>
+                <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`tel:${doctorPhone}`)}>
+                  <Ionicons name="call" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.contactBtnText}>Call</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.contactBtn, styles.whatsappBtn]} onPress={() => Linking.openURL(`https://wa.me/${doctorPhone.replace(/[^0-9]/g, '')}`)}>
+                  <Ionicons name="logo-whatsapp" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.contactBtnText}>WhatsApp</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {appt.description ? (
           <View style={styles.card}>
@@ -238,6 +275,10 @@ const styles = StyleSheet.create({
   detailLabel: { fontSize: 13, color: '#64748B', fontWeight: '600' },
   detailValue: { flex: 1, textAlign: 'right', fontSize: 14, fontWeight: '700', color: '#0F172A' },
   sectionLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginBottom: 6 },
+  contactBtnRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 11 },
+  whatsappBtn: { backgroundColor: '#25D366' },
+  contactBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   notes: { fontSize: 14, color: '#334155', lineHeight: 21 },
   rescheduleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF4FF', borderRadius: 14, paddingVertical: 15, marginBottom: 12, borderWidth: 1, borderColor: '#DBEAFE' },
   rescheduleText: { color: '#0052FF', fontSize: 15, fontWeight: '700' },

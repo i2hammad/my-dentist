@@ -122,11 +122,11 @@ const getMyAppointments = async (req, res) => {
     const appointments = await Appointment.find(filter)
       .populate({
         path: 'doctorId',
-        select: 'fullName specialization clinicName photo userId'
+        select: 'fullName specialization clinicName photo userId phone clinicContact address city consultationFee'
       })
       .populate({
         path: 'patientId',
-        select: 'fullName userId'
+        select: 'fullName userId mobileNumber'
       })
       .sort({ date: sortOrder, time: sortOrder });
 

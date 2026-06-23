@@ -2083,8 +2083,8 @@ const styles = StyleSheet.create({
 
   // Floating Card
   floatingCard:    { backgroundColor: '#FFFFFF', borderRadius: 20, marginHorizontal: 14, marginTop: 6, padding: 18, shadowColor: '#0052FF', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: '#EFF6FF' },
-  doctorAvatar:    { position: 'absolute', top: -35, left: 20, width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#FFFFFF' },
-  avatarPlaceholder: { position: 'absolute', top: -35, left: 20, width: 70, height: 70, borderRadius: 35, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
+  doctorAvatar:    { width: 72, height: 72, borderRadius: 16, borderWidth: 2, borderColor: '#EFF6FF' },
+  avatarPlaceholder: { width: 72, height: 72, borderRadius: 16, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#DBEAFE' },
   doctorHeader:    { marginTop: 35 },
   nameRow:         { flexDirection: 'row', alignItems: 'center' },
   doctorName:      { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },

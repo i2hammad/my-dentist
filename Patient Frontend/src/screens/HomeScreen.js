@@ -243,7 +243,9 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
   const [favorites, setFavorites]     = useState({});
-  const [campaigns, setCampaigns]     = useState([]);
+  const [campaigns, setCampaigns]       = useState([]);
+  const [rotationInterval, setRotationInterval] = useState(10);
+  const [activeCampaignIdx, setActiveCampaignIdx] = useState(0);
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
   const { isWide, columns } = useResponsive();
@@ -290,8 +292,12 @@ export default function HomeScreen({ navigation }) {
         if (token) {
           const res = await axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } });
           if (res.data?.success) {
-            const list = Array.isArray(res.data.data) ? res.data.data : (res.data.data ? [res.data.data] : []);
+            const d = res.data.data;
+            const list = Array.isArray(d) ? d : (d?.campaigns || (d ? [d] : []));
+            const interval = d?.rotationInterval ?? 10;
             setCampaigns(list);
+            setRotationInterval(interval);
+            setActiveCampaignIdx(0);
           }
         }
       } catch (e) { /* non-critical */ }
@@ -336,6 +342,14 @@ export default function HomeScreen({ navigation }) {
     };
     loadFavs();
   }, []);
+
+  useEffect(() => {
+    if (campaigns.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveCampaignIdx(i => (i + 1) % campaigns.length);
+    }, rotationInterval * 1000);
+    return () => clearInterval(timer);
+  }, [campaigns, rotationInterval]);
 
   const toggleFavorite = async (id) => {
     const newFavs = { ...favorites, [id]: !favorites[id] };
@@ -454,39 +468,39 @@ export default function HomeScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
 
-        {/* ── ADMIN CAMPAIGNS (dynamic, from admin panel) ── */}
-        {campaigns.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: 12, marginTop: 24 }}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
-          >
-            {campaigns.map((c, idx) => {
-              const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
-              const bg = colors[idx % colors.length];
-              return (
-                <TouchableOpacity
-                  key={c._id || idx}
-                  activeOpacity={0.85}
-                  onPress={() => navigation.navigate('Promo', { campaign: c })}
-                  style={{ width: 300, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
-                >
-                  <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+        {/* ── ADMIN CAMPAIGN BANNER (single, auto-rotating) ── */}
+        {campaigns.length > 0 && (() => {
+          const c = campaigns[activeCampaignIdx] || campaigns[0];
+          const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
+          const bg = colors[activeCampaignIdx % colors.length];
+          return (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Promo', { campaign: c })}
+              style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{c.bannerText || c.body || ''}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
+                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+                </View>
+                {campaigns.length > 1 && (
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {campaigns.map((_, i) => (
+                      <View key={i} style={{ width: i === activeCampaignIdx ? 14 : 6, height: 5, borderRadius: 3, backgroundColor: i === activeCampaignIdx ? '#FFF' : 'rgba(255,255,255,0.4)' }} />
+                    ))}
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
-                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{c.bannerText || c.body || ''}</Text>
-                  </View>
-                  <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
-                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })()}
 
 
         {/* ── SEARCH BAR ── */}

@@ -1,6 +1,7 @@
 const Campaign = require('../models/Campaign');
 const DoctorProfile = require('../models/DoctorProfile');
 const PatientProfile = require('../models/PatientProfile');
+const AppSettings = require('../models/AppSettings');
 
 const ok = (res, data, extra = {}) => res.json({ success: true, data, ...extra });
 const fail = (res, code, message) => res.status(code).json({ success: false, message });
@@ -177,10 +178,12 @@ exports.getActiveForPatient = async (req, res) => {
       $or: [{ cities: { $size: 0 } }, { cities: city }],
     }).sort({ createdAt: -1 }).limit(10);
 
-    if (!campaigns.length) return ok(res, []);
+    const settings = await AppSettings.findOne({ key: 'global' }).lean();
+    const rotationInterval = settings?.campaignRotationInterval ?? 10;
+    if (!campaigns.length) return ok(res, { campaigns: [], rotationInterval });
     const ids = campaigns.map(c => c._id);
     Campaign.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(() => {});
-    ok(res, campaigns);
+    ok(res, { campaigns, rotationInterval });
   } catch (e) { fail(res, 500, e.message); }
 };
 

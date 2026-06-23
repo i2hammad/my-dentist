@@ -157,49 +157,58 @@ export default function DoctorProfileScreen({ route, navigation }) {
     checkCompletedApt();
   }, []);
 
-  // Load favorites/saved from AsyncStorage on mount
+  // Load favorites/saved from backend on mount
   useEffect(() => {
     const loadFavState = async () => {
       try {
-        const docId = route.params?.doctorId || route.params?.doctor?._id || route.params?.doctor?.userId;
+        const docId = route.params?.doctorId || route.params?.doctor?._id;
         if (!docId) return;
-        const favs = await storage.getItem('patient_favorites');
-        const favObj = favs ? JSON.parse(favs) : {};
-        if (favObj[docId]) setIsFavorite(true);
-        const savedDocs = await storage.getItem('patient_saved');
-        const savedObj = savedDocs ? JSON.parse(savedDocs) : {};
-        if (savedObj[docId]) setSaved(true);
+        const token = await storage.getItem('userToken');
+        if (!token) return;
+        const res = await axios.get(`${API_BASE_URL}/api/favorites`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.data?.success) {
+          const ids = (res.data.data || []).map(f => String(f.doctorId?._id || f.doctorId)).filter(Boolean);
+          const isFav = ids.includes(String(docId));
+          setIsFavorite(isFav);
+          setSaved(isFav);
+        }
       } catch (e) { /* ignore */ }
     };
     loadFavState();
   }, []);
 
   const toggleFavorite = useCallback(async () => {
-    const docId = doctor?._id || doctor?.userId;
+    const docId = doctor?._id;
     if (!docId) return;
     const newVal = !isFavorite;
     setIsFavorite(newVal);
     try {
-      const favs = await storage.getItem('patient_favorites');
-      const favObj = favs ? JSON.parse(favs) : {};
-      if (newVal) favObj[docId] = true;
-      else delete favObj[docId];
-      await storage.setItem('patient_favorites', JSON.stringify(favObj));
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      if (newVal) {
+        await axios.post(`${API_BASE_URL}/api/favorites/${docId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        await axios.delete(`${API_BASE_URL}/api/favorites/${docId}`, { headers: { Authorization: `Bearer ${token}` } });
+      }
     } catch (e) { /* ignore */ }
   }, [isFavorite, doctor]);
 
   const toggleSaved = useCallback(async () => {
-    const docId = doctor?._id || doctor?.userId;
+    const docId = doctor?._id;
     if (!docId) return;
     const newVal = !saved;
     setSaved(newVal);
     try {
-      const savedDocs = await storage.getItem('patient_saved');
-      const savedObj = savedDocs ? JSON.parse(savedDocs) : {};
-      if (newVal) savedObj[docId] = true;
-      else delete savedObj[docId];
-      await storage.setItem('patient_saved', JSON.stringify(savedObj));
-      Alert.alert(newVal ? 'Saved' : 'Removed', newVal ? 'Doctor added to your saved list.' : 'Doctor removed from saved list.');
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      if (newVal) {
+        await axios.post(`${API_BASE_URL}/api/favorites/${docId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+        Alert.alert('Saved', 'Doctor added to your favourites.');
+      } else {
+        await axios.delete(`${API_BASE_URL}/api/favorites/${docId}`, { headers: { Authorization: `Bearer ${token}` } });
+        Alert.alert('Removed', 'Doctor removed from favourites.');
+      }
+      setIsFavorite(newVal);
     } catch (e) { /* ignore */ }
   }, [saved, doctor]);
 
@@ -798,34 +807,22 @@ Thank you for visiting!
         <View style={isWide ? styles.webGrid : undefined}>
           {isWide && leftRail}
           <View style={isWide ? styles.webMain : undefined}>
-        {/* Cover Image — only shown on About tab (phone only; desktop uses left rail) */}
+        {/* Header bar + status bar — About tab, phone only (no cover photo) */}
         {activeTab === 'About' && !isWide && (
-          <View style={[styles.coverContainer, { height: 180 + insets.top }]}>
-            {doctor.photo || doctor.avatar ? (
-              <Image
-                source={{ uri: imgUrl(doctor.photo || doctor.avatar) }}
-                style={styles.coverImage}
-              />
-            ) : (
-              <View style={[styles.coverImage, { backgroundColor: '#E2E8F0' }]} />
-            )}
-            <View style={[styles.headerIcons, { top: insets.top + 12 }]}>
+          <View>
+            <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 4, paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
                 <Ionicons name="arrow-back" size={24} color="#0F172A" />
               </TouchableOpacity>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity style={styles.iconCircle} onPress={toggleFavorite}>
-                  <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={22} color={isFavorite ? "#EF4444" : "#0F172A"} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconCircle} onPress={handleShare}>
-                  <Ionicons name="share-social-outline" size={22} color="#0F172A" />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.iconCircle} onPress={handleShare}>
+                <Ionicons name="share-social-outline" size={22} color="#0F172A" />
+              </TouchableOpacity>
             </View>
-            <View style={styles.onlineBadgeTop}>
-              <View style={[styles.onlineDot, { backgroundColor: doctor.onlineStatus === 'online' ? '#16A34A' : '#94A3B8' }]} />
-              <Text style={[styles.onlineText, { color: doctor.onlineStatus === 'online' ? '#16A34A' : '#64748B' }]}>
-                {doctor.onlineStatus === 'online' ? 'Online' : 'Offline'}
+            {/* Online / Offline status bar */}
+            <View style={{ backgroundColor: doctor.onlineStatus === 'online' ? '#16A34A' : '#64748B', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 6, gap: 6 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FFFFFF' }} />
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12, letterSpacing: 0.3 }}>
+                {doctor.onlineStatus === 'online' ? 'Online — Available Now' : 'Offline'}
               </Text>
             </View>
           </View>
@@ -2048,7 +2045,7 @@ const styles = StyleSheet.create({
   onlineText:      { fontSize: 12, fontWeight: 'bold' },
 
   // Floating Card
-  floatingCard:    { backgroundColor: '#FFFFFF', borderRadius: 24, marginHorizontal: 20, marginTop: -35, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  floatingCard:    { backgroundColor: '#FFFFFF', borderRadius: 24, marginHorizontal: 20, marginTop: 10, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
   doctorAvatar:    { position: 'absolute', top: -35, left: 20, width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#FFFFFF' },
   avatarPlaceholder: { position: 'absolute', top: -35, left: 20, width: 70, height: 70, borderRadius: 35, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
   doctorHeader:    { marginTop: 35 },

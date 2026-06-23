@@ -12,10 +12,11 @@ import API_BASE_URL from '../../config/api';
 const isWeb = Platform.OS === 'web';
 
 const STATUS = {
-  confirmed: { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed' },
-  pending:   { bg: '#FEF3C7', text: '#D97706', icon: 'time',             label: 'Pending'   },
-  cancelled: { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',     label: 'Cancelled' },
-  completed: { bg: '#EDE9FE', text: '#7C3AED', icon: 'ribbon',           label: 'Completed' },
+  pending:     { bg: '#FEF3C7', text: '#D97706', icon: 'time',             label: 'Pending'     },
+  confirmed:   { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed'   },
+  rescheduled: { bg: '#EDE9FE', text: '#7C3AED', icon: 'calendar-outline', label: 'Rescheduled' },
+  cancelled:   { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',     label: 'Cancelled'   },
+  completed:   { bg: '#F0FDF4', text: '#16A34A', icon: 'ribbon',           label: 'Completed'   },
 };
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -44,7 +45,8 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
   }
 
   const cfg = STATUS[appt.status] || STATUS.pending;
-  const canModify = appt.status === 'pending' || appt.status === 'confirmed';
+  const canModify = ['pending', 'confirmed', 'rescheduled'].includes(appt.status);
+  const canComplete = appt.status === 'confirmed' || appt.status === 'rescheduled';
   const treatments = (appt.treatmentType || 'Consultation').split(',').map((t) => t.trim());
   const headers = async () => ({ Authorization: `Bearer ${await storage.getItem('userToken')}` });
 
@@ -70,6 +72,11 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
       : { status: 'confirmed' };
     act(rr?.requested ? 'updated' : 'confirmed', (h) => axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/confirm`, {}, { headers: h }), optimistic);
   };
+
+  const complete = () => Alert.alert('Mark as Completed', 'Mark this visit as completed? This cannot be undone.', [
+    { text: 'No', style: 'cancel' },
+    { text: 'Yes, Complete', onPress: () => act('completed', (h) => axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/complete`, {}, { headers: h }), { status: 'completed' }) },
+  ]);
 
   const cancel = () => Alert.alert('Cancel Appointment', 'Cancel this appointment?', [
     { text: 'Keep', style: 'cancel' },
@@ -146,6 +153,12 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
                 )}
               </TouchableOpacity>
             )}
+            {canComplete && (
+              <TouchableOpacity style={styles.completeBtn} disabled={busy} onPress={complete}>
+                <Ionicons name="checkmark-done-circle-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.completeBtnText}>Mark Visit as Completed</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.rescheduleBtn} disabled={busy} onPress={() => setShowDate(true)}>
               <Ionicons name="calendar" size={18} color="#0052FF" style={{ marginRight: 8 }} />
               <Text style={styles.rescheduleText}>Reschedule</Text>
@@ -198,6 +211,8 @@ const styles = StyleSheet.create({
   notes: { fontSize: 14, color: '#334155', lineHeight: 21 },
   confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15, marginBottom: 12 },
   confirmText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  completeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#16A34A', borderRadius: 14, paddingVertical: 15, marginBottom: 12 },
+  completeBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   rescheduleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF4FF', borderRadius: 14, paddingVertical: 15, marginBottom: 12, borderWidth: 1, borderColor: '#DBEAFE' },
   rescheduleText: { color: '#0052FF', fontSize: 15, fontWeight: '700' },
   cancelBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF2F2', borderRadius: 14, paddingVertical: 15, borderWidth: 1, borderColor: '#FEE2E2' },

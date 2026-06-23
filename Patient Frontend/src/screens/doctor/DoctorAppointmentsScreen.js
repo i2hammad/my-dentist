@@ -101,11 +101,35 @@ export default function DoctorAppointmentsScreen({ navigation }) {
           </View>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <View style={[styles.statusBadge, item.status === 'confirmed' ? styles.statusConfirmed : styles.statusPending]}>
-            <Text style={[styles.statusText, item.status === 'confirmed' ? styles.statusTextConfirmed : styles.statusTextPending]}>
-              {item.status.toUpperCase()}
-            </Text>
-          </View>
+          {(() => {
+            const ST = {
+              pending:     { bg: '#FEF3C7', color: '#D97706', label: 'PENDING'     },
+              confirmed:   { bg: '#DCFCE7', color: '#16A34A', label: 'CONFIRMED'   },
+              rescheduled: { bg: '#EDE9FE', color: '#7C3AED', label: 'RESCHEDULED' },
+              cancelled:   { bg: '#FEE2E2', color: '#DC2626', label: 'CANCELLED'   },
+              completed:   { bg: '#F0FDF4', color: '#059669', label: 'COMPLETED'   },
+            };
+            // Compute "COMING" for confirmed appointments within 2 hours
+            let key = item.status || 'pending';
+            if (key === 'confirmed') {
+              try {
+                const d = new Date(item.date);
+                const [hh, mm] = (item.time || '00:00').split(':');
+                d.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+                const diff = d - Date.now();
+                if (diff >= 0 && diff <= 2 * 60 * 60 * 1000) key = 'coming';
+              } catch {}
+            }
+            const s = ST[key] || { bg: '#FEF3C7', color: '#D97706', label: key.toUpperCase() };
+            const iscoming = key === 'coming';
+            return (
+              <View style={[styles.statusBadge, { backgroundColor: iscoming ? '#DBEAFE' : s.bg }]}>
+                <Text style={[styles.statusText, { color: iscoming ? '#1D4ED8' : s.color }]}>
+                  {iscoming ? 'COMING' : s.label}
+                </Text>
+              </View>
+            );
+          })()}
           {item.status === 'confirmed' && (
             <View style={styles.liveRow}>
               <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />

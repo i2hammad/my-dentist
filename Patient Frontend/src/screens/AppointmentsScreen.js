@@ -12,11 +12,27 @@ import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
 
 const STATUS_CONFIG = {
-  confirmed: { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed' },
-  pending:   { bg: '#FEF3C7', text: '#D97706', icon: 'time',              label: 'Pending'   },
-  cancelled: { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',      label: 'Cancelled' },
-  completed: { bg: '#EDE9FE', text: '#7C3AED', icon: 'ribbon',            label: 'Completed' },
+  pending:     { bg: '#FEF3C7', text: '#D97706', icon: 'time',              label: 'Pending'     },
+  confirmed:   { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle',  label: 'Confirmed'   },
+  coming:      { bg: '#DBEAFE', text: '#1D4ED8', icon: 'alarm-outline',     label: 'Coming'      },
+  rescheduled: { bg: '#EDE9FE', text: '#7C3AED', icon: 'calendar-outline',  label: 'Rescheduled' },
+  cancelled:   { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',      label: 'Cancelled'   },
+  completed:   { bg: '#F0FDF4', text: '#16A34A', icon: 'ribbon',            label: 'Completed'   },
 };
+
+// "Coming" = confirmed appointment within the next 2 hours
+function resolveStatus(item) {
+  if (item.status === 'confirmed') {
+    try {
+      const apptDate = new Date(item.date);
+      const [hh, mm] = (item.time || '00:00').split(':');
+      apptDate.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+      const diffMs = apptDate - Date.now();
+      if (diffMs >= 0 && diffMs <= 2 * 60 * 60 * 1000) return 'coming';
+    } catch {}
+  }
+  return item.status || 'pending';
+}
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
@@ -73,7 +89,7 @@ export default function AppointmentsScreen({ navigation }) {
   };
 
   const renderItem = ({ item, index }) => {
-    const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
+    const cfg = STATUS_CONFIG[resolveStatus(item)] || STATUS_CONFIG.pending;
     const treatmentList = (item.treatmentType || 'Consultation').split(',').map(t => t.trim());
 
     return (

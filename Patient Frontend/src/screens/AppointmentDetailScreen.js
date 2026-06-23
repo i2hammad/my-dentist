@@ -13,11 +13,26 @@ import { webContent } from '../config/webLayout';
 const isWeb = Platform.OS === 'web';
 
 const STATUS_CONFIG = {
-  confirmed: { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed' },
-  pending:   { bg: '#FEF3C7', text: '#D97706', icon: 'time',             label: 'Pending'   },
-  cancelled: { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',     label: 'Cancelled' },
-  completed: { bg: '#EDE9FE', text: '#7C3AED', icon: 'ribbon',           label: 'Completed' },
+  pending:     { bg: '#FEF3C7', text: '#D97706', icon: 'time',             label: 'Pending'     },
+  confirmed:   { bg: '#D1FAE5', text: '#059669', icon: 'checkmark-circle', label: 'Confirmed'   },
+  coming:      { bg: '#DBEAFE', text: '#1D4ED8', icon: 'alarm-outline',    label: 'Coming Soon' },
+  rescheduled: { bg: '#EDE9FE', text: '#7C3AED', icon: 'calendar-outline', label: 'Rescheduled' },
+  cancelled:   { bg: '#FEE2E2', text: '#DC2626', icon: 'close-circle',     label: 'Cancelled'   },
+  completed:   { bg: '#F0FDF4', text: '#16A34A', icon: 'ribbon',           label: 'Completed'   },
 };
+
+function resolveStatus(appt) {
+  if (appt?.status === 'confirmed') {
+    try {
+      const d = new Date(appt.date);
+      const [hh, mm] = (appt.time || '00:00').split(':');
+      d.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+      const diff = d - Date.now();
+      if (diff >= 0 && diff <= 2 * 60 * 60 * 1000) return 'coming';
+    } catch {}
+  }
+  return appt?.status || 'pending';
+}
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const fmtTime = (t) => {
@@ -45,7 +60,7 @@ export default function AppointmentDetailScreen({ route, navigation }) {
     );
   }
 
-  const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
+  const cfg = STATUS_CONFIG[resolveStatus(appt)] || STATUS_CONFIG.pending;
   const canModify = appt.status === 'pending' || appt.status === 'confirmed';
   const treatments = (appt.treatmentType || 'Consultation').split(',').map((t) => t.trim());
   const doctorPhone = appt.doctorId?.phone || appt.doctorId?.clinicContact || '';

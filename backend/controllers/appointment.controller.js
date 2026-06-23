@@ -288,9 +288,10 @@ const rescheduleAppointment = async (req, res) => {
       });
     }
 
-    // Doctor reschedule applies immediately and clears any pending request.
+    // Doctor reschedule applies immediately, clears any pending request, marks rescheduled.
     appointment.date = new Date(date);
     appointment.time = time;
+    appointment.status = 'rescheduled';
     appointment.rescheduleRequest = { requested: false, date: null, time: null, requestedAt: null };
     await appointment.save();
 

@@ -350,11 +350,13 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
 
                 {/* Status and Action */}
                 <View style={[styles.actionArea, !isWide && styles.actionAreaMobile]}>
-                  <View style={[styles.statusBadge, {backgroundColor: apt.status === 'confirmed' ? '#DCFCE7' : '#FEF9C3'}]}>
-                    <Text style={[styles.statusBadgeText, {color: apt.status === 'confirmed' ? '#16A34A' : '#CA8A04'}]}>
-                      {apt.status.toUpperCase()}
-                    </Text>
-                  </View>
+                  {(() => {
+                    const ST = { pending: { bg: '#FEF3C7', c: '#D97706' }, confirmed: { bg: '#DCFCE7', c: '#16A34A' }, rescheduled: { bg: '#EDE9FE', c: '#7C3AED' }, cancelled: { bg: '#FEE2E2', c: '#DC2626' }, completed: { bg: '#F0FDF4', c: '#059669' } };
+                    let key = apt.status || 'pending';
+                    if (key === 'confirmed') { try { const d = new Date(apt.date); const [hh, mm] = (apt.time||'00:00').split(':'); d.setHours(+hh,+mm,0,0); if (d-Date.now()>=0 && d-Date.now()<=7200000) key='coming'; } catch {} }
+                    const s = ST[key] || { bg: '#FEF3C7', c: '#D97706' };
+                    return <View style={[styles.statusBadge, {backgroundColor: key==='coming'?'#DBEAFE':s.bg}]}><Text style={[styles.statusBadgeText, {color: key==='coming'?'#1D4ED8':s.c}]}>{key.toUpperCase()}</Text></View>;
+                  })()}
 
                   {updatingId === apt._id ? (
                     <ActivityIndicator size="small" color="#0052FF" />
@@ -442,11 +444,13 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
 
                 {/* Status */}
                 <View style={[styles.actionArea, !isWide && styles.actionAreaMobile, {justifyContent: isWide ? 'flex-start' : 'center', paddingTop: isWide ? 10 : 0}]}>
-                  <View style={[styles.statusBadge, {backgroundColor: apt.status === 'confirmed' ? '#DCFCE7' : '#FEF9C3'}]}>
-                    <Text style={[styles.statusBadgeText, {color: apt.status === 'confirmed' ? '#16A34A' : '#CA8A04'}]}>
-                      {apt.status.toUpperCase()}
-                    </Text>
-                  </View>
+                  {(() => {
+                    const ST = { pending: { bg: '#FEF3C7', c: '#D97706' }, confirmed: { bg: '#DCFCE7', c: '#16A34A' }, rescheduled: { bg: '#EDE9FE', c: '#7C3AED' }, cancelled: { bg: '#FEE2E2', c: '#DC2626' }, completed: { bg: '#F0FDF4', c: '#059669' } };
+                    let key = apt.status || 'pending';
+                    if (key === 'confirmed') { try { const d = new Date(apt.date); const [hh, mm] = (apt.time||'00:00').split(':'); d.setHours(+hh,+mm,0,0); if (d-Date.now()>=0 && d-Date.now()<=7200000) key='coming'; } catch {} }
+                    const s = ST[key] || { bg: '#FEF3C7', c: '#D97706' };
+                    return <View style={[styles.statusBadge, {backgroundColor: key==='coming'?'#DBEAFE':s.bg}]}><Text style={[styles.statusBadgeText, {color: key==='coming'?'#1D4ED8':s.c}]}>{key.toUpperCase()}</Text></View>;
+                  })()}
                 </View>
 
                 {!isWide && (

@@ -68,8 +68,8 @@ router.get(
   [
     query('status')
       .optional()
-      .isIn(['pending', 'confirmed', 'cancelled', 'completed'])
-      .withMessage('Status must be pending, confirmed, cancelled, or completed'),
+      .isIn(['pending', 'confirmed', 'cancelled', 'completed', 'rescheduled'])
+      .withMessage('Status must be pending, confirmed, cancelled, completed, or rescheduled'),
     query('sort')
       .optional()
       .isIn(['asc', 'desc'])

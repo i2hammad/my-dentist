@@ -39,6 +39,10 @@ const getDoctors = async (req, res) => {
       filter.pmdcVerified = req.query.pmdcVerified === 'true';
     }
 
+    if (req.query.city) {
+      filter.city = { $regex: new RegExp(req.query.city, 'i') };
+    }
+
     // Get total count for pagination
     const total = await DoctorProfile.countDocuments(filter);
 

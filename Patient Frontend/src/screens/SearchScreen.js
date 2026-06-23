@@ -32,25 +32,50 @@ export default function SearchScreen({ navigation, route }) {
   const [profile, setProfile] = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
   const [favorites, setFavorites] = useState({});
+  const [favoriteDoctors, setFavoriteDoctors] = useState([]);
   const { unreadCount } = useNotifications();
+
+  const loadFavorites = async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      const res = await axios.get(`${API_BASE_URL}/api/favorites`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data?.success) {
+        const list = res.data.data || [];
+        const favMap = {};
+        list.forEach(f => { if (f.doctorId) favMap[String(f.doctorId._id || f.doctorId)] = true; });
+        setFavorites(favMap);
+        setFavoriteDoctors(list.map(f => f.doctorId).filter(Boolean));
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     fetchDoctors();
     fetchProfile();
-    (async () => {
-      try {
-        const favs = await storage.getItem('patient_favorites');
-        if (favs) setFavorites(JSON.parse(favs));
-      } catch (e) { /* ignore */ }
-    })();
+    loadFavorites();
   }, []);
+
+  useEffect(() => {
+    if (activeFilter === 'Favorites') loadFavorites();
+  }, [activeFilter]);
 
   const toggleFavorite = async (id) => {
     const key = String(id);
-    const newFavs = { ...favorites, [key]: !favorites[key] };
-    if (!newFavs[key]) delete newFavs[key];
+    const isFav = !!favorites[key];
+    const newFavs = { ...favorites };
+    if (isFav) delete newFavs[key]; else newFavs[key] = true;
     setFavorites(newFavs);
-    try { await storage.setItem('patient_favorites', JSON.stringify(newFavs)); } catch (e) { /* ignore */ }
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      if (isFav) {
+        await axios.delete(`${API_BASE_URL}/api/favorites/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        await axios.post(`${API_BASE_URL}/api/favorites/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      }
+      await loadFavorites();
+    } catch {}
   };
 
   const fetchProfile = async () => {
@@ -91,17 +116,14 @@ export default function SearchScreen({ navigation, route }) {
     }
   };
 
-  const filteredDoctors = doctors.filter(d => {
-    // Tokenized match: every word the user typed must appear somewhere in the
-    // doctor's searchable text. Strip punctuation (e.g. the "Dr." prefix) so
-    // "Dr komal" matches "Dr. Komal Raza".
+  const filteredDoctors = (activeFilter === 'Favorites' ? favoriteDoctors : doctors).filter(d => {
     const haystack = [d.fullName, d.specialization, d.clinicName, d.city]
       .filter(Boolean).join(' ').toLowerCase().replace(/[^\w\s]/g, ' ');
     const words = searchQuery.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
-    const matchesQuery = words.every(w => haystack.includes(w));
+    const matchesQuery = !words.length || words.every(w => haystack.includes(w));
 
     if (activeFilter === 'Favorites') {
-      return matchesQuery && (favorites[String(d._id)] || favorites[String(d.userId)]);
+      return matchesQuery;
     }
     if (activeFilter === 'Elite Clinic') {
       return matchesQuery && (d.clinicTier === 'elite' || d.clinicTier === 'Elite Clinic');

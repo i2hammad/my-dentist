@@ -39,8 +39,8 @@ const addFavorite = async (req, res) => {
   try {
     const { doctorId } = req.params;
 
-    // Verify doctor exists
-    const doctor = await DoctorProfile.findOne({ userId: doctorId });
+    // Verify doctor exists (doctorId is DoctorProfile._id)
+    const doctor = await DoctorProfile.findById(doctorId);
     if (!doctor) {
       return res.status(404).json({
         success: false,
@@ -49,7 +49,7 @@ const addFavorite = async (req, res) => {
     }
 
     // Prevent favoriting yourself
-    if (doctorId === req.user._id.toString()) {
+    if (doctor.userId && doctor.userId.toString() === req.user._id.toString()) {
       return res.status(400).json({
         success: false,
         message: 'You cannot add yourself to favorites',

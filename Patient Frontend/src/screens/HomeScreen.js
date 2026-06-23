@@ -488,6 +488,7 @@ export default function HomeScreen({ navigation }) {
           </ScrollView>
         )}
 
+
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
           <Ionicons name="location" size={16} color="#0052FF" />
@@ -495,7 +496,7 @@ export default function HomeScreen({ navigation }) {
           <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
         </TouchableOpacity>
 
-        {/* Inline City Picker — works on web + native */}
+        {/* Inline City Picker */}
         {showCityPicker && (
           <View style={styles.cityPickerCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>

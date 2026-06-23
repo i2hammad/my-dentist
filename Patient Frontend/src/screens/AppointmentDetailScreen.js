@@ -63,7 +63,8 @@ export default function AppointmentDetailScreen({ route, navigation }) {
   const cfg = STATUS_CONFIG[resolveStatus(appt)] || STATUS_CONFIG.pending;
   const canModify = appt.status === 'pending' || appt.status === 'confirmed';
   const treatments = (appt.treatmentType || 'Consultation').split(',').map((t) => t.trim());
-  const doctorPhone = appt.doctorId?.phone || appt.doctorId?.clinicContact || '';
+  const isApproved = ['confirmed', 'rescheduled', 'completed', 'coming'].includes(appt.status);
+  const doctorPhone = isApproved ? (appt.doctorId?.phone || appt.doctorId?.clinicContact || '') : '';
   const clinicAddress = [appt.doctorId?.address, appt.doctorId?.city].filter(Boolean).join(', ');
 
   const authHeaders = async () => ({ Authorization: `Bearer ${await storage.getItem('userToken')}` });
@@ -177,7 +178,7 @@ export default function AppointmentDetailScreen({ route, navigation }) {
         </View>
 
         {/* Clinic & contact */}
-        {(doctorPhone || appt.doctorId?.clinicName || clinicAddress) && (
+        {(appt.doctorId?.clinicName || clinicAddress || doctorPhone || !isApproved) && (
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>Clinic & Contact</Text>
             {!!appt.doctorId?.clinicName && (
@@ -186,24 +187,33 @@ export default function AppointmentDetailScreen({ route, navigation }) {
             {!!clinicAddress && (
               <DetailRow icon="location-outline" label="Address" value={clinicAddress} />
             )}
-            {!!doctorPhone && (
-              <TouchableOpacity style={styles.detailRow} onPress={() => Linking.openURL(`tel:${doctorPhone}`)}>
-                <View style={styles.detailIcon}><Ionicons name="call-outline" size={18} color="#0052FF" /></View>
-                <Text style={styles.detailLabel}>Phone</Text>
-                <Text style={[styles.detailValue, { color: '#0052FF' }]}>{doctorPhone}</Text>
-              </TouchableOpacity>
-            )}
-            {!!doctorPhone && (
-              <View style={styles.contactBtnRow}>
-                <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`tel:${doctorPhone}`)}>
-                  <Ionicons name="call" size={16} color="#FFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.contactBtnText}>Call</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.contactBtn, styles.whatsappBtn]} onPress={() => Linking.openURL(`https://wa.me/${doctorPhone.replace(/[^0-9]/g, '')}`)}>
-                  <Ionicons name="logo-whatsapp" size={16} color="#FFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.contactBtnText}>WhatsApp</Text>
-                </TouchableOpacity>
+            {!isApproved ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginTop: 8, gap: 8 }}>
+                <Ionicons name="lock-closed-outline" size={16} color="#D97706" />
+                <Text style={{ fontSize: 13, color: '#92400E', flex: 1 }}>Contact details will be visible once the doctor approves your appointment.</Text>
               </View>
+            ) : (
+              <>
+                {!!doctorPhone && (
+                  <TouchableOpacity style={styles.detailRow} onPress={() => Linking.openURL(`tel:${doctorPhone}`)}>
+                    <View style={styles.detailIcon}><Ionicons name="call-outline" size={18} color="#0052FF" /></View>
+                    <Text style={styles.detailLabel}>Phone</Text>
+                    <Text style={[styles.detailValue, { color: '#0052FF' }]}>{doctorPhone}</Text>
+                  </TouchableOpacity>
+                )}
+                {!!doctorPhone && (
+                  <View style={styles.contactBtnRow}>
+                    <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`tel:${doctorPhone}`)}>
+                      <Ionicons name="call" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.contactBtnText}>Call</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.contactBtn, styles.whatsappBtn]} onPress={() => Linking.openURL(`https://wa.me/${doctorPhone.replace(/[^0-9]/g, '')}`)}>
+                      <Ionicons name="logo-whatsapp" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.contactBtnText}>WhatsApp</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}

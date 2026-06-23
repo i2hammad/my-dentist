@@ -10,7 +10,7 @@ const getFavorites = async (req, res) => {
       .populate({
         path: 'doctorId',
         model: 'DoctorProfile',
-        select: 'fullName photo specialization clinicName clinicTier onlineStatus',
+        select: 'fullName photo specialization clinicName clinicTier onlineStatus coordinates address city pmdcVerified experience avgRating totalReviews facilityScore',
       })
       .sort({ createdAt: -1 })
       .lean();

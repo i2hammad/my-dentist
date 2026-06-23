@@ -489,6 +489,26 @@ export default function HomeScreen({ navigation }) {
         )}
 
 
+        {/* ── SEARCH BAR ── */}
+        <TouchableOpacity
+          style={styles.searchBar}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('Search')}
+        >
+          <Ionicons name="search-outline" size={20} color="#94A3B8" style={{ marginRight: 8 }} />
+          <Text style={styles.searchPlaceholder} numberOfLines={1}>
+            Search Dentist / Clinic / Treatment
+          </Text>
+          <View style={styles.searchActions}>
+            <TouchableOpacity style={styles.searchActionBtn} onPress={() => navigation.navigate('Search')}>
+              <Ionicons name="mic-outline" size={18} color="#64748B" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.searchActionBtn} onPress={() => navigation.navigate('Search')}>
+              <Ionicons name="options-outline" size={18} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
           <Ionicons name="location" size={16} color="#0052FF" />
@@ -522,26 +542,6 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
         )}
-
-        {/* ── SEARCH BAR ── */}
-        <TouchableOpacity
-          style={styles.searchBar}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Search')}
-        >
-          <Ionicons name="search-outline" size={20} color="#94A3B8" style={{ marginRight: 8 }} />
-          <Text style={styles.searchPlaceholder} numberOfLines={1}>
-            Search Dentist / Clinic / Treatment
-          </Text>
-          <View style={styles.searchActions}>
-            <TouchableOpacity style={styles.searchActionBtn} onPress={() => navigation.navigate('Search')}>
-              <Ionicons name="mic-outline" size={18} color="#64748B" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.searchActionBtn} onPress={() => navigation.navigate('Search')}>
-              <Ionicons name="options-outline" size={18} color="#64748B" />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
 
         {/* ── FILTER TABS ── */}
         <ScrollView

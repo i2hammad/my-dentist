@@ -245,6 +245,7 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
   const [favorites, setFavorites]     = useState({});
+  const [favoriteDoctors, setFavoriteDoctors] = useState([]);
   const [campaigns, setCampaigns]       = useState([]);
   const [rotationInterval, setRotationInterval] = useState(10);
   const [activeCampaignIdx, setActiveCampaignIdx] = useState(0);
@@ -347,16 +348,27 @@ export default function HomeScreen({ navigation }) {
     }, [navigation])
   );
 
-  // Load favorites from storage
+  // Load favorites from backend
+  const loadFavorites = async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      const res = await axios.get(`${API_BASE_URL}/api/favorites`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data?.success) {
+        const list = res.data.data || [];
+        const favMap = {};
+        list.forEach(f => { if (f.doctorId) favMap[String(f.doctorId._id || f.doctorId)] = true; });
+        setFavorites(favMap);
+        setFavoriteDoctors(list.map(f => f.doctorId).filter(Boolean));
+      }
+    } catch {}
+  };
+
+  useEffect(() => { loadFavorites(); }, []);
+
   useEffect(() => {
-    const loadFavs = async () => {
-      try {
-        const favs = await storage.getItem('patient_favorites');
-        if (favs) setFavorites(JSON.parse(favs));
-      } catch (e) { /* ignore */ }
-    };
-    loadFavs();
-  }, []);
+    if (filterTab === 'Favorites') loadFavorites();
+  }, [filterTab]);
 
   useEffect(() => {
     if (campaigns.length <= 1) return;
@@ -373,15 +385,26 @@ export default function HomeScreen({ navigation }) {
   }, [campaigns, rotationInterval]);
 
   const toggleFavorite = async (id) => {
-    const newFavs = { ...favorites, [id]: !favorites[id] };
-    if (!newFavs[id]) delete newFavs[id];
+    const isFav = !!favorites[String(id)];
+    const newFavs = { ...favorites };
+    if (isFav) delete newFavs[String(id)];
+    else newFavs[String(id)] = true;
     setFavorites(newFavs);
     try {
-      await storage.setItem('patient_favorites', JSON.stringify(newFavs));
-    } catch (e) { /* ignore */ }
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      if (isFav) {
+        await axios.delete(`${API_BASE_URL}/api/favorites/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        await axios.post(`${API_BASE_URL}/api/favorites/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      }
+      await loadFavorites();
+    } catch {}
   };
 
-  const filteredDoctors = filterDoctors(doctors, filterTab, favorites);
+  const filteredDoctors = filterTab === 'Favorites'
+    ? favoriteDoctors
+    : filterDoctors(doctors, filterTab, favorites);
 
   // Greeting + first name for the header.
   const firstName = (profile?.fullName || '').trim().split(/\s+/)[0] || '';

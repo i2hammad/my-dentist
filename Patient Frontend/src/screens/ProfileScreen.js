@@ -12,6 +12,7 @@ import { detectCoords } from '../utils/geo';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 import { SkeletonProfile } from '../components/Skeleton';
 import PaymentMethods from '../components/PaymentMethods';
+import PromoCard from '../components/PromoCard';
 import { webForm, isWeb } from '../config/webLayout';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 
@@ -417,6 +418,9 @@ export default function ProfileScreen({ navigation }) {
 
             <Text style={styles.pageTitle}>Create Patient Profile</Text>
             <Text style={styles.pageSubtitle}>Let's create your profile to get started</Text>
+
+            {/* Marketing banner */}
+            <PromoCard style={{ marginHorizontal: -20 }} />
 
             <View style={styles.formCard}>
               {/* Section Header */}

@@ -12,6 +12,7 @@ import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import { SkeletonDoctorDetail, ShimmerImage } from '../components/Skeleton';
 import { drName } from '../utils/doctorName';
+import PromoCard from '../components/PromoCard';
 
 // Used only by a couple of static StyleSheet entries below (half-width cards).
 // Component layout uses the live useResponsive() hook instead.
@@ -985,6 +986,9 @@ Thank you for visiting!
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Marketing banner */}
+        <PromoCard />
 
         {/* Tabs with icons above text. On web they wrap (no clipping); on
             mobile they scroll horizontally. */}

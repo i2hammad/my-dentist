@@ -10,6 +10,7 @@ import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { setStatusBarStyle } from 'expo-status-bar';
 import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
+import PromoCard from '../components/PromoCard';
 
 const STATUS_CONFIG = {
   pending:     { bg: '#FEF3C7', text: '#D97706', icon: 'time',              label: 'Pending'     },
@@ -136,7 +137,7 @@ export default function AppointmentsScreen({ navigation }) {
           </View>
           <TouchableOpacity
             style={styles.viewBtn}
-            onPress={() => navigation.navigate('DoctorProfile', { doctorId: item.doctorId?._id || item.doctorId, doctor: item.doctorId })}
+            onPress={() => navigation.navigate('AppointmentDetail', { appointment: item })}
           >
             <Text style={styles.viewBtnText}>View</Text>
           </TouchableOpacity>
@@ -180,21 +181,8 @@ export default function AppointmentsScreen({ navigation }) {
       </View>
 
       <View style={[styles.body, isWide && styles.centeredColumn, isWide && { width: '100%' }]}>
-      {/* Admin Campaign Banner */}
-      {campaign && (
-        <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('Promo', { campaign })} style={{ backgroundColor: '#7C3AED', margin: 12, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-            <Ionicons name="megaphone-outline" size={20} color="#FFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>{campaign.title || 'Special Offer'}</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{campaign.body || campaign.description || ''}</Text>
-          </View>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
-          </View>
-        </TouchableOpacity>
-      )}
+      {/* Marketing banner */}
+      <PromoCard />
 
       {/* Stats bar */}
       <View style={styles.statsBar}>

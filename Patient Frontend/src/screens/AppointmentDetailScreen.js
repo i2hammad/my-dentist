@@ -9,6 +9,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { webContent } from '../config/webLayout';
+import PromoCard from '../components/PromoCard';
 
 const isWeb = Platform.OS === 'web';
 
@@ -139,6 +140,9 @@ export default function AppointmentDetailScreen({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, webContent]} showsVerticalScrollIndicator={false}>
+        {/* Marketing banner */}
+        <PromoCard style={{ marginTop: 0, marginHorizontal: -16, marginBottom: 14 }} />
+
         {/* Status */}
         <View style={[styles.statusPill, { backgroundColor: cfg.bg, alignSelf: 'flex-start' }]}>
           <Ionicons name={cfg.icon} size={15} color={cfg.text} />

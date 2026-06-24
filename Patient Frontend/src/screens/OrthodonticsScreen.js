@@ -16,6 +16,7 @@ import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { setStatusBarStyle } from 'expo-status-bar';
+import PromoCard from '../components/PromoCard';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { SkeletonTreatmentList } from '../components/Skeleton';
 import webContent, { isWeb } from '../config/webLayout';
@@ -195,6 +196,7 @@ export default function OrthodonticsScreen({ navigation }) {
         contentContainerStyle={[styles.bodyContent, webContent]}
         showsVerticalScrollIndicator={false}
       >
+        <PromoCard />
         <View style={styles.introCard}>
           <Ionicons name="git-commit-outline" size={24} color="#0052FF" />
           <Text style={styles.introText}>

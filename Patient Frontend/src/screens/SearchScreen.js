@@ -10,6 +10,7 @@ import { SkeletonList } from '../components/Skeleton';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
+import PromoCard from '../components/PromoCard';
 
 // Haversine formula — returns distance in km between two lat/lng points
 const haversineKm = (lat1, lon1, lat2, lon2) => {
@@ -313,6 +314,7 @@ export default function SearchScreen({ navigation, route }) {
       </View>
 
       <View style={styles.bottomSheet}>
+        <PromoCard style={isWide ? styles.centeredWide : undefined} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filterScroll, isWide && styles.centeredWide]} contentContainerStyle={{ paddingHorizontal: 20 }}>
           {filters.map((f, i) => (
             <TouchableOpacity 

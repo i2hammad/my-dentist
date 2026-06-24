@@ -189,7 +189,9 @@ export default function AppNavigator() {
     >
       <View style={{ flex: 1 }}>
         {isWeb && <WebTopNav navRef={navRef} navInfo={navInfo} />}
-        <CampaignBanner navRef={navRef} navInfo={navInfo} />
+        {/* Top campaign strip is web-only (sits under WebTopNav). On phone the
+            in-screen <PromoCard /> shows the marketing banner instead. */}
+        {isWeb && <CampaignBanner navRef={navRef} navInfo={navInfo} />}
         <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />

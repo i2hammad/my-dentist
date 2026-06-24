@@ -65,6 +65,14 @@ export default function NotificationsScreen({ navigation }) {
     return null;
   };
 
+  // The related entity id (e.g. the bill id) carried on the notification.
+  const getRelatedId = (item) => {
+    if (!item.relatedId) return null;
+    return typeof item.relatedId === 'object'
+      ? String(item.relatedId._id || item.relatedId)
+      : String(item.relatedId);
+  };
+
   const getSenderName = (item) => {
     if (item.data?.senderName) return item.data.senderName;
     if (item.title?.includes('New Message from '))
@@ -97,6 +105,29 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
+  // Open the doctor's Bills tab for a bill/payment notification. Prefers the
+  // doctorId stored on the notification; otherwise resolves it from the bill
+  // itself (relatedId) so it works for older notifications too.
+  const openPatientBill = async (item) => {
+    let doctorId = item.data?.doctorId || item.data?.doctorUserId || null;
+    if (!doctorId) {
+      const billId = getRelatedId(item);
+      if (billId) {
+        try {
+          const token = await storage.getItem('userToken');
+          const res = await axios.get(`${API_BASE_URL}/api/bills/${billId}`, { headers: { Authorization: `Bearer ${token}` } });
+          const b = res.data?.data;
+          doctorId = b?.doctorId?._id || b?.doctorId || null;
+        } catch { /* fall through */ }
+      }
+    }
+    if (doctorId) {
+      navigation.navigate('DoctorProfile', { doctorId, initialTab: 'Bills & Bill History' });
+    } else {
+      navigation.navigate('SavedDoctors');
+    }
+  };
+
   const handlePress = (item) => {
     if (!item.isRead) markRead(item._id);
 
@@ -114,10 +145,7 @@ export default function NotificationsScreen({ navigation }) {
       if (isDoctor) {
         navigation.navigate('DoctorTabs', { screen: 'DoctorHome', params: { initialTab: 'bills' } });
       } else {
-        const doctorId = item.data?.doctorId || item.data?.doctorUserId || null;
-        if (doctorId) {
-          navigation.navigate('DoctorProfile', { doctorId, initialTab: 'Bills & Bill History' });
-        }
+        openPatientBill(item);
       }
     } else if (item.type === 'review') {
       if (isDoctor) {

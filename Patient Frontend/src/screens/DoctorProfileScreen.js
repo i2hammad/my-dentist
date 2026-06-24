@@ -123,6 +123,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
   // Redeem Points
   const [redeemCode, setRedeemCode] = useState(null);
   const [redeemLoading, setRedeemLoading] = useState(false);
+  const [showRewardHistory, setShowRewardHistory] = useState(false);
 
   // Jump to a specific tab when navigated from a notification
   useEffect(() => {
@@ -1528,9 +1529,31 @@ Thank you for visiting!
                     <Ionicons name="gift" size={48} color="#FFF" style={{ opacity: 0.8 }} />
                   </View>
                   {/* View Rewards History button */}
-                  <TouchableOpacity style={styles.rewardsHistoryBtn}>
-                    <Text style={styles.rewardsHistoryBtnText}>View Rewards History ›</Text>
+                  <TouchableOpacity style={styles.rewardsHistoryBtn} onPress={() => setShowRewardHistory(v => !v)}>
+                    <Text style={styles.rewardsHistoryBtnText}>{showRewardHistory ? 'Hide Rewards History' : 'View Rewards History'} {showRewardHistory ? '⌃' : '›'}</Text>
                   </TouchableOpacity>
+
+                  {showRewardHistory && (
+                    <View style={{ marginTop: 10, backgroundColor: '#FFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                      {(() => {
+                        const history = rewards.recentHistory || rewards.transactions || [];
+                        if (!history.length) {
+                          return <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 }}>No reward activity yet.</Text>;
+                        }
+                        return history.map((h, i) => (
+                          <View key={h._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < history.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }}>{h.description || h.type || 'Reward'}</Text>
+                              <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{h.createdAt ? new Date(h.createdAt).toLocaleDateString() : ''}</Text>
+                            </View>
+                            <Text style={{ fontSize: 14, fontWeight: '800', color: (h.points || 0) >= 0 ? '#16A34A' : '#DC2626' }}>
+                              {(h.points || 0) >= 0 ? '+' : ''}{h.points || 0} pts
+                            </Text>
+                          </View>
+                        ));
+                      })()}
+                    </View>
+                  )}
                 </View>
 
                 {/* How You Earn Points */}

@@ -31,6 +31,11 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    // Extra context for deep-linking (e.g. { doctorId } for bill/review notifications).
+    data: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true,

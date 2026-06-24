@@ -32,6 +32,11 @@ const rewardSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Set once a doctor applies the redeem code to a bill (prevents reuse).
+    appliedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

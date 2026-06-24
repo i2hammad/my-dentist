@@ -230,6 +230,43 @@ const applyCode = async (req, res) => {
   }
 };
 
+// @desc    Validate a patient redeem code and return its discount value.
+//          Used by the doctor while creating a bill (before the bill exists).
+//          Marks the code as applied so it can't be reused.
+// @route   POST /api/rewards/validate-code
+// @access  Private (Doctor)
+const validateCode = async (req, res) => {
+  try {
+    const code = (req.body.code || '').trim().toUpperCase();
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Please provide a code' });
+    }
+
+    // Redeemed reward entries carrying this code.
+    const rewards = await Reward.find({ referralCode: code, isRedeemed: true });
+    if (!rewards.length) {
+      return res.status(404).json({ success: false, message: 'Invalid reward code.' });
+    }
+    // Reject if already applied to a bill.
+    if (rewards.some((r) => r.appliedAt)) {
+      return res.status(409).json({ success: false, message: 'This code has already been used.' });
+    }
+
+    const discountPKR = rewards.reduce((sum, r) => sum + (r.points || 0), 0);
+
+    // Mark as applied (1 point = 1 PKR).
+    await Reward.updateMany({ referralCode: code }, { $set: { appliedAt: new Date() } });
+
+    res.status(200).json({
+      success: true,
+      data: { code, discountPKR },
+      message: `Valid code — PKR ${discountPKR} discount.`,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to validate code', error: error.message });
+  }
+};
+
 // @desc    Generate a referral code for sharing
 // @route   POST /api/rewards/refer
 // @access  Private (Patient)
@@ -260,5 +297,6 @@ module.exports = {
   getEarnRules,
   redeemPoints,
   applyCode,
+  validateCode,
   generateReferral,
 };

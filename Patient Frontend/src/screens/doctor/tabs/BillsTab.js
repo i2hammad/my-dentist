@@ -192,10 +192,33 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const finalAmount = Math.max(totalAmount - discountVal, 0);
   const outstandingVal = Math.max(finalAmount - paidVal, 0);
 
-  const applyPointsDiscount = () => {
-    const code = pointsCode.trim();
-    Alert.alert('Coming Soon', 'Code validation will be available in a future update.');
-    return;
+  const [validatingCode, setValidatingCode] = useState(false);
+  const applyPointsDiscount = async () => {
+    const code = pointsCode.trim().toUpperCase();
+    if (code.length !== 8) {
+      Alert.alert('Invalid Code', 'Enter the 8-character code from the patient.');
+      return;
+    }
+    setValidatingCode(true);
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.post(
+        `${API_BASE_URL}/api/rewards/validate-code`,
+        { code },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data?.success) {
+        const pkr = res.data.data?.discountPKR || 0;
+        setDiscount(String(pkr));
+        Alert.alert('Code Applied', `PKR ${pkr} discount applied from the patient's reward points.`);
+      } else {
+        Alert.alert('Invalid Code', res.data?.message || 'Could not apply this code.');
+      }
+    } catch (e) {
+      Alert.alert('Invalid Code', e.response?.data?.message || 'Could not validate this code.');
+    } finally {
+      setValidatingCode(false);
+    }
   };
 
   const handleCreateBill = async (asDraft = false) => {

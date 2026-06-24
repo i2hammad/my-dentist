@@ -7,6 +7,7 @@ const {
   getEarnRules,
   redeemPoints,
   applyCode,
+  validateCode,
   generateReferral,
 } = require('../controllers/reward.controller');
 
@@ -59,6 +60,21 @@ router.post(
   ],
   validate,
   applyCode
+);
+
+// @route   POST /api/rewards/validate-code
+// @access  Private (Doctor) — validate a redeem code before creating a bill
+router.post(
+  '/validate-code',
+  protect,
+  authorize('doctor'),
+  [
+    body('code')
+      .notEmpty().withMessage('Reward code is required')
+      .isLength({ min: 8, max: 8 }).withMessage('Code must be 8 characters'),
+  ],
+  validate,
+  validateCode
 );
 
 // @route   POST /api/rewards/refer

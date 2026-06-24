@@ -39,6 +39,8 @@ export default function PromoScreen({ route, navigation }) {
 
   const img = campaign.detailImage || campaign.bannerImage;
   const imgUri = img ? (img.startsWith('http') ? img : `${API_BASE_URL}${img}`) : null;
+  // Shorter hero when there's no image (avoids a big empty purple block).
+  const heroH = (imgUri ? 230 : 130) + (isWeb ? 0 : insets.top);
 
   return (
     <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.container}>
@@ -50,39 +52,64 @@ export default function PromoScreen({ route, navigation }) {
           {/* Hero — image or gradient-style placeholder with the close button overlaid.
               On phone it extends behind the status bar (edge-to-edge). */}
           <View style={styles.heroWrap}>
-            {imgUri
-              ? <Image source={{ uri: imgUri }} style={[styles.hero, !isWeb && { height: 200 + insets.top, paddingTop: insets.top }]} resizeMode="cover" />
-              : <View style={[styles.hero, styles.heroPlaceholder, !isWeb && { height: 200 + insets.top, paddingTop: insets.top }]}>
-                  <Ionicons name="megaphone" size={56} color="rgba(255,255,255,0.9)" />
-                </View>}
+            {imgUri ? (
+              <>
+                <Image source={{ uri: imgUri }} style={[styles.hero, { height: heroH }]} resizeMode="cover" />
+                {/* Dark scrim over the image so the overlaid title stays readable */}
+                <View style={styles.heroScrim} />
+              </>
+            ) : (
+              <View style={[styles.hero, styles.heroPlaceholder, { height: heroH }]}>
+                {/* Faint corner watermark — won't clash with the bottom title */}
+                <Ionicons name="megaphone" size={120} color="rgba(255,255,255,0.13)" style={{ position: 'absolute', top: -10, right: -12 }} />
+                <Ionicons name="sparkles" size={48} color="rgba(255,255,255,0.10)" style={{ position: 'absolute', bottom: 60, left: 16 }} />
+              </View>
+            )}
             <View style={[styles.heroTagWrap, !isWeb && { top: insets.top + 14 }]}>
               <Text style={styles.adTag}>SPONSORED</Text>
             </View>
             <TouchableOpacity style={[styles.closeBtn, !isWeb && { top: insets.top + 12 }]} onPress={() => navigation.goBack()}>
               <Ionicons name="close" size={20} color="#0F172A" />
             </TouchableOpacity>
+            {/* Title overlaid on the hero */}
+            <View style={[styles.heroTitleWrap, { minHeight: heroH, paddingTop: (isWeb ? 40 : 40 + insets.top) }]}>
+              <Text style={styles.heroTitle} numberOfLines={2}>{campaign.title}</Text>
+              {(campaign.medicineName || campaign.company) && (
+                <Text style={styles.heroMeta} numberOfLines={1}>
+                  {campaign.medicineName}{campaign.medicineName && campaign.company ? '  •  ' : ''}{campaign.company}
+                </Text>
+              )}
+            </View>
           </View>
 
           <View style={styles.body}>
-            <Text style={styles.title}>{campaign.title}</Text>
-            {(campaign.medicineName || campaign.company) && (
-              <Text style={styles.meta}>
-                {campaign.medicineName}{campaign.medicineName && campaign.company ? '  •  ' : ''}{campaign.company}
-              </Text>
+            {/* Quick info chips */}
+            <View style={styles.chipRow}>
+              {!!campaign.company && (
+                <View style={styles.chip}><Ionicons name="business-outline" size={13} color="#7C3AED" /><Text style={styles.chipText}>{campaign.company}</Text></View>
+              )}
+              {!!campaign.endAt && (
+                <View style={styles.chip}><Ionicons name="time-outline" size={13} color="#7C3AED" /><Text style={styles.chipText}>Until {new Date(campaign.endAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text></View>
+              )}
+              <View style={styles.chip}><Ionicons name="pricetag-outline" size={13} color="#7C3AED" /><Text style={styles.chipText}>Limited Offer</Text></View>
+            </View>
+
+            {!!campaign.body && (
+              <View style={styles.bodyCard}>
+                <Text style={styles.bodyText}>{campaign.body}</Text>
+              </View>
             )}
 
-            {!!campaign.body && <Text style={styles.bodyText}>{campaign.body}</Text>}
-
-            {!!campaign.ctaLink && (
+            {campaign.ctaLink ? (
               <TouchableOpacity style={styles.cta} onPress={() => Linking.openURL(campaign.ctaLink)}>
                 <Text style={styles.ctaText}>{campaign.ctaLabel || 'Learn More'}</Text>
                 <Ionicons name="open-outline" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
               </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.closeWide} onPress={() => navigation.goBack()}>
+                <Text style={styles.closeWideText}>Close</Text>
+              </TouchableOpacity>
             )}
-
-            <TouchableOpacity style={styles.closeWide} onPress={() => navigation.goBack()}>
-              <Text style={styles.closeWideText}>Close</Text>
-            </TouchableOpacity>
 
             <Text style={styles.disclaimer}>{isPatientPromo ? 'This is a sponsored promotion from My Dentist PK.' : 'This is a sponsored promotion shared with healthcare professionals.'}</Text>
           </View>
@@ -104,16 +131,26 @@ const styles = StyleSheet.create({
     }),
   },
   cardPhone: { maxWidth: undefined, borderRadius: 0, elevation: 0, shadowOpacity: 0 },
-  heroWrap: { position: 'relative' },
-  hero: { width: '100%', height: 200, backgroundColor: '#EDE9FE' },
+  heroWrap: { position: 'relative', justifyContent: 'flex-end' },
+  hero: { ...StyleSheet.absoluteFillObject, width: '100%', height: 230, backgroundColor: '#7C3AED' },
   heroPlaceholder: { backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center' },
-  heroTagWrap: { position: 'absolute', top: 14, left: 14 },
+  // Dark gradient-like scrim over the lower half of the hero for title legibility.
+  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.28)' },
+  heroTagWrap: { position: 'absolute', top: 14, left: 14, zIndex: 2 },
   adTag: { fontSize: 10, fontWeight: '800', color: '#7C3AED', letterSpacing: 0.5, backgroundColor: '#FFFFFF', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
-  closeBtn: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', ...(typeof document !== 'undefined' ? { boxShadow: '0 2px 8px rgba(15,23,42,0.15)' } : { shadowColor: '#0F172A', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }) },
+  closeBtn: { position: 'absolute', top: 12, right: 12, zIndex: 2, width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', ...(typeof document !== 'undefined' ? { boxShadow: '0 2px 8px rgba(15,23,42,0.15)' } : { shadowColor: '#0F172A', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }) },
+  // Title block sits at the BOTTOM of the hero (clear of the top SPONSORED tag).
+  heroTitleWrap: { minHeight: 230, justifyContent: 'flex-end', padding: 18, paddingTop: 60 },
+  heroTitle: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 6 },
+  heroMeta: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '600', marginTop: 4, textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 4 },
   body: { padding: 24 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F5F3FF', borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6, borderWidth: 1, borderColor: '#EDE9FE' },
+  chipText: { fontSize: 12, fontWeight: '600', color: '#7C3AED' },
   title: { fontSize: 24, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
   meta: { fontSize: 14, color: '#8B5CF6', fontWeight: '600', marginBottom: 16 },
-  bodyText: { fontSize: 15.5, lineHeight: 24, color: '#334155', marginBottom: 24 },
+  bodyCard: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 16, marginBottom: 22, borderWidth: 1, borderColor: '#EEF2F7' },
+  bodyText: { fontSize: 15, lineHeight: 24, color: '#334155' },
   cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15, marginBottom: 12 },
   ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   closeWide: { borderRadius: 14, paddingVertical: 14, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },

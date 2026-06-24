@@ -252,8 +252,10 @@ export default function HomeScreen({ navigation }) {
   const campaignScrollRef = useRef(null);
   const isFocused = useIsFocused();
   const { unreadCount, unreadChatCount } = useNotifications();
-  const { isWide, columns } = useResponsive();
+  const { isWide, columns, width: screenW } = useResponsive();
   const insets = useSafeAreaInsets();
+  // Full-width campaign card (screen width minus the 16px side margins).
+  const campaignCardW = Math.min(isWide ? 1100 : screenW, 1100) - 32;
 
   const fetchData = useCallback(async () => {
     try {
@@ -376,7 +378,7 @@ export default function HomeScreen({ navigation }) {
       setActiveCampaignIdx(prev => {
         const next = (prev + 1) % campaigns.length;
         try {
-          campaignScrollRef.current?.scrollTo({ x: next * 316, animated: true });
+          campaignScrollRef.current?.scrollTo({ x: next * (campaignCardW + 12), animated: true });
         } catch {}
         return next;
       });
@@ -518,32 +520,65 @@ export default function HomeScreen({ navigation }) {
             <ScrollView
               ref={campaignScrollRef}
               horizontal
+              snapToInterval={campaignCardW + 12}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
               onMomentumScrollEnd={e => {
-                const idx = Math.round(e.nativeEvent.contentOffset.x / 316);
+                const idx = Math.round(e.nativeEvent.contentOffset.x / (campaignCardW + 12));
                 setActiveCampaignIdx(idx);
               }}
             >
               {campaigns.map((c, i) => {
                 const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
                 const bg = colors[i % colors.length];
+                // Match the Promo detail screen's image priority so the banner
+                // and detail show the SAME image.
+                const img = c.detailImage || c.bannerImage;
+                const imgUri = img ? imgUrl(img) : null;
                 return (
                   <TouchableOpacity
                     key={c._id || i}
-                    activeOpacity={0.85}
+                    activeOpacity={0.9}
                     onPress={() => navigation.navigate('Promo', { campaign: c })}
-                    style={{ width: 300, backgroundColor: bg, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' }}
+                    style={{
+                      width: campaignCardW, height: 118, marginRight: campaigns.length > 1 ? 12 : 0,
+                      backgroundColor: bg, borderRadius: 16, overflow: 'hidden', justifyContent: 'flex-end',
+                      shadowColor: bg, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5,
+                    }}
                   >
-                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Ionicons name="megaphone-outline" size={22} color="#FFF" />
+                    {imgUri && (
+                      <Image source={{ uri: imgUri }} style={{ ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' }} resizeMode="cover" />
+                    )}
+                    {/* Dark scrim so text is always readable (over image or solid color) */}
+                    <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: imgUri ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0.06)' }} />
+
+                    {/* Decorative megaphone watermark when no image */}
+                    {!imgUri && (
+                      <Ionicons name="megaphone" size={88} color="rgba(255,255,255,0.12)" style={{ position: 'absolute', top: -8, right: -6 }} />
+                    )}
+
+                    {/* PROMO pill — top-right so it never collides with the bottom title */}
+                    <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ color: bg, fontWeight: '800', fontSize: 8.5, letterSpacing: 0.5 }}>PROMO</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{c.bannerText || c.body || ''}</Text>
-                    </View>
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, marginLeft: 8 }}>
-                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 10 }}>PROMO</Text>
+
+                    {/* Text block at the bottom */}
+                    <View style={{ padding: 14 }}>
+                      <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 17, textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 4 }} numberOfLines={1}>
+                        {c.title || 'Special Offer'}
+                      </Text>
+                      {!!(c.bannerText || c.body) && (
+                        <Text style={{ color: 'rgba(255,255,255,0.92)', fontSize: 12.5, marginTop: 3, textShadowColor: 'rgba(0,0,0,0.25)', textShadowRadius: 3 }} numberOfLines={1}>
+                          {c.bannerText || c.body}
+                        </Text>
+                      )}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
+                        <Text style={{ color: bg, fontWeight: '800', fontSize: 12 }}>{c.ctaLabel || 'View Offer'}</Text>
+                        <Ionicons name="arrow-forward" size={13} color={bg} style={{ marginLeft: 4 }} />
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );

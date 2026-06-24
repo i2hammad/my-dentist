@@ -28,7 +28,7 @@ const getPaymentMethods = async (req, res) => {
 // @access  Private
 const addPaymentMethod = async (req, res) => {
   try {
-    const { type, lastFourDigits, expiryDate, accountNumber } = req.body;
+    const { type, lastFourDigits, expiryDate, accountNumber, cardHolderName } = req.body;
 
     // Check if this is the user's first payment method
     const existingCount = await PaymentMethod.countDocuments({
@@ -39,6 +39,7 @@ const addPaymentMethod = async (req, res) => {
       userId: req.user._id,
       type,
       lastFourDigits,
+      cardHolderName,
       expiryDate,
       accountNumber,
       isDefault: existingCount === 0, // Auto-set first method as default

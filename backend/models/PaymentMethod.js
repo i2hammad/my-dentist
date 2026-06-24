@@ -20,6 +20,11 @@ const paymentMethodSchema = new mongoose.Schema(
       default: null,
       maxlength: [4, 'Last four digits cannot exceed 4 characters'],
     },
+    cardHolderName: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     expiryDate: {
       type: String,
       default: null,

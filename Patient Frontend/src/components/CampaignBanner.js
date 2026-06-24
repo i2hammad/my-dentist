@@ -5,10 +5,13 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 
+// Hide only on auth/onboarding flows and doctor-role screens. The banner is a
+// PATIENT marketing surface, so it shows on every patient screen — including
+// the doctor-details (DoctorProfile), Search, Booking, Appointments, etc.
 const HIDDEN_ON = new Set([
   'Splash', 'Notice', 'RoleSelection', 'Login', 'Register', 'PatientSetup',
-  'DoctorRegister', 'ClinicSetup', 'DoctorTabs', 'DoctorHome', 'Appointments',
-  'Patients', 'Inbox', 'DoctorProfile',
+  'DoctorRegister', 'ClinicSetup', 'DoctorTabs', 'DoctorHome',
+  'Patients', 'Inbox',
 ]);
 
 const COLORS = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];

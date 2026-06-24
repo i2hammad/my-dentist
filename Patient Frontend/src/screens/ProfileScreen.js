@@ -11,6 +11,7 @@ import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 import { SkeletonProfile } from '../components/Skeleton';
+import PaymentMethods from '../components/PaymentMethods';
 import { webForm, isWeb } from '../config/webLayout';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 
@@ -70,10 +71,8 @@ export default function ProfileScreen({ navigation }) {
     } catch (e) { /* non-critical */ }
   };
 
-  const checkReferralPrompt = async () => {
-    const done = await storage.getItem('referralPromptDone');
-    if (!done) setShowReferralModal(true);
-  };
+  // Referral entry is now an inline block in the Refer-a-Friend card (no popup).
+  const checkReferralPrompt = async () => {};
 
   const handleApplyCode = async () => {
     if (!referralInput.trim()) return;
@@ -565,6 +564,9 @@ export default function ProfileScreen({ navigation }) {
 
             </View>
 
+            {/* Payment Methods */}
+            {profileExists && <PaymentMethods />}
+
             {/* Family Profile */}
             <View style={[styles.referCard, { marginBottom: 12 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -671,6 +673,48 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.referBtnText}>Share Invite Link</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Have a Friend's Code? — separate card (no popup) */}
+            {!referral?.referredBy && (
+              <View style={styles.referCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <View style={[styles.referIconBadge, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                    <Ionicons name="pricetag" size={18} color="#16A34A" />
+                  </View>
+                  <Text style={styles.referTitle}>Have a Friend's Code?</Text>
+                </View>
+                {referralApplied ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
+                    <Text style={styles.friendCodeApplied}>Code applied! You'll both earn 100 points after your first treatment.</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.referDesc}>Enter their code and you both earn 100 bonus points after your first treatment.</Text>
+                    <View style={styles.friendCodeRow}>
+                      <TextInput
+                        style={styles.friendCodeInput}
+                        placeholder="e.g. MD708392"
+                        placeholderTextColor="#94A3B8"
+                        value={referralInput}
+                        onChangeText={t => setReferralInput(t.toUpperCase())}
+                        autoCapitalize="characters"
+                        maxLength={12}
+                      />
+                      <TouchableOpacity
+                        style={[styles.friendCodeApplyBtn, (!referralInput.trim() || applyingCode) && { opacity: 0.5 }]}
+                        onPress={handleApplyCode}
+                        disabled={!referralInput.trim() || applyingCode}
+                      >
+                        {applyingCode
+                          ? <ActivityIndicator color="#FFF" size="small" />
+                          : <Text style={styles.friendCodeApplyText}>Apply</Text>}
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
 
             {/* Support & Help */}
             <View style={styles.supportCard}>
@@ -951,6 +995,13 @@ const styles = StyleSheet.create({
   referStats: { fontSize: 12, color: '#64748B', marginTop: 6 },
   referBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 13 },
   referBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  friendCodeBox: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#EEF2F7' },
+  friendCodeLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 8 },
+  friendCodeRow: { flexDirection: 'row', gap: 8 },
+  friendCodeInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', letterSpacing: 1 },
+  friendCodeApplyBtn: { backgroundColor: '#0052FF', borderRadius: 10, paddingHorizontal: 18, justifyContent: 'center', alignItems: 'center' },
+  friendCodeApplyText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  friendCodeApplied: { flex: 1, fontSize: 13, color: '#16A34A', fontWeight: '600', lineHeight: 18 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   referralModalBox: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 380 },
   referralModalTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551', textAlign: 'center', marginBottom: 8 },

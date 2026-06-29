@@ -109,6 +109,29 @@ exports.getActiveForDoctor = async (req, res) => {
   } catch (e) { fail(res, 500, e.message); }
 };
 
+// GET /api/campaigns/active-all  (protected; doctor) — all active campaigns for rotation
+exports.getActiveAllForDoctor = async (req, res) => {
+  try {
+    const profile = await DoctorProfile.findOne({ userId: req.user._id }).select('city').lean();
+    const city = profile?.city || '';
+    const now = new Date();
+
+    const campaigns = await Campaign.find({
+      isActive: true,
+      startAt: { $lte: now },
+      endAt: { $gte: now },
+      $or: [{ cities: { $size: 0 } }, { cities: city }],
+    }).sort({ createdAt: -1 }).limit(10);
+
+    const settings = await AppSettings.findOne({ key: 'global' }).lean();
+    const rotationInterval = settings?.campaignRotationInterval ?? 10;
+    if (!campaigns.length) return ok(res, { campaigns: [], rotationInterval });
+    const ids = campaigns.map(c => c._id);
+    Campaign.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(() => {});
+    ok(res, { campaigns, rotationInterval });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
 // POST /api/campaigns/:id/click  (protected; doctor) — records a click.
 exports.recordClick = async (req, res) => {
   try {

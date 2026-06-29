@@ -6,6 +6,7 @@ const c = require('../controllers/campaign.controller');
 
 // ── Doctor-facing ──
 router.get('/active', protect, authorize('doctor'), c.getActiveForDoctor);
+router.get('/active-all', protect, authorize('doctor'), c.getActiveAllForDoctor);
 router.post('/:id/click', protect, authorize('doctor'), c.recordClick);
 
 // ── Patient-facing ──

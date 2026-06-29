@@ -28,6 +28,14 @@
       "expo-secure-store",
       "@react-native-community/datetimepicker",
       [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow My Dentist to save receipt PDFs to your device.",
+          "savePhotosPermission": "Allow My Dentist to save receipt PDFs to your device.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/app-logo.png",

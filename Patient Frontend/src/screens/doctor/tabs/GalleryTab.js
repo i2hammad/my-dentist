@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Platform, Modal, Dimensions, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -10,9 +10,12 @@ import confirmAlert from '../../../utils/confirmAlert';
 
 import * as ImagePicker from 'expo-image-picker';
 
+const { width: SW, height: SH } = Dimensions.get('window');
+
 export default function GalleryTab({ profile }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState(null); // { type: 'single'|'beforeafter', uri?, before?, after? }
 
   useEffect(() => {
     fetchGallery();
@@ -219,7 +222,9 @@ export default function GalleryTab({ profile }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
             {clinicPhotos.map((item) => (
               <View key={item._id} style={styles.imageCard}>
-                <Image source={{ uri: imgUrl(item.imageUrl) }} style={styles.photo} />
+                <TouchableOpacity onPress={() => setViewer({ type: 'single', uri: imgUrl(item.imageUrl) })}>
+                  <Image source={{ uri: imgUrl(item.imageUrl) }} style={styles.photo} />
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.deleteBadge} onPress={() => handleDelete(item._id)}>
                   <Ionicons name="close" size={12} color="#0052FF" />
                 </TouchableOpacity>
@@ -249,17 +254,19 @@ export default function GalleryTab({ profile }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
             {beforeAfters.map((item) => (
               <View key={item._id} style={{marginRight: 16}}>
-                <View style={styles.beforeAfterCard}>
-                  {item.beforeImage && item.afterImage ? (
-                    <View style={{ flexDirection: 'row', width: '100%', height: '100%' }}>
-                      <Image source={{ uri: imgUrl(item.beforeImage) }} style={[styles.photoHalf, { borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }]} />
-                      <View style={{ width: 2, backgroundColor: '#FFF' }} />
-                      <Image source={{ uri: imgUrl(item.afterImage) }} style={[styles.photoHalf, { borderTopRightRadius: 12, borderBottomRightRadius: 12 }]} />
-                    </View>
-                  ) : (
-                    <Image source={{ uri: imgUrl(item.imageUrl) }} style={[styles.photoHalf, { borderRadius: 12 }]} />
-                  )}
-                </View>
+                <TouchableOpacity onPress={() => setViewer({ type: 'beforeafter', before: imgUrl(item.beforeImage || item.imageUrl), after: imgUrl(item.afterImage || item.imageUrl) })}>
+                  <View style={styles.beforeAfterCard}>
+                    {item.beforeImage && item.afterImage ? (
+                      <View style={{ flexDirection: 'row', width: '100%', height: '100%' }}>
+                        <Image source={{ uri: imgUrl(item.beforeImage) }} style={[styles.photoHalf, { borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }]} />
+                        <View style={{ width: 2, backgroundColor: '#FFF' }} />
+                        <Image source={{ uri: imgUrl(item.afterImage) }} style={[styles.photoHalf, { borderTopRightRadius: 12, borderBottomRightRadius: 12 }]} />
+                      </View>
+                    ) : (
+                      <Image source={{ uri: imgUrl(item.imageUrl) }} style={[styles.photoHalf, { borderRadius: 12 }]} />
+                    )}
+                  </View>
+                </TouchableOpacity>
                 <Text style={styles.beforeAfterTitle}>{item.title || 'Before & After'}</Text>
                 <TouchableOpacity style={styles.deleteBadgeOuter} onPress={() => handleDelete(item._id)}>
                   <Ionicons name="close" size={12} color="#9333EA" />
@@ -290,7 +297,9 @@ export default function GalleryTab({ profile }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
             {certificates.map((item) => (
               <View key={item._id} style={styles.certCard}>
-                <Image source={{ uri: imgUrl(item.imageUrl) }} style={styles.certPhoto} />
+                <TouchableOpacity onPress={() => setViewer({ type: 'single', uri: imgUrl(item.imageUrl) })}>
+                  <Image source={{ uri: imgUrl(item.imageUrl) }} style={styles.certPhoto} />
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.deleteBadge} onPress={() => handleDelete(item._id)}>
                   <Ionicons name="close" size={12} color="#16A34A" />
                 </TouchableOpacity>
@@ -306,7 +315,7 @@ export default function GalleryTab({ profile }) {
 
       {/* Sticky Save Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.saveBtn}
           onPress={() => Alert.alert('Saved', 'All gallery updates have been successfully saved.')}
         >
@@ -314,6 +323,33 @@ export default function GalleryTab({ profile }) {
           <Text style={styles.saveBtnText}>Save Changes</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Full-screen Image Viewer */}
+      <Modal visible={!!viewer} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
+        <StatusBar backgroundColor="#000" barStyle="light-content" />
+        <View style={styles.viewerBg}>
+          <TouchableOpacity style={styles.viewerClose} onPress={() => setViewer(null)}>
+            <Ionicons name="close" size={26} color="#FFF" />
+          </TouchableOpacity>
+          {viewer?.type === 'single' && (
+            <Image source={{ uri: viewer.uri }} style={styles.viewerImg} resizeMode="contain" />
+          )}
+          {viewer?.type === 'beforeafter' && (
+            <View style={{ width: SW, alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                <View style={{ alignItems: 'center', marginRight: 4 }}>
+                  <Text style={styles.viewerLabel}>BEFORE</Text>
+                  <Image source={{ uri: viewer.before }} style={styles.viewerHalf} resizeMode="cover" />
+                </View>
+                <View style={{ alignItems: 'center', marginLeft: 4 }}>
+                  <Text style={styles.viewerLabel}>AFTER</Text>
+                  <Image source={{ uri: viewer.after }} style={styles.viewerHalf} resizeMode="cover" />
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -350,5 +386,11 @@ const styles = StyleSheet.create({
 
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   saveBtn: { backgroundColor: '#0052FF', height: 40, borderRadius: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  saveBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' }
+  saveBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
+
+  viewerBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  viewerClose: { position: 'absolute', top: 48, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  viewerImg: { width: SW, height: SH * 0.8 },
+  viewerHalf: { width: SW / 2 - 12, height: SH * 0.65, borderRadius: 10 },
+  viewerLabel: { fontSize: 11, fontWeight: '800', color: '#FFF', letterSpacing: 1, marginBottom: 6, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 4, overflow: 'hidden' },
 });

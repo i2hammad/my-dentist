@@ -473,20 +473,25 @@ const updateBill = async (req, res) => {
       currentFinalAmount = updates.finalAmount;
     }
 
-    // Check paid status if paidAmount is provided or finalAmount changes
-    if (updates.paidAmount !== undefined || updates.finalAmount !== undefined) {
-      const paidAmt = updates.paidAmount !== undefined ? updates.paidAmount : bill.paidAmount;
-      if (paidAmt >= currentFinalAmount) {
-        updates.status = 'paid';
+    // If explicitly saving as draft, preserve that intent and skip auto-status logic.
+    if (updates.status === 'draft') {
+      updates.paidAt = null;
+    } else {
+      // Check paid status if paidAmount is provided or finalAmount changes
+      if (updates.paidAmount !== undefined || updates.finalAmount !== undefined) {
+        const paidAmt = updates.paidAmount !== undefined ? updates.paidAmount : bill.paidAmount;
+        if (paidAmt >= currentFinalAmount && currentFinalAmount > 0) {
+          updates.status = 'paid';
+          updates.paidAt = new Date();
+        } else if (bill.status !== 'draft') {
+          updates.status = 'unpaid';
+          updates.paidAt = null;
+        }
+      } else if (updates.status === 'paid') {
         updates.paidAt = new Date();
-      } else {
-        updates.status = 'unpaid';
+      } else if (updates.status === 'unpaid') {
         updates.paidAt = null;
       }
-    } else if (updates.status === 'paid') {
-      updates.paidAt = new Date();
-    } else if (updates.status === 'unpaid') {
-      updates.paidAt = null;
     }
 
     if (Object.keys(updates).length === 0) {

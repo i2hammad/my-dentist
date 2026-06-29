@@ -155,7 +155,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     try {
       setLoading(true);
       const token = await storage.getItem('userToken');
-      const res = await axios.get(`${API_BASE_URL}/api/bills/my`, {
+      const res = await axios.get(`${API_BASE_URL}/api/bills/my?limit=100`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data?.success) {
@@ -243,10 +243,11 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       setSaving(true);
       const token = await storage.getItem('userToken');
 
+      const treatmentName = items.map(it => it.name).filter(Boolean).join(', ') || 'Draft Bill';
       const payload = {
         patientId: selectedPatient.id,
-        treatmentName: items.map(it => it.name).join(', '),
-        amount: totalAmount,
+        treatmentName,
+        amount: totalAmount || 0,
         discountFromRewards: discountVal,
         paidAmount: paidVal,
         paymentMethod: paymentMethod,
@@ -305,130 +306,123 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       }
     } catch (err) {
       console.log('Error creating bill:', err);
-      Alert.alert('Error', err.response?.data?.message || 'Failed to create bill');
+      const errors = err.response?.data?.errors;
+      const msg = (errors && errors.length > 0)
+        ? errors.map(e => e.message).join('\n')
+        : (err.response?.data?.message || (asDraft ? 'Failed to save draft. Please try again.' : 'Failed to create bill.'));
+      Alert.alert(asDraft ? 'Draft Not Saved' : 'Error', msg);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDownloadReceipt = async () => {
-    if (!currentInvoice && !selectedPatient) {
-      Alert.alert('No Bill Selected', 'Please select a patient and create a bill before downloading a receipt.');
-      return;
-    }
-    const invoice = currentInvoice || {
-      invoiceNumber: 'INV-PENDING',
-      date: new Date().toLocaleDateString(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      patientName: selectedPatient?.name || '',
-      patientPhone: selectedPatient?.phone || '',
-      treatments: items,
-      total: totalAmount,
-      discount: discountVal,
-      paid: paidVal,
-      payable: finalAmount,
-      outstanding: outstandingVal,
-      status: paidVal >= finalAmount ? 'paid' : 'unpaid',
-      paymentMethod: paymentMethod
-    };
-
-    const docName = drName(profile?.fullName, 'Dentist');
-    const clinic = profile?.clinicName || 'Dentist Clinic';
-    const spec = profile?.specialization || 'General Doctor';
-
-    // Formatted text for native sharing on mobile
-    const receiptText = `
-=== ${clinic.toUpperCase()} ===
-Doctor: ${docName} (${spec})
-Invoice: ${invoice.invoiceNumber}
-Date: ${invoice.date}
-Payment Method: ${(invoice.paymentMethod || 'cash').toUpperCase()}
----------------------------------
-Patient Name: ${invoice.patientName}
-Phone Number: ${invoice.patientPhone}
----------------------------------
-TREATMENT DETAILS:
-${invoice.treatments.map((it, idx) => `${idx + 1}. ${it.name} - PKR ${it.price}`).join('\n')}
----------------------------------
-Total Bill: PKR ${invoice.total}
-Discount Given: PKR ${invoice.discount}
-Paid Amount: PKR ${invoice.paid}
-Outstanding: PKR ${invoice.outstanding}
-Payment Status: ${invoice.status.toUpperCase()}
----------------------------------
-Thank you for visiting!
-`;
-
-    const html = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: true });
-
-    if (Platform.OS === 'web') {
-      // Open the receipt in a new window and trigger the browser print dialog →
-      // the user can search/pick any connected printer (thermal or normal) or "Save as PDF".
-      const w = window.open('', '_blank', 'width=380,height=640');
-      if (w) { w.document.write(html); w.document.close(); }
-      else { window.alert('Please allow pop-ups to print/save the receipt.'); }
-    } else {
-      // Native: expo-print → PDF + share sheet.
-      try {
-        const Print = require('expo-print');
-        const Sharing = require('expo-sharing');
-        const opts = printerType === 'thermal' ? { html, width: 162 } : { html }; // 162px ≈ 57mm @72dpi
-        const { uri } = await Print.printToFileAsync(opts);
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Receipt ${invoice.invoiceNumber}` });
-        } else {
-          await Share.share({ url: uri, message: receiptText, title: `Receipt ${invoice.invoiceNumber}` });
-        }
-      } catch (e) {
-        Share.share({ message: receiptText, title: `Receipt ${invoice.invoiceNumber}` });
-      }
-    }
+  // Shared helper — builds the receipt invoice object from current state.
+  const buildInvoice = () => currentInvoice || {
+    invoiceNumber: 'INV-PENDING',
+    date: new Date().toLocaleDateString(),
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    patientName: selectedPatient?.name || '',
+    patientPhone: selectedPatient?.phone || '',
+    treatments: items,
+    total: totalAmount,
+    discount: discountVal,
+    paid: paidVal,
+    payable: finalAmount,
+    outstanding: outstandingVal,
+    status: paidVal >= finalAmount ? 'paid' : 'unpaid',
+    paymentMethod: paymentMethod,
   };
 
-  // Open the system print dialog so the doctor can search + select a connected
-  // printer (thermal roll or a normal A4/Letter printer). On Android the print
-  // dialog lists every connected/print-service printer and lets them pick paper.
+  // ── shared PDF generator ───────────────────────────────────────────────────
+  const generatePdf = async (invoice) => {
+    const Print = require('expo-print');
+    const docName = drName(profile?.fullName, 'Dentist');
+    const clinic  = profile?.clinicName || 'Dentist Clinic';
+    const spec    = profile?.specialization || 'General Doctor';
+    const html    = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: false });
+    const opts    = printerType === 'thermal' ? { html, width: 162 } : { html };
+    const { uri } = await Print.printToFileAsync(opts);
+    return { uri, html, docName, clinic, spec };
+  };
+
+  // ── PRINT ──────────────────────────────────────────────────────────────────
   const handlePrint = async () => {
     if (!currentInvoice && !selectedPatient) {
       Alert.alert('No Bill Selected', 'Please select a patient and create a bill before printing.');
       return;
     }
-    const invoice = currentInvoice || {
-      invoiceNumber: 'INV-PENDING',
-      date: new Date().toLocaleDateString(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      patientName: selectedPatient?.name || '',
-      patientPhone: selectedPatient?.phone || '',
-      treatments: items,
-      total: totalAmount,
-      discount: discountVal,
-      paid: paidVal,
-      payable: finalAmount,
-      outstanding: outstandingVal,
-      status: paidVal >= finalAmount ? 'paid' : 'unpaid',
-      paymentMethod,
-    };
-    const docName = drName(profile?.fullName, 'Dentist');
-    const clinic = profile?.clinicName || 'Dentist Clinic';
-    const spec = profile?.specialization || 'General Doctor';
-    const html = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: Platform.OS === 'web' });
+    const invoice = buildInvoice();
 
     if (Platform.OS === 'web') {
+      const docName = drName(profile?.fullName, 'Dentist');
+      const clinic  = profile?.clinicName || 'Dentist Clinic';
+      const spec    = profile?.specialization || 'General Doctor';
+      const html    = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: true });
       const w = window.open('', '_blank', 'width=380,height=640');
       if (w) { w.document.write(html); w.document.close(); }
-      else { window.alert('Please allow pop-ups to print the receipt.'); }
+      else    { window.alert('Please allow pop-ups to print the receipt.'); }
       return;
     }
+
     try {
-      const Print = require('expo-print');
-      // printAsync opens the native OS print dialog → search & select any
-      // connected printer (thermal/normal), choose copies, paper size, etc.
-      await Print.printAsync({ html });
+      // Generate PDF first, then open native print dialog.
+      // printAsync alone sometimes fails on Android; generating the PDF first
+      // and passing it is more reliable across devices.
+      const { uri } = await generatePdf(invoice);
+      const Print   = require('expo-print');
+      await Print.printAsync({ uri });
     } catch (e) {
+      // Offer to save as PDF if printing fails
       Alert.alert(
-        'Printing unavailable',
-        'No printer dialog could be opened. Make sure a printer is connected/paired, or use “Save / Share PDF” instead.'
+        'Printer Not Found',
+        'No printer detected. Would you like to save the receipt as a PDF instead?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save PDF', onPress: () => handleDownloadReceipt() },
+        ]
       );
+    }
+  };
+
+  // ── SAVE PDF TO DEVICE ─────────────────────────────────────────────────────
+  const handleDownloadReceipt = async () => {
+    if (!currentInvoice && !selectedPatient) {
+      Alert.alert('No Bill Selected', 'Please select a patient and create a bill before saving a receipt.');
+      return;
+    }
+    const invoice = buildInvoice();
+
+    if (Platform.OS === 'web') {
+      const docName = drName(profile?.fullName, 'Dentist');
+      const clinic  = profile?.clinicName || 'Dentist Clinic';
+      const spec    = profile?.specialization || 'General Doctor';
+      const html    = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: false });
+      const w = window.open('', '_blank', 'width=380,height=640');
+      if (w) { w.document.write(html); w.document.close(); }
+      else    { window.alert('Please allow pop-ups to save/print the receipt.'); }
+      return;
+    }
+
+    try {
+      const { uri } = await generatePdf(invoice);
+      const Sharing = require('expo-sharing');
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Save Receipt PDF',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        // Last resort: copy to documents dir and tell user where it is
+        const FileSystem = require('expo-file-system');
+        const safeInv    = (invoice.invoiceNumber || 'Receipt').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const destUri    = FileSystem.documentDirectory + `Receipt_${safeInv}.pdf`;
+        await FileSystem.copyAsync({ from: uri, to: destUri });
+        Alert.alert('PDF Saved', `Receipt_${safeInv}.pdf saved to app storage.`);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not generate the PDF. Please try again.');
     }
   };
 
@@ -813,7 +807,7 @@ Thank you for visiting!
         {subTab === 'print' && (
           <View>
             <Text style={styles.pageTitle}>Receipt Specimen</Text>
-            <Text style={styles.pageSubtitle}>Choose your printer type, then search & select a connected printer to print — or save/share as PDF.</Text>
+            <Text style={styles.pageSubtitle}>Select your printer type, tap Print to send to a paired printer, or Save PDF to download the receipt to your device.</Text>
 
             {/* Printer type selector */}
             <Text style={styles.printerLabel}>Printer Type</Text>
@@ -891,20 +885,21 @@ Thank you for visiting!
                 </View>
               </View>
 
-              {/* Print: opens the OS print dialog to search & select a printer */}
+              {/* Print — opens native OS print dialog (detects paired Bluetooth / Wi-Fi printers) */}
               <TouchableOpacity style={[styles.printNowBtn, { width: 320, marginTop: 20 }]} onPress={handlePrint}>
-                <Ionicons name="search-outline" size={18} color="#FFF" style={{marginRight: 8}} />
-                <Text style={styles.printNowText}>Search & Select Printer</Text>
+                <Ionicons name="print-outline" size={18} color="#FFF" style={{marginRight: 8}} />
+                <Text style={styles.printNowText}>Print Receipt</Text>
               </TouchableOpacity>
 
-              {/* Save / Share as PDF */}
+              {/* Save PDF directly to device storage */}
               <TouchableOpacity style={[styles.printNowBtnGhost, { width: 320, marginTop: 12 }]} onPress={handleDownloadReceipt}>
                 <Ionicons name="download-outline" size={18} color="#0052FF" style={{marginRight: 8}} />
-                <Text style={styles.printNowTextGhost}>{Platform.OS === 'web' ? 'Save / Download PDF' : 'Save / Share PDF'}</Text>
+                <Text style={styles.printNowTextGhost}>{Platform.OS === 'web' ? 'Save / Download PDF' : 'Save PDF to Device'}</Text>
               </TouchableOpacity>
 
               <Text style={styles.printerHint}>
-                Tip: connect your printer over Wi-Fi/Bluetooth or a print service first. The print dialog lists all connected thermal & normal printers.
+                Print: opens the print dialog — select a paired printer.{'\n'}
+                Save PDF: opens the share sheet — tap "Save to Files / Downloads" to save, or send via WhatsApp / Email.
               </Text>
 
             </View>

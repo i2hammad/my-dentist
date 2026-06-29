@@ -1,81 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity, Dimensions, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import { actionMenu } from '../../../utils/confirmAlert';
 import storage from '../../../config/storage';
-import { getClinicTier } from '../../../utils/clinicTier';
-import { FACILITY_CATEGORIES } from '../../../config/facilities';
-
-const { width } = Dimensions.get('window');
-const isWide = width >= 768;
 
 export default function ReviewsTab({ profile }) {
   const insets = useSafeAreaInsets();
   const [reviews, setReviews] = useState([]);
   const [stats, setStats] = useState({ average: 0, count: 0, distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } });
   const [loading, setLoading] = useState(true);
-
-  // Editable facilities & services (persisted to the doctor profile).
-  const [services, setServices] = useState([]);
-  const [savingServices, setSavingServices] = useState(false);
-  const [showFacilityPicker, setShowFacilityPicker] = useState(false);
-
-  // Reply modal state.
   const [replyTarget, setReplyTarget] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [postingReply, setPostingReply] = useState(false);
-
-  useEffect(() => {
-    const list = (profile?.services && profile.services.length > 0)
-      ? profile.services.map(s => (typeof s === 'string' ? s : s.name))
-      : [];
-    setServices(list);
-  }, [profile?._id]);
-
-  const persistServices = async (list) => {
-    setSavingServices(true);
-    try {
-      const token = await storage.getItem('userToken');
-      await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { services: list }, { headers: { Authorization: `Bearer ${token}` } });
-    } catch (e) {
-      Alert.alert('Error', 'Could not save services. Please try again.');
-    } finally {
-      setSavingServices(false);
-    }
-  };
-
-  // Toggle a predefined facility from the selection modal.
-  const toggleFacility = (name) => {
-    const has = services.includes(name);
-    const list = has ? services.filter(s => s !== name) : [...services, name];
-    setServices(list);
-    persistServices(list);
-  };
-
-  const removeService = (name) => {
-    const list = services.filter(s => s !== name);
-    setServices(list);
-    persistServices(list);
-  };
-
-  const submitReply = async () => {
-    if (!replyText.trim() || !replyTarget) return;
-    setPostingReply(true);
-    try {
-      const token = await storage.getItem('userToken');
-      await axios.put(`${API_BASE_URL}/api/reviews/${replyTarget._id}/reply`, { text: replyText.trim() }, { headers: { Authorization: `Bearer ${token}` } });
-      setReplyTarget(null); setReplyText('');
-      fetchReviews();
-      Alert.alert('Reply posted', 'Your reply is now visible on this review.');
-    } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Could not post reply.');
-    } finally {
-      setPostingReply(false);
-    }
-  };
 
   useEffect(() => {
     fetchReviews();
@@ -85,16 +24,12 @@ export default function ReviewsTab({ profile }) {
     try {
       if (profile?._id) {
         const res = await axios.get(`${API_BASE_URL}/api/reviews/doctor/${profile._id}`);
-        if (res.data?.success) {
-          setReviews(res.data.data || []);
-        } else {
-          setReviews([]);
-        }
+        if (res.data?.success) setReviews(res.data.data || []);
+        else setReviews([]);
+
         const statsRes = await axios.get(`${API_BASE_URL}/api/reviews/doctor/${profile._id}/stats`);
         if (statsRes.data?.success) {
           const s = statsRes.data.data || {};
-          // Map backend fields (avgRating/totalReviews/ratingDistribution/recommendPercentage)
-          // to the shape this screen uses.
           setStats({
             average: s.avgRating || 0,
             count: s.totalReviews || 0,
@@ -115,9 +50,22 @@ export default function ReviewsTab({ profile }) {
     }
   };
 
-  if (loading) {
-    return <View style={styles.centerContainer}><ActivityIndicator size="large" color="#0052FF" /></View>;
-  }
+  const submitReply = async () => {
+    if (!replyText.trim() || !replyTarget) return;
+    setPostingReply(true);
+    try {
+      const token = await storage.getItem('userToken');
+      await axios.put(`${API_BASE_URL}/api/reviews/${replyTarget._id}/reply`, { text: replyText.trim() }, { headers: { Authorization: `Bearer ${token}` } });
+      setReplyTarget(null);
+      setReplyText('');
+      fetchReviews();
+      Alert.alert('Reply posted', 'Your reply is now visible on this review.');
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Could not post reply.');
+    } finally {
+      setPostingReply(false);
+    }
+  };
 
   const formatTimeAgo = (dateStr) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -125,224 +73,123 @@ export default function ReviewsTab({ profile }) {
     if (days === 0) return 'Today';
     if (days === 1) return 'Yesterday';
     if (days < 7) return `${days} days ago`;
-    if (days < 14) return `1 week ago`;
+    if (days < 14) return '1 week ago';
     return new Date(dateStr).toLocaleDateString();
   };
 
-  // Real facility score → grade (Standard 1-15 / Modern 16-30 / Elite 31+)
-  const facilityScore = profile?.facilityScore || 0;
-  const grade = getClinicTier(facilityScore); // { label, color, tier }
-  const gradeIcon = grade.tier === 'elite' ? 'ribbon' : grade.tier === 'modern' ? 'business' : 'shield-checkmark';
-  const gradeBlurb = grade.tier === 'elite'
-    ? 'This clinic offers excellent facilities and premium care.'
-    : grade.tier === 'modern'
-    ? 'This clinic offers modern facilities and quality care.'
-    : 'This clinic offers standard facilities and reliable care.';
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator size="large" color="#0052FF" /></View>;
+  }
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-        <View style={styles.layout}>
-          
-          {/* Left Side: Services & Reviews */}
-          <View style={styles.leftCol}>
-            
-            {/* Facilities & Services (add / remove) */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Facilities & Services</Text>
-              <Text style={styles.cardSubtitle}>Add or remove facilities & services available at your clinic{savingServices ? '  • saving…' : ''}</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Patient Reviews</Text>
+          <Text style={styles.cardSubtitle}>Real experiences from our happy patients</Text>
 
-              {services.length > 0 ? (
-                <View style={styles.servicesGrid}>
-                  {services.map((label, idx) => (
-                    <View key={idx} style={styles.serviceItem}>
-                      <Ionicons name="checkmark-circle" size={16} color="#0052FF" />
-                      <Text style={styles.serviceText} numberOfLines={1}>{label}</Text>
-                      <TouchableOpacity onPress={() => removeService(label)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="close-circle" size={16} color="#94A3B8" style={{ marginLeft: 6 }} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 8, fontStyle: 'italic' }}>
-                  No services listed yet. Add your first facility / service below.
-                </Text>
-              )}
-
-              <TouchableOpacity style={styles.addFacilityBtn} onPress={() => setShowFacilityPicker(true)}>
-                <Ionicons name="add-circle-outline" size={18} color="#0052FF" />
-                <Text style={styles.addFacilityBtnText}>Add / Manage Facilities</Text>
-              </TouchableOpacity>
+          {/* Rating summary */}
+          <View style={styles.ratingSummaryRow}>
+            <View style={styles.avgRatingCol}>
+              <Text style={styles.bigRatingText}>{(stats.average || 0).toFixed(1)}</Text>
+              <View style={styles.starsRowBig}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Ionicons key={i} name={i < Math.round(stats.average) ? 'star' : 'star-outline'} size={18} color="#F59E0B" />
+                ))}
+              </View>
+              <Text style={styles.reviewsCountText}>({stats.count} Reviews)</Text>
             </View>
 
-            {/* Patient Reviews */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Patient Reviews</Text>
-              <Text style={styles.cardSubtitle}>Real experiences from our happy patients</Text>
-              
-              <View style={styles.ratingSummaryRow}>
-                {/* Big Rating */}
-                <View style={styles.avgRatingCol}>
-                  <Text style={styles.bigRatingText}>{(stats.average || 0).toFixed(1)}</Text>
-                  <View style={styles.starsRowBig}>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Ionicons key={i} name={i < Math.round(stats.average) ? 'star' : 'star-outline'} size={18} color="#F59E0B" />
-                    ))}
-                  </View>
-                  <Text style={styles.reviewsCountText}>({stats.count} Reviews)</Text>
-                </View>
-
-                {/* Progress Bars */}
-                <View style={styles.distCol}>
-                  {[5, 4, 3, 2, 1].map(stars => {
-                    const count = stats.distribution?.[stars] || 0;
-                    const total = stats.count || 1;
-                    const pct = Math.round((count / total) * 100);
-                    return (
-                      <View key={stars} style={styles.distRow}>
-                        <Text style={styles.distStarsText}>{stars} <Ionicons name="star" size={10} color="#F59E0B" /></Text>
-                        <View style={styles.progressBarBg}>
-                          <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
-                        </View>
-                        <Text style={styles.distCountText}>{count}</Text>
-                      </View>
-                    );
-                  })}
-                  <TouchableOpacity onPress={() => Alert.alert('Reviews', `Showing all ${reviews.length} reviews.`)}>
-                    <Text style={styles.viewAllReviewsText}>View all Reviews ></Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Recommendation — full-width row below the bars */}
-                <View style={styles.recommendCol}>
-                  <Ionicons name="thumbs-up" size={20} color="#0052FF" />
-                  <Text style={styles.recommendPctText}>{stats.count > 0 ? `${stats.recommend}%` : '0%'}</Text>
-                  <Text style={styles.recommendText}>Patients Recommend</Text>
-                </View>
-              </View>
-
-              {/* Reviews List */}
-              <View style={styles.reviewsList}>
-                {reviews.length > 0 ? (
-                  reviews.map((review, idx) => (
-                    <View key={review._id || idx} style={styles.reviewCard}>
-                      <View style={styles.reviewHeader}>
-                        <Image source={{uri: `https://ui-avatars.com/api/?name=${review.patientId?.fullName?.replace(' ', '+') || 'Patient'}&background=F1F5F9&color=0052FF`}} style={styles.reviewerAvatar} />
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <View style={styles.reviewerMeta}>
-                            <Text style={styles.reviewerName}>{review.patientId?.fullName || 'Patient'}</Text>
-                            <View style={styles.verifiedBadge}>
-                              <Text style={styles.verifiedText}>Verified Patient</Text>
-                            </View>
-                          </View>
-                          <View style={styles.starsRow}>
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Ionicons key={i} name={i < review.rating ? 'star' : 'star-outline'} size={12} color="#F59E0B" />
-                            ))}
-                          </View>
-                        </View>
-                        <Text style={styles.timeText}>{formatTimeAgo(review.createdAt)}</Text>
-                        <TouchableOpacity 
-                          style={{ padding: 4, marginLeft: 8 }}
-                          onPress={() => {
-                            actionMenu({
-                              title: 'Review Options',
-                              message: `Reviewer: ${review.patientId?.fullName || 'Patient'}\nRating: ${review.rating} Stars`,
-                              options: [
-                                { text: review.doctorReply?.text ? 'Edit Reply' : 'Reply to Review', onPress: () => { setReplyTarget(review); setReplyText(review.doctorReply?.text || ''); } },
-                                { text: 'Close', style: 'cancel' }
-                              ]
-                            });
-                          }}
-                        >
-                          <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />
-                        </TouchableOpacity>
-                      </View>
-                      <Text style={styles.commentText}>{review.comment}</Text>
-
-                      {/* Doctor's reply (if any) */}
-                      {review.doctorReply?.text ? (
-                        <View style={styles.replyBox}>
-                          <View style={styles.replyHeader}>
-                            <Ionicons name="arrow-undo" size={13} color="#0052FF" />
-                            <Text style={styles.replyAuthor}>Your reply</Text>
-                          </View>
-                          <Text style={styles.replyText}>{review.doctorReply.text}</Text>
-                        </View>
-                      ) : null}
-
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>
-                        <TouchableOpacity style={styles.helpfulBtn}>
-                          <Ionicons name="thumbs-up-outline" size={14} color="#64748B" />
-                          <Text style={styles.helpfulBtnText}>Helpful ({review.helpfulCount || 0})</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.helpfulBtn} onPress={() => { setReplyTarget(review); setReplyText(review.doctorReply?.text || ''); }}>
-                          <Ionicons name="chatbubble-outline" size={14} color="#0052FF" />
-                          <Text style={[styles.helpfulBtnText, { color: '#0052FF' }]}>{review.doctorReply?.text ? 'Edit Reply' : 'Reply'}</Text>
-                        </TouchableOpacity>
-                      </View>
+            <View style={styles.distCol}>
+              {[5, 4, 3, 2, 1].map(stars => {
+                const count = stats.distribution?.[stars] || 0;
+                const pct = Math.round((count / (stats.count || 1)) * 100);
+                return (
+                  <View key={stars} style={styles.distRow}>
+                    <Text style={styles.distStarsText}>{stars} <Ionicons name="star" size={10} color="#F59E0B" /></Text>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
                     </View>
-                  ))
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="chatbubbles-outline" size={40} color="#94A3B8" />
-                    <Text style={styles.emptyStateText}>No reviews yet. Reviews from your patients will appear here.</Text>
+                    <Text style={styles.distCountText}>{count}</Text>
                   </View>
-                )}
-              </View>
+                );
+              })}
+            </View>
+
+            <View style={styles.recommendCol}>
+              <Ionicons name="thumbs-up" size={20} color="#0052FF" />
+              <Text style={styles.recommendPctText}>{stats.count > 0 ? `${stats.recommend}%` : '0%'}</Text>
+              <Text style={styles.recommendText}>Patients Recommend</Text>
             </View>
           </View>
 
-          {/* Right Side: Clinic Grade Badge (computed from facility score) */}
-          <View style={styles.rightCol}>
+          {/* Reviews list */}
+          <View style={styles.reviewsList}>
+            {reviews.length > 0 ? reviews.map((review, idx) => (
+              <View key={review._id || idx} style={styles.reviewCard}>
+                <View style={styles.reviewHeader}>
+                  <Image
+                    source={{ uri: `https://ui-avatars.com/api/?name=${review.patientId?.fullName?.replace(' ', '+') || 'Patient'}&background=F1F5F9&color=0052FF` }}
+                    style={styles.reviewerAvatar}
+                  />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={styles.reviewerMeta}>
+                      <Text style={styles.reviewerName}>{review.patientId?.fullName || 'Patient'}</Text>
+                      <View style={styles.verifiedBadge}>
+                        <Text style={styles.verifiedText}>Verified Patient</Text>
+                      </View>
+                    </View>
+                    <View style={styles.starsRow}>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Ionicons key={i} name={i < review.rating ? 'star' : 'star-outline'} size={12} color="#F59E0B" />
+                      ))}
+                    </View>
+                  </View>
+                  <Text style={styles.timeText}>{formatTimeAgo(review.createdAt)}</Text>
+                  <TouchableOpacity
+                    style={{ padding: 4, marginLeft: 8 }}
+                    onPress={() => actionMenu({
+                      title: 'Review Options',
+                      message: `Reviewer: ${review.patientId?.fullName || 'Patient'}\nRating: ${review.rating} Stars`,
+                      options: [
+                        { text: review.doctorReply?.text ? 'Edit Reply' : 'Reply to Review', onPress: () => { setReplyTarget(review); setReplyText(review.doctorReply?.text || ''); } },
+                        { text: 'Close', style: 'cancel' }
+                      ]
+                    })}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
 
-            {/* Grade Badge Card */}
-            <View style={[styles.card, { alignItems: 'center', borderColor: grade.color, borderWidth: 2 }]}>
-              <View style={styles.badgeImagePlaceholder}>
-                <Ionicons name={gradeIcon} size={60} color={grade.color} />
-                <View style={[styles.badgeEliteTag, { backgroundColor: grade.color }]}><Text style={styles.badgeEliteText}>{grade.label.replace(' Clinic', '').toUpperCase()}</Text></View>
-              </View>
-              <Text style={styles.eliteTitle}>{grade.label}</Text>
-              <Text style={styles.eliteSubtitle}>{gradeBlurb}</Text>
+                <Text style={styles.commentText}>{review.comment}</Text>
 
-              <View style={styles.verifiedHighlightsBox}>
-                <Text style={styles.verifiedHighlightsTitle}>VERIFIED HIGHLIGHTS</Text>
-                <View style={styles.vhRow}><Ionicons name="checkmark-circle-outline" size={16} color="#16A34A" /><Text style={styles.vhText}>Verified Services</Text></View>
-                <View style={styles.vhRow}><Ionicons name="checkmark-circle-outline" size={16} color="#16A34A" /><Text style={styles.vhText}>High Patient Satisfaction</Text></View>
-                <View style={styles.vhRow}><Ionicons name="checkmark-circle-outline" size={16} color="#16A34A" /><Text style={styles.vhText}>Advanced Technology</Text></View>
-                <View style={styles.vhRow}><Ionicons name="checkmark-circle-outline" size={16} color="#16A34A" /><Text style={styles.vhText}>Hygiene & Safety</Text></View>
-              </View>
-            </View>
+                {review.doctorReply?.text ? (
+                  <View style={styles.replyBox}>
+                    <View style={styles.replyHeader}>
+                      <Ionicons name="arrow-undo" size={13} color="#0052FF" />
+                      <Text style={styles.replyAuthor}>Your reply</Text>
+                    </View>
+                    <Text style={styles.replyText}>{review.doctorReply.text}</Text>
+                  </View>
+                ) : null}
 
-            {/* Score Card */}
-            <View style={[styles.card, { alignItems: 'center' }]}>
-              <Text style={styles.facilityScoreTitle}>FACILITY SCORE</Text>
-              <View style={[styles.scoreCircle, { borderColor: grade.color }]}>
-                <Text style={styles.scoreNumber}>{facilityScore}</Text>
-                <Text style={styles.scoreText}>POINTS</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>
+                  <TouchableOpacity style={styles.helpfulBtn}>
+                    <Ionicons name="thumbs-up-outline" size={14} color="#64748B" />
+                    <Text style={styles.helpfulBtnText}>Helpful ({review.helpfulCount || 0})</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.helpfulBtn} onPress={() => { setReplyTarget(review); setReplyText(review.doctorReply?.text || ''); }}>
+                    <Ionicons name="chatbubble-outline" size={14} color="#0052FF" />
+                    <Text style={[styles.helpfulBtnText, { color: '#0052FF' }]}>{review.doctorReply?.text ? 'Edit Reply' : 'Reply'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-
-            {/* Legends — Standard 1-15 / Modern 16-30 / Elite 31+ */}
-            <View style={styles.legendsList}>
-              <View style={[styles.legendRow, {backgroundColor: '#FFFBEB', borderColor: '#FDE68A'}, grade.tier === 'elite' && { borderWidth: 2 }]}>
-                <View style={[styles.legendIcon, {backgroundColor: '#D97706'}]}><Ionicons name="ribbon" size={12} color="#FFF" /></View>
-                <Text style={styles.legendName}>Elite Clinic</Text>
-                <Text style={styles.legendRange}>31+ Points</Text>
+            )) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="chatbubbles-outline" size={40} color="#94A3B8" />
+                <Text style={styles.emptyStateText}>No reviews yet. Reviews from your patients will appear here.</Text>
               </View>
-              <View style={[styles.legendRow, {backgroundColor: '#EFF6FF', borderColor: '#BFDBFE'}, grade.tier === 'modern' && { borderWidth: 2 }]}>
-                <View style={[styles.legendIcon, {backgroundColor: '#0052FF'}]}><Ionicons name="business" size={12} color="#FFF" /></View>
-                <Text style={styles.legendName}>Modern Clinic</Text>
-                <Text style={styles.legendRange}>16 - 30 Points</Text>
-              </View>
-              <View style={[styles.legendRow, {backgroundColor: '#F8FAFC', borderColor: '#E2E8F0'}, grade.tier === 'standard' && { borderWidth: 2 }]}>
-                <View style={[styles.legendIcon, {backgroundColor: '#64748B'}]}><Ionicons name="shield-checkmark" size={12} color="#FFF" /></View>
-                <Text style={styles.legendName}>Standard Clinic</Text>
-                <Text style={styles.legendRange}>1 - 15 Points</Text>
-              </View>
-            </View>
-
+            )}
           </View>
         </View>
       </ScrollView>
@@ -355,7 +202,7 @@ export default function ReviewsTab({ profile }) {
               <Text style={styles.replyModalTitle}>Reply to {replyTarget?.patientId?.fullName || 'Patient'}</Text>
               <TouchableOpacity onPress={() => setReplyTarget(null)}><Ionicons name="close" size={22} color="#64748B" /></TouchableOpacity>
             </View>
-            {!!replyTarget?.comment && <Text style={styles.replyQuote}>“{replyTarget.comment}”</Text>}
+            {!!replyTarget?.comment && <Text style={styles.replyQuote}>"{replyTarget.comment}"</Text>}
             <TextInput
               style={styles.replyInput}
               value={replyText}
@@ -370,65 +217,17 @@ export default function ReviewsTab({ profile }) {
           </View>
         </View>
       </Modal>
-
-      {/* Facility selection modal — choose only from available facilities */}
-      <Modal visible={showFacilityPicker} transparent animationType="slide" onRequestClose={() => setShowFacilityPicker(false)}>
-        <View style={styles.fpOverlay}>
-          <View style={[styles.fpModal, { paddingBottom: insets.bottom + 16 }]}>
-            <View style={styles.fpHead}>
-              <Text style={styles.fpTitle}>Select Facilities & Services</Text>
-              <TouchableOpacity onPress={() => setShowFacilityPicker(false)}><Ionicons name="close" size={22} color="#64748B" /></TouchableOpacity>
-            </View>
-            <Text style={styles.fpSub}>Tap to add or remove. {services.length} selected.</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {FACILITY_CATEGORIES.map(cat => (
-                <View key={cat.key} style={{ marginBottom: 16 }}>
-                  <View style={styles.fpCatHead}>
-                    <View style={[styles.fpCatIcon, { backgroundColor: cat.bgColor }]}><Ionicons name={cat.icon} size={14} color={cat.color} /></View>
-                    <Text style={styles.fpCatTitle}>{cat.title}</Text>
-                  </View>
-                  <View style={styles.fpChips}>
-                    {cat.items.map(item => {
-                      const on = services.includes(item);
-                      return (
-                        <TouchableOpacity key={item} onPress={() => toggleFacility(item)} style={[styles.fpChip, on && styles.fpChipOn]}>
-                          <Ionicons name={on ? 'checkmark-circle' : 'add-circle-outline'} size={14} color={on ? '#FFFFFF' : '#64748B'} />
-                          <Text style={[styles.fpChipText, on && styles.fpChipTextOn]}>{item}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              ))}
-              <View style={{ height: 10 }} />
-            </ScrollView>
-            <TouchableOpacity style={styles.fpDone} onPress={() => setShowFacilityPicker(false)}>
-              <Text style={styles.fpDoneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  layout: { flexDirection: isWide ? 'row' : 'column', gap: 20 },
-  leftCol: { flex: isWide ? 2.5 : undefined },
-  rightCol: { flex: isWide ? 1 : undefined, width: isWide ? undefined : '100%' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   card: { backgroundColor: '#FFF', borderRadius: 12, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9' },
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#0A1551' },
   cardSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 16 },
-  
-  /* Services Grid */
-  servicesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  serviceItem: { flexDirection: 'row', alignItems: 'center', width: isWide ? '31%' : '47%', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 12, backgroundColor: '#FFF' },
-  serviceText: { fontSize: 11, color: '#0A1551', fontWeight: '500', marginLeft: 8, flex: 1 },
-  
-  /* Ratings Summary */
+
   ratingSummaryRow: { flexDirection: 'row', columnGap: 16, rowGap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 24, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   avgRatingCol: { alignItems: 'center', width: 110 },
   bigRatingText: { fontSize: 42, fontWeight: '900', color: '#0A1551' },
@@ -440,31 +239,13 @@ const styles = StyleSheet.create({
   progressBarBg: { flex: 1, height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#0052FF', borderRadius: 3 },
   distCountText: { fontSize: 12, color: '#0A1551', fontWeight: '600', width: 30, textAlign: 'right' },
-  viewAllReviewsText: { fontSize: 12, color: '#0052FF', fontWeight: '600', textAlign: 'center', marginTop: 8 },
   recommendCol: { alignItems: 'center', justifyContent: 'center', width: '100%', flexDirection: 'row', gap: 8, marginTop: 4 },
   recommendPctText: { fontSize: 22, fontWeight: 'bold', color: '#0052FF' },
   recommendText: { fontSize: 12, color: '#0A1551', fontWeight: '600' },
-  
-  /* Reviews List */
+
   reviewsList: { gap: 16 },
-  emptyState: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
-    marginVertical: 12,
-  },
-  emptyStateText: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 8,
-    textAlign: 'center',
-    fontWeight: '500'
-  },
+  emptyState: { padding: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', borderStyle: 'dashed', marginVertical: 12 },
+  emptyStateText: { fontSize: 13, color: '#64748B', marginTop: 8, textAlign: 'center', fontWeight: '500' },
   reviewCard: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 16 },
   reviewHeader: { flexDirection: 'row', alignItems: 'flex-start' },
   reviewerAvatar: { width: 40, height: 40, borderRadius: 20 },
@@ -477,62 +258,13 @@ const styles = StyleSheet.create({
   commentText: { fontSize: 13, color: '#475569', lineHeight: 20, marginVertical: 12 },
   helpfulBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   helpfulBtnText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
-  
-  /* Elite Card */
-  badgeImagePlaceholder: { width: 100, height: 100, borderRadius: 16, backgroundColor: '#FFFBEB', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 2, borderColor: '#D97706', position: 'relative' },
-  badgeEliteTag: { position: 'absolute', bottom: -10, backgroundColor: '#D97706', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10, borderWidth: 2, borderColor: '#FFF' },
-  badgeEliteText: { fontSize: 10, fontWeight: 'bold', color: '#FFF' },
-  eliteTitle: { fontSize: 20, fontWeight: 'bold', color: '#0A1551' },
-  eliteSubtitle: { fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 4, marginHorizontal: 10 },
-  verifiedHighlightsBox: { width: '100%', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 16, marginTop: 20 },
-  verifiedHighlightsTitle: { fontSize: 11, fontWeight: 'bold', color: '#0A1551', marginBottom: 12, letterSpacing: 0.5 },
-  vhRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
-  vhText: { fontSize: 12, color: '#16A34A', fontWeight: '600' },
 
-  /* Score Card */
-  facilityScoreTitle: { fontSize: 12, fontWeight: 'bold', color: '#0A1551', marginBottom: 16 },
-  scoreCircle: { width: 100, height: 100, borderRadius: 50, borderWidth: 6, borderColor: '#0052FF', justifyContent: 'center', alignItems: 'center' },
-  scoreNumber: { fontSize: 32, fontWeight: '900', color: '#0A1551' },
-  scoreText: { fontSize: 10, fontWeight: 'bold', color: '#0A1551' },
-
-  legendsList: { gap: 10 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 12 },
-  legendIcon: { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  legendName: { fontSize: 13, fontWeight: 'bold', color: '#0A1551', flex: 1 },
-  legendRange: { fontSize: 11, color: '#64748B' },
-
-  /* Footer */
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  bookBtn: { backgroundColor: '#0052FF', height: 40, borderRadius: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  bookBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
-
-  /* Add service */
-  addFacilityBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#0052FF', borderStyle: 'dashed', backgroundColor: '#EFF6FF' },
-  addFacilityBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 14 },
-  // Facility picker modal
-  fpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  fpModal: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 20, maxHeight: '85%' },
-  fpHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  fpTitle: { fontSize: 17, fontWeight: '800', color: '#0A1551' },
-  fpSub: { fontSize: 12.5, color: '#64748B', marginTop: 2, marginBottom: 12 },
-  fpCatHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  fpCatIcon: { width: 26, height: 26, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  fpCatTitle: { fontSize: 11.5, fontWeight: '800', color: '#475569', letterSpacing: 0.4 },
-  fpChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  fpChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' },
-  fpChipOn: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
-  fpChipText: { fontSize: 12.5, color: '#334155', fontWeight: '600' },
-  fpChipTextOn: { color: '#FFFFFF' },
-  fpDone: { backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
-  fpDoneText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-
-  /* Doctor reply */
   replyBox: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, marginTop: 8, borderLeftWidth: 3, borderLeftColor: '#0052FF' },
   replyHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
   replyAuthor: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
   replyText: { fontSize: 13, color: '#334155', lineHeight: 18 },
   replyOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  replyModal: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
+  replyModal: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   replyModalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   replyModalTitle: { fontSize: 17, fontWeight: '700', color: '#0A1551' },
   replyQuote: { fontSize: 13, color: '#64748B', fontStyle: 'italic', marginBottom: 12 },

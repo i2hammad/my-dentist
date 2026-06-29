@@ -18,6 +18,7 @@ import AboutTab from './tabs/AboutTab';
 import TreatmentsTab from './tabs/TreatmentsTab';
 import GalleryTab from './tabs/GalleryTab';
 import ReviewsTab from './tabs/ReviewsTab';
+import FacilitiesTab from './tabs/FacilitiesTab';
 import AppointmentsTab from './tabs/AppointmentsTab';
 import BillsTab from './tabs/BillsTab';
 import RewardsTab from './tabs/RewardsTab';
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'about', label: 'About' },
   { id: 'treatments', label: 'Treatments' },
   { id: 'gallery', label: 'Gallery' },
+  { id: 'facilities', label: 'Facilities' },
   { id: 'reviews', label: 'Reviews' },
   { id: 'appointments', label: 'Appointments' },
   { id: 'bills', label: 'Bills & Bill History' },
@@ -75,6 +77,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
         const token = await storage.getItem('userToken');
         if (!token) return;
         await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { onlineStatus: status }, { headers: { Authorization: `Bearer ${token}` } });
+        setProfile(prev => prev ? { ...prev, onlineStatus: status } : prev);
       } catch {}
     };
 
@@ -213,12 +216,11 @@ export default function DoctorHomeScreen({ route, navigation }) {
       <View style={styles.navbar}>
         {/* Brand + greeting */}
         <View style={styles.navBrandRow}>
-          <View style={styles.navLogo}>
-            <Ionicons name="medical" size={18} color="#FFFFFF" />
+          <View style={styles.navLogoBox}>
+            <Image source={require('../../../assets/logo-mark.png')} style={styles.navLogoImg} resizeMode="contain" />
           </View>
           <View style={{ flexShrink: 1 }}>
-            <Text style={styles.navGreeting}>Welcome back 👋</Text>
-            <Text style={styles.navDocName} numberOfLines={1}>Dr. {profile?.fullName || 'Doctor'}</Text>
+            <Text style={styles.navBrandName}>My Dentist</Text>
           </View>
         </View>
 
@@ -354,6 +356,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
           {activeTab === 'about' && <AboutTab profile={profile} appointments={appointments} bills={bills} reviewStats={reviewStats} navigation={navigation} setActiveTab={setActiveTab} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
           {activeTab === 'treatments' && <TreatmentsTab profile={profile} />}
           {activeTab === 'gallery' && <GalleryTab profile={profile} />}
+          {activeTab === 'facilities' && <FacilitiesTab profile={profile} />}
           {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
           {activeTab === 'appointments' && <AppointmentsTab appointments={appointments} onRefresh={fetchData} navigation={navigation} setActiveTab={setActiveTab} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
           {activeTab === 'bills' && <BillsTab profile={profile} appointments={appointments} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
@@ -371,9 +374,10 @@ const styles = StyleSheet.create({
   /* Navbar */
   navbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   navBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  navLogo: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#0052FF', justifyContent: 'center', alignItems: 'center' },
-  navGreeting: { fontSize: 11, color: '#94A3B8', fontWeight: '600' },
-  navDocName: { fontSize: 15, color: '#0A1551', fontWeight: '800' },
+  navLogoBox: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  navLogoImg: { width: 28, height: 28 },
+  navBrandName: { fontSize: 16, color: '#0052FF', fontWeight: '800', letterSpacing: 0.2 },
+  navDocName: { fontSize: 11, color: '#64748B', fontWeight: '500' },
   navActions: { flexDirection: 'row', alignItems: 'center' },
   navBackBtn: { padding: 4 },
   navIconBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginLeft: 8, position: 'relative' },

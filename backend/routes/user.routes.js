@@ -16,6 +16,8 @@ const {
   applyReferral
 } = require('../controllers/user.controller');
 
+const AppSettings = require('../models/AppSettings');
+
 const router = express.Router();
 
 // Referral program
@@ -27,6 +29,29 @@ router.use(protect);
 
 // @route   GET /api/users/me
 router.get('/me', getMe);
+
+// @route   GET /api/users/platform-settings
+// @desc    Return public platform payment accounts (set by admin) to any logged-in user
+router.get('/platform-settings', async (req, res) => {
+  try {
+    let s = await AppSettings.findOne({ key: 'global' });
+    if (!s) s = await AppSettings.create({ key: 'global' });
+    res.json({
+      success: true,
+      data: {
+        payments: {
+          bankAccount:      s.payments?.bankAccount      || '',
+          bankName:         s.payments?.bankName         || '',
+          easypaisaNumber:  s.payments?.easypaisaNumber  || '',
+          jazzcashNumber:   s.payments?.jazzcashNumber   || '',
+        },
+        commissionRate: s.commissionRate ?? 10,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 
 // @route   PUT /api/users/me
 router.put(

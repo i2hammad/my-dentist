@@ -73,19 +73,10 @@ router.post(
       .isLength({ min: 2, max: 200 }).withMessage('Treatment name must be between 2 and 200 characters'),
     body('amount')
       .notEmpty().withMessage('Amount is required')
-      .isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
+      .isFloat({ min: 0 }).withMessage('Amount must be a non-negative number'),
     body('dueDate')
       .notEmpty().withMessage('Due date is required')
-      .isISO8601().withMessage('Due date must be a valid ISO date')
-      .custom((value) => {
-        const dueDate = new Date(value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (dueDate < today) {
-          throw new Error('Due date cannot be in the past');
-        }
-        return true;
-      }),
+      .isISO8601().withMessage('Due date must be a valid ISO date'),
     body('discountFromRewards')
       .optional()
       .isFloat({ min: 0 }).withMessage('Discount must be a non-negative number'),
@@ -110,7 +101,7 @@ router.put(
       .isLength({ min: 2, max: 200 }).withMessage('Treatment name must be between 2 and 200 characters'),
     body('amount')
       .optional()
-      .isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
+      .isFloat({ min: 0 }).withMessage('Amount must be a non-negative number'),
     body('dueDate')
       .optional()
       .isISO8601().withMessage('Due date must be a valid ISO date'),
@@ -122,7 +113,7 @@ router.put(
       .isFloat({ min: 0 }).withMessage('Paid amount must be a non-negative number'),
     body('status')
       .optional()
-      .isIn(['paid', 'unpaid']).withMessage('Status must be paid or unpaid')
+      .isIn(['paid', 'unpaid', 'draft']).withMessage('Status must be paid, unpaid, or draft')
   ],
   validate,
   updateBill

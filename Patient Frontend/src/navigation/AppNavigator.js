@@ -150,7 +150,7 @@ function DoctorTabNavigator() {
       <Tab.Screen name="Appointments" component={DoctorAppointmentsScreen} />
       <Tab.Screen name="Patients" component={DoctorPatientsScreen} />
       <Tab.Screen name="Inbox" component={DoctorInboxScreen} options={{ tabBarBadge: chatBadge }} />
-      <Tab.Screen name="Profile" component={DoctorProfileScreenDoc} />
+      <Tab.Screen name="Profile" component={DoctorProfileScreenDoc} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
     </Tab.Navigator>
   );
 }

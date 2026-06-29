@@ -9,6 +9,9 @@ import axios from 'axios';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
 import imgUrl from '../../config/imgUrl';
+import DoctorHeader from '../../components/DoctorHeader';
+
+const isWeb = Platform.OS === 'web';
 
 export default function DoctorInboxScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -121,27 +124,33 @@ export default function DoctorInboxScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={{ marginRight: 12, padding: 4 }} onPress={() => navigation.navigate('DoctorHome')}>
-            <Ionicons name="arrow-back" size={24} color="#0A1551" />
+    <SafeAreaView style={styles.container} edges={[]}>
+      {/* Native: shared branded doctor header. Web: simple title bar. */}
+      <DoctorHeader
+        title="Messages"
+        subtitle={totalUnread > 0 ? `${totalUnread} unread message${totalUnread !== 1 ? 's' : ''}` : undefined}
+        right={
+          <TouchableOpacity style={styles.refreshBtn} onPress={fetchConversations}>
+            <Ionicons name="refresh-outline" size={22} color="#0052FF" />
           </TouchableOpacity>
+        }
+      />
+      {isWeb && (
+        <View style={[styles.header, styles.webBlock]}>
           <View>
             <Text style={styles.headerTitle}>Messages</Text>
             {totalUnread > 0 && (
               <Text style={styles.headerSub}>{totalUnread} unread message{totalUnread !== 1 ? 's' : ''}</Text>
             )}
           </View>
+          <TouchableOpacity style={styles.refreshBtn} onPress={fetchConversations}>
+            <Ionicons name="refresh-outline" size={22} color="#0052FF" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.refreshBtn} onPress={fetchConversations}>
-          <Ionicons name="refresh-outline" size={22} color="#0052FF" />
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* Search */}
-      <View style={styles.searchWrap}>
+      <View style={[styles.searchWrap, isWeb && styles.webBlock]}>
         <Ionicons name="search-outline" size={18} color="#94A3B8" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
@@ -174,7 +183,7 @@ export default function DoctorInboxScreen({ navigation }) {
           data={filtered}
           keyExtractor={(item, index) => item.otherUser?._id?.toString() || item._id?.toString() || String(index)}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={[{ paddingBottom: 20 }, isWeb && styles.webBlock]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
@@ -185,6 +194,8 @@ export default function DoctorInboxScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
+  // Web: center + cap content so the search bar / conversation rows aren't stretched edge-to-edge.
+  webBlock: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9',

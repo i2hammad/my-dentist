@@ -447,7 +447,7 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.headerLogoBadge}>
               <Image source={require('../../assets/logo-mark.png')} style={styles.headerLogo} resizeMode="contain" />
             </View>
-            <Text style={styles.headerTitle}>My Dentist</Text>
+            <Text style={styles.headerTitle}>My <Text style={{ color: '#BFD7FF' }}>Dentist</Text></Text>
           </View>
           <View style={styles.headerRight}>
             <PressableScale

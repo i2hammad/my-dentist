@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -7,12 +7,17 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
 import PromoBanner from '../../components/PromoBanner';
+import DoctorHeader from '../../components/DoctorHeader';
+
+const isWeb = Platform.OS === 'web';
 
 export default function DoctorAppointmentsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('upcoming');
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
   const [loading, setLoading] = useState(true);
   const [online, setOnline] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -177,22 +182,46 @@ export default function DoctorAppointmentsScreen({ navigation }) {
     );
   }
 
-  const displayList = activeTab === 'upcoming' ? appointments.upcoming : appointments.past;
+  const STATUS_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'pending', label: 'Pending' },
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'cancelled', label: 'Cancelled' },
+  ];
+
+  const baseList = activeTab === 'upcoming' ? appointments.upcoming : appointments.past;
+  const q = search.trim().toLowerCase();
+  const displayList = baseList.filter((a) => {
+    if (statusFilter !== 'all' && (a.status || 'pending') !== statusFilter) return false;
+    if (!q) return true;
+    const hay = `${a.patientId?.fullName || ''} ${a.treatmentType || ''}`.toLowerCase();
+    return hay.includes(q);
+  });
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('DoctorHome')}>
-          <Ionicons name="arrow-back" size={24} color="#0A1551" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Appointments</Text>
-        <TouchableOpacity style={[styles.liveToggle, { backgroundColor: online ? '#DCFCE7' : '#F1F5F9' }]} onPress={toggleOnline}>
-          <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
-          <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>{online ? 'Live' : 'Offline'}</Text>
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView edges={[]} style={styles.safeArea}>
+      {/* Native: shared branded doctor header. Web: simple title bar (WebTopNav handles nav). */}
+      <DoctorHeader
+        title="Appointments"
+        right={
+          <TouchableOpacity style={[styles.liveToggle, { backgroundColor: online ? '#DCFCE7' : '#F1F5F9' }]} onPress={toggleOnline}>
+            <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
+            <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>{online ? 'Live' : 'Offline'}</Text>
+          </TouchableOpacity>
+        }
+      />
+      {isWeb && (
+        <View style={[styles.headerBar, styles.webBlock]}>
+          <Text style={styles.headerTitle}>Appointments</Text>
+          <TouchableOpacity style={[styles.liveToggle, { backgroundColor: online ? '#DCFCE7' : '#F1F5F9' }]} onPress={toggleOnline}>
+            <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
+            <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>{online ? 'Live' : 'Offline'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, isWeb && styles.webBlock]}>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
           onPress={() => setActiveTab('upcoming')}
@@ -207,7 +236,39 @@ export default function DoctorAppointmentsScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+      {/* Search + status filter */}
+      <View style={[styles.searchWrap, isWeb && styles.webBlock]}>
+        <Ionicons name="search-outline" size={18} color="#94A3B8" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search patient or treatment..."
+          placeholderTextColor="#94A3B8"
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.filterScroll, isWeb && styles.webBlock]}
+        contentContainerStyle={styles.filterContent}
+      >
+        {STATUS_FILTERS.map((f) => {
+          const active = statusFilter === f.key;
+          return (
+            <TouchableOpacity key={f.key} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setStatusFilter(f.key)}>
+              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, isWeb && styles.webBlock]}>
         <PromoBanner />
         {displayList.length > 0 ? (
           displayList.map(item => renderAppointmentCard(item, activeTab === 'past'))
@@ -225,6 +286,8 @@ export default function DoctorAppointmentsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
+  // Web: center content and cap width so rows/banner aren't stretched edge-to-edge.
+  webBlock: { width: '100%', maxWidth: 900, alignSelf: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
   headerBar: {
     paddingVertical: 16,
@@ -248,6 +311,14 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 15, fontWeight: '600', color: '#64748B' },
   activeTabText: { color: '#0052FF' },
   container: { padding: 20 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginHorizontal: 20, marginTop: 12 },
+  searchInput: { flex: 1, fontSize: 14, color: '#0F172A', paddingVertical: 6 },
+  filterScroll: { marginTop: 10, marginBottom: 2, maxHeight: 44 },
+  filterContent: { paddingHorizontal: 20, gap: 8, alignItems: 'center' },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
+  filterChipActive: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  filterChipTextActive: { color: '#FFFFFF' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   patientInfo: { flexDirection: 'row', alignItems: 'center' },

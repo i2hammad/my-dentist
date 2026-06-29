@@ -13,6 +13,7 @@ import API_BASE_URL from '../../config/api';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../utils/support';
 
 const { width } = Dimensions.get('window');
+const isWeb = Platform.OS === 'web';
 
 const SPECIALISATIONS = [
   'General', 'Orthodontist', 'Implant Specialist', 'Cosmetic Dentist',
@@ -224,18 +225,20 @@ export default function DoctorProfileScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.canGoBack() && navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#0052FF" />
-        </TouchableOpacity>
+    <SafeAreaView edges={isWeb ? [] : ['top']} style={styles.safeArea}>
+      <View style={[styles.headerBar, isWeb && styles.webBlock]}>
+        {!isWeb && (
+          <TouchableOpacity onPress={() => navigation.canGoBack() && navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#0052FF" />
+          </TouchableOpacity>
+        )}
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>My Profile</Text>
           <Text style={styles.headerSub}>Edit and update your professional information.</Text>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, isWeb && styles.webBlock]}>
 
         {/* Personal Information */}
         <View style={styles.sectionCard}>
@@ -418,7 +421,7 @@ export default function DoctorProfileScreen({ navigation }) {
       </ScrollView>
 
       {/* Save footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, isWeb && styles.webFooter]}>
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#FFF" /> : (
             <>
@@ -575,7 +578,10 @@ const styles = StyleSheet.create({
   uploadBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#F1F5F9' },
   uploadBtnText: { fontSize: 12, fontWeight: '600', color: '#0052FF' },
   footer: { backgroundColor: '#FFF', padding: 20, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  saveBtn: { backgroundColor: '#0052FF', height: 42, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  // Web: center + cap content width so fields/images aren't stretched edge-to-edge.
+  webBlock: { width: '100%', maxWidth: 760, alignSelf: 'center' },
+  webFooter: { alignItems: 'center' },
+  saveBtn: { backgroundColor: '#0052FF', height: 42, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', ...(isWeb ? { width: '100%', maxWidth: 720, alignSelf: 'center' } : {}) },
   saveBtnText: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
   secureRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12 },
   secureText: { fontSize: 11, color: '#64748B', marginLeft: 4 },

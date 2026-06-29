@@ -11,17 +11,18 @@ import storage from '../config/storage';
 import { useNotifications } from '../context/NotificationContext';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { SkeletonRowList } from '../components/Skeleton';
-import webContent from '../config/webLayout';
+import webContent, { isWeb } from '../config/webLayout';
 
-export default function NotificationsScreen({ navigation }) {
+export default function NotificationsScreen({ navigation, route }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState(null);
+  // Prefer the role passed by the caller (authoritative, no race); else fetch it.
+  const [userRole, setUserRole] = useState(route?.params?.role || null);
   const { fetchUnreadCount } = useNotifications();
 
   useEffect(() => {
     fetchNotifications();
-    fetchUserRole();
+    if (!route?.params?.role) fetchUserRole();
   }, []);
 
   const fetchUserRole = async () => {
@@ -128,10 +129,21 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const handlePress = (item) => {
+  const handlePress = async (item) => {
     if (!item.isRead) markRead(item._id);
 
-    const isDoctor = userRole === 'doctor';
+    // Role may not have loaded yet (async fetch). Resolve it on-demand so a
+    // doctor tapping quickly isn't mis-routed into the patient flow.
+    let role = userRole;
+    if (!role) {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+        role = res.data?.data?.user?.role || res.data?.data?.role || null;
+        if (role) setUserRole(role);
+      } catch {}
+    }
+    const isDoctor = role === 'doctor';
 
     if (item.type === 'chat') {
       openChat(item);
@@ -271,16 +283,18 @@ export default function NotificationsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <SafeAreaView edges={isWeb ? [] : ['top']} style={styles.safeArea}>
       {/* Header */}
       <AnimatedHeader style={[styles.header, webContent]}>
-        <PressableScale
-          style={styles.backBtn}
-          hitSlop={10}
-          onPress={() => (navigation.canGoBack() ? navigation.goBack() : null)}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0A1551" />
-        </PressableScale>
+        {!isWeb && (
+          <PressableScale
+            style={styles.backBtn}
+            hitSlop={10}
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : null)}
+          >
+            <Ionicons name="arrow-back" size={24} color="#0A1551" />
+          </PressableScale>
+        )}
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 32 }} />
       </AnimatedHeader>

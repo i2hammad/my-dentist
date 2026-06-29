@@ -93,15 +93,17 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.safe}>
-      <View style={[styles.header, !isWeb && { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color="#FFF" />
-        </TouchableOpacity>
+      <View style={[styles.header, !isWeb && { paddingTop: insets.top + 8 }, isWeb && styles.webBlock]}>
+        {isWeb ? <View style={{ width: 40 }} /> : (
+          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={22} color="#FFF" />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle}>Appointment</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, isWeb && styles.webBlock]} showsVerticalScrollIndicator={false}>
         <View style={[styles.statusPill, { backgroundColor: cfg.bg, alignSelf: 'flex-start' }]}>
           <Ionicons name={cfg.icon} size={15} color={cfg.text} />
           <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
@@ -191,6 +193,8 @@ function Row({ icon, label, value, last }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: isWeb ? '#F1F5F9' : '#0052FF' },
+  // Web: center + cap content width so the header/cards aren't stretched edge-to-edge.
+  webBlock: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0052FF', paddingHorizontal: 16, paddingBottom: 16, paddingTop: 14, borderBottomLeftRadius: 22, borderBottomRightRadius: 22 },
   headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#FFF' },

@@ -61,9 +61,6 @@ export default function PromoBanner() {
         style={styles.banner}
         onPress={() => navigation.navigate('Promo', { campaign })}
       >
-        <View style={styles.adRow}>
-          <Text style={styles.adTag}>SPONSORED</Text>
-        </View>
         <View style={styles.contentRow}>
           {img
             ? <Image source={{ uri: img }} style={styles.thumb} />

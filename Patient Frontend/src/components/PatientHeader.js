@@ -65,7 +65,7 @@ export default function PatientHeader({ greeting, name, subtitle, showName }) {
           <View style={styles.headerLogoBadge}>
             <Image source={require('../../assets/logo-mark.png')} style={styles.headerLogo} resizeMode="contain" />
           </View>
-          <Text style={styles.headerTitle}>My Dentist</Text>
+          <Text style={styles.headerTitle}>My <Text style={{ color: '#BFD7FF' }}>Dentist</Text></Text>
         </View>
         <View style={styles.headerRight}>
           <PressableScale style={styles.bellWrapper} hitSlop={8} onPress={() => navigation.navigate('SavedDoctors')}>
@@ -77,7 +77,7 @@ export default function PatientHeader({ greeting, name, subtitle, showName }) {
               <View style={styles.notifBadge}><Text style={styles.notifBadgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text></View>
             )}
           </PressableScale>
-          <PressableScale style={styles.bellWrapper} hitSlop={8} onPress={() => navigation.navigate('Notifications')}>
+          <PressableScale style={styles.bellWrapper} hitSlop={8} onPress={() => navigation.navigate('Notifications', { role: 'patient' })}>
             <Ionicons name="notifications-outline" size={23} color="#FFFFFF" />
             {unreadCount > 0 && (
               <View style={styles.notifBadge}><Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>

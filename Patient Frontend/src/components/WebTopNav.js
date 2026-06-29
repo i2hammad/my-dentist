@@ -42,30 +42,39 @@ export default function WebTopNav({ navRef, navInfo }) {
   const { width } = useResponsive();
   // Center nav links only fit alongside the brand + icon cluster on wide screens.
   const showLinks = width >= 1024;
-  const [patientPhoto, setPatientPhoto] = useState(null);
+  const [userPhoto, setUserPhoto] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const rootRoute = navInfo?.root;
 
   useEffect(() => {
-    if (!rootRoute || HIDDEN_ON.has(rootRoute)) { setPatientPhoto(null); return; }
-    const loadPhoto = async () => {
+    if (!rootRoute || HIDDEN_ON.has(rootRoute)) { setUserPhoto(null); return; }
+    const loadUser = async () => {
       try {
         const token = await storage.getItem('userToken');
-        if (!token) { setPatientPhoto(null); return; }
+        if (!token) { setUserPhoto(null); setUserRole(null); return; }
         const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const img = res.data?.data?.profile?.profileImage;
-        setPatientPhoto(img ? imgUrl(img) : null);
-      } catch { setPatientPhoto(null); }
+        const p = res.data?.data?.profile || {};
+        // Patients store the avatar in `profileImage`, doctors in `photo`.
+        const img = p.profileImage || p.photo;
+        setUserPhoto(img ? imgUrl(img) : null);
+        setUserRole(res.data?.data?.user?.role || res.data?.data?.role || null);
+      } catch { setUserPhoto(null); }
     };
-    loadPhoto();
+    loadUser();
   }, [rootRoute]);
 
   if (!rootRoute || HIDDEN_ON.has(rootRoute)) return null;
   const navigate = (...args) => { try { navRef?.navigate?.(...args); } catch {} };
 
-  // Determine role. Doctor context = under DoctorTabs or on a doctor-only stack.
-  const isDoctorContext = rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup';
+  // Determine role from the logged-in USER (authoritative). Shared stack screens
+  // like Notifications/Chat have a non-tab rootRoute, so route-based detection
+  // alone wrongly fell back to patient — the user's role fixes that. Route check
+  // is only a fallback while the role loads.
+  const isDoctorContext = userRole
+    ? userRole === 'doctor'
+    : (rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup' || rootRoute === 'DoctorProfile');
   const isPatient = !isDoctorContext;
   const tabs = isPatient ? PATIENT_TABS : DOCTOR_TABS;
   const profileTabsRoute = isPatient ? 'MainTabs' : 'DoctorTabs';
@@ -121,7 +130,7 @@ export default function WebTopNav({ navRef, navInfo }) {
               </Pressable>
 
               {/* Notifications */}
-              <Pressable style={styles.iconPill} onPress={() => goStack('Notifications')}>
+              <Pressable style={styles.iconPill} onPress={() => navigate('Notifications', { role: 'patient' })}>
                 <View style={styles.iconCircle}>
                   <Ionicons name="notifications-outline" size={18} color="#7C3AED" />
                   {unreadCount > 0 && (
@@ -132,8 +141,8 @@ export default function WebTopNav({ navRef, navInfo }) {
 
               {/* Profile */}
               <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
-                {patientPhoto
-                  ? <Image source={{ uri: patientPhoto }} style={styles.profileAvatar} />
+                {userPhoto
+                  ? <Image source={{ uri: userPhoto }} style={styles.profileAvatar} />
                   : <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
                       <Ionicons name="person-outline" size={18} color="#0052FF" />
                     </View>
@@ -152,12 +161,27 @@ export default function WebTopNav({ navRef, navInfo }) {
         {/* RIGHT: Doctor icons */}
         {!isPatient && (
           <View style={styles.iconGroup}>
-            <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
-              <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="person-outline" size={18} color="#0052FF" />
+            {/* Notifications */}
+            <Pressable style={styles.iconPill} onPress={() => navigate('Notifications', { role: 'doctor' })}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="notifications-outline" size={18} color="#7C3AED" />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>
+                )}
               </View>
+            </Pressable>
+
+            {/* Profile (with photo) */}
+            <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
+              {userPhoto
+                ? <Image source={{ uri: userPhoto }} style={styles.profileAvatar} />
+                : <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                    <Ionicons name="person-outline" size={18} color="#0052FF" />
+                  </View>
+              }
               {showLinks && <Text style={[styles.profilePillText, isActive('Profile') && { color: '#0052FF' }]}>Profile</Text>}
             </Pressable>
+
             <Pressable style={[styles.logoutPill, !showLinks && styles.logoutPillBare]} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#DC2626" />
               {showLinks && <Text style={styles.logoutLabel}>Logout</Text>}
@@ -235,7 +259,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#FEE2E2',
     backgroundColor: '#FEF2F2',
   },
-  logoutPillBare: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 4, paddingVertical: 4 },
+  // Icon-only (mobile web): a round red-tinted button so it matches the bell/avatar circles.
+  logoutPillBare: { width: 36, height: 36, borderRadius: 18, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center', alignItems: 'center', borderColor: '#FEE2E2', backgroundColor: '#FEF2F2' },
   logoutLabel: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
 
   badge: {

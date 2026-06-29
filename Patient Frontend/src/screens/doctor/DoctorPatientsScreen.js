@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -7,12 +7,20 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
 import PromoBanner from '../../components/PromoBanner';
+import DoctorHeader from '../../components/DoctorHeader';
+
+const isWeb = Platform.OS === 'web';
+const PAGE_SIZE = 15; // patients shown per "page" (infinite scroll grows this)
 
 export default function DoctorPatientsScreen({ navigation }) {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const isFocused = useIsFocused();
+
+  // Reset the page window whenever the search changes.
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [searchQuery]);
 
   useEffect(() => {
     if (isFocused) {
@@ -76,20 +84,56 @@ export default function DoctorPatientsScreen({ navigation }) {
     );
   }
 
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = q
+    ? patients.filter(p => `${p.name} ${p.mobileNumber || ''}`.toLowerCase().includes(q))
+    : patients;
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visible.length < filtered.length;
+
+  const onScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 200 && hasMore) {
+      setVisibleCount((c) => c + PAGE_SIZE);
+    }
+  };
+
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('DoctorHome')}>
-          <Ionicons name="arrow-back" size={24} color="#0A1551" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Patients</Text>
-        <View style={{ width: 40 }} />
+    <SafeAreaView edges={[]} style={styles.safeArea}>
+      <DoctorHeader title="My Patients" />
+      {isWeb && (
+        <View style={[styles.headerBar, styles.webBlock]}>
+          <Text style={styles.headerTitle}>My Patients</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      )}
+
+      {/* Search */}
+      <View style={[styles.searchWrap, isWeb && styles.webBlock]}>
+        <Ionicons name="search-outline" size={18} color="#94A3B8" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name or phone..."
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, isWeb && styles.webBlock]}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+      >
         <PromoBanner />
-        {patients.length > 0 ? (
-          patients.map(p => (
+        {filtered.length > 0 ? (
+          visible.map(p => (
             <TouchableOpacity
               key={p.id}
               activeOpacity={0.8}
@@ -114,7 +158,12 @@ export default function DoctorPatientsScreen({ navigation }) {
         ) : (
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={64} color="#CBD5E1" />
-            <Text style={styles.emptyText}>You don't have any patients yet.</Text>
+            <Text style={styles.emptyText}>{q ? 'No patients match your search.' : "You don't have any patients yet."}</Text>
+          </View>
+        )}
+        {hasMore && (
+          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+            <ActivityIndicator color="#0052FF" />
           </View>
         )}
       </ScrollView>
@@ -123,6 +172,8 @@ export default function DoctorPatientsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  // Web: center content and cap width so rows/banner aren't stretched edge-to-edge.
+  webBlock: { width: '100%', maxWidth: 900, alignSelf: 'center' },
   safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
   headerBar: {
@@ -142,6 +193,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0A1551' },
   container: { padding: 20 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginHorizontal: 20, marginTop: 12 },
+  searchInput: { flex: 1, fontSize: 14, color: '#0F172A', paddingVertical: 6 },
   patientCard: {
     flexDirection: 'row',
     alignItems: 'center',

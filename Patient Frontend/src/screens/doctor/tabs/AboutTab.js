@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
-const isMobile = width < 768;
-
 export default function AboutTab({ profile, appointments, bills = [], reviewStats, navigation, setActiveTab }) {
+  // Use the LIVE window width — a module-level Dimensions.get() is captured once
+  // and is stale/wrong on web, which caused the About card to overlap the
+  // "Clinic Performance" section.
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+  const stack = { flexDirection: isMobile ? 'column' : 'row' };
   const upcoming = appointments?.upcoming || [];
   const past = appointments?.past || [];
   const allAppts = [...upcoming, ...past];
@@ -66,11 +69,13 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
     // Legacy fallback if no sessions set
     if (!t.morningStart && !t.eveningStart && t.startTime && t.endTime) lines.push(`${t.startTime} - ${t.endTime}`);
     if (t.offDays && t.offDays.length) lines.push(`Off: ${t.offDays.join(', ')}`);
-    return lines.length ? lines.join('\n') : 'Not specified';
+    return lines.length ? lines : ['Not specified'];
   };
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+    // Plain View — the parent DoctorHomeScreen already provides the scroll. A
+    // nested ScrollView here collapsed on web and let sections overlap.
+    <View style={styles.container}>
       {/* Dashboard Overview */}
       <Text style={styles.sectionTitle}>Dashboard Overview</Text>
       <View style={styles.statsRow}>
@@ -82,7 +87,7 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
 
       {/* About Doctor + Credentials */}
       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>About Doctor</Text>
-      <View style={styles.aboutContainer}>
+      <View style={[styles.aboutContainer, stack]}>
         <View style={styles.aboutLeft}>
           <Text style={styles.aboutText}>
             {profile?.about || 'No about information provided.'}
@@ -108,7 +113,7 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
       </View>
 
       {/* Today's Appointments + Recent Patients side by side */}
-      <View style={styles.bottomRow}>
+      <View style={[styles.bottomRow, stack]}>
         <View style={styles.bottomCard}>
           <View style={styles.bottomCardHeader}>
             <Text style={styles.bottomCardTitle}>Today's Appointments</Text>
@@ -174,7 +179,7 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
         </View>
       </View>
       <View style={{ height: 40 }} />
-    </ScrollView>
+    </View>
   );
 }
 
@@ -193,11 +198,19 @@ function StatCard({ icon, iconBg, iconColor, value, label, sub, trend }) {
 }
 
 function CredentialRow({ icon, label, value }) {
+  // value may be a string or an array of lines (e.g. clinic timing). Render each
+  // line as its own <Text> so the row grows with content on web (an embedded
+  // "\n" inside one <Text> didn't expand height on react-native-web → overlap).
+  const lines = Array.isArray(value) ? value : [value];
   return (
     <View style={styles.credRow}>
-      <Ionicons name={icon} size={16} color="#0052FF" />
+      <Ionicons name={icon} size={16} color="#0052FF" style={{ marginTop: 1 }} />
       <Text style={styles.credLabel} numberOfLines={1}>{label}</Text>
-      <Text style={styles.credValue}>{value}</Text>
+      <View style={{ flex: 1 }}>
+        {lines.map((ln, i) => (
+          <Text key={i} style={styles.credValue}>{ln}</Text>
+        ))}
+      </View>
     </View>
   );
 }
@@ -225,20 +238,20 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, color: '#64748B', marginTop: 4 },
   statSub: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
   statTrend: { fontSize: 10, fontWeight: '600', marginTop: 6 },
-  aboutContainer: { flexDirection: isMobile ? 'column' : 'row', gap: 12 },
+  aboutContainer: { gap: 12 },
   aboutLeft: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
   aboutText: { fontSize: 12, color: '#475569', lineHeight: 18 },
   aboutRight: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
   credRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   credLabel: { fontSize: 11, fontWeight: '600', color: '#0A1551', marginLeft: 6, width: 104, marginTop: 1 },
-  credValue: { fontSize: 11, color: '#475569', flex: 1, marginTop: 1 },
+  credValue: { fontSize: 11, color: '#475569', marginTop: 1, lineHeight: 16 },
   perfRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   perfCard: { flex: 1, minWidth: '46%', backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
   perfCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   perfLabel: { fontSize: 11, color: '#64748B' },
   perfValue: { fontSize: 18, fontWeight: 'bold' },
   perfSub: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
-  bottomRow: { flexDirection: isMobile ? 'column' : 'row', gap: 12, marginTop: 24 },
+  bottomRow: { gap: 12, marginTop: 24 },
   bottomCard: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
   bottomCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   bottomCardTitle: { fontSize: 13, fontWeight: 'bold', color: '#0A1551' },

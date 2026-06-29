@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Dimensions, Alert, Platform, AppState } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import storage from '../../config/storage';
 import confirmAlert from '../../utils/confirmAlert';
 import PromoBanner from '../../components/PromoBanner';
+import DoctorHeader from '../../components/DoctorHeader';
 import { openWhatsApp } from '../../utils/support';
+import { drName } from '../../utils/doctorName';
 import API_BASE_URL from '../../config/api';
 import imgUrl from '../../config/imgUrl';
 import { useNotifications } from '../../context/NotificationContext';
@@ -24,6 +27,7 @@ import BillsTab from './tabs/BillsTab';
 import RewardsTab from './tabs/RewardsTab';
 
 const { width } = Dimensions.get('window');
+const isWeb = Platform.OS === 'web';
 
 const TABS = [
   { id: 'about', label: 'About' },
@@ -54,6 +58,7 @@ const getMissingProfileFields = (p) => {
 };
 
 export default function DoctorHomeScreen({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState(null);
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
   const [bills, setBills] = useState([]);
@@ -211,55 +216,20 @@ export default function DoctorHomeScreen({ route, navigation }) {
   const photoUri = profile?.photo ? { uri: imgUrl(profile.photo) } : require('../../../assets/icon.png'); // fallback to generic app icon if possible or handle missing image in JSX
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      {/* Top Navbar */}
-      <View style={styles.navbar}>
-        {/* Brand + greeting */}
-        <View style={styles.navBrandRow}>
-          <View style={styles.navLogoBox}>
-            <Image source={require('../../../assets/logo-mark.png')} style={styles.navLogoImg} resizeMode="contain" />
-          </View>
-          <View style={{ flexShrink: 1 }}>
-            <Text style={styles.navBrandName}>My Dentist</Text>
-          </View>
-        </View>
+    <SafeAreaView edges={[]} style={styles.safeArea}>
+      {/* Shared branded doctor header (native only; web uses WebTopNav). */}
+      <DoctorHeader />
 
-        {/* Actions */}
-        <View style={styles.navActions}>
-          <TouchableOpacity
-            style={styles.navIconBtn}
-            onPress={() => navigation.navigate('Notifications')}
-          >
-            <Ionicons name="notifications-outline" size={22} color="#0A1551" />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navIconBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color="#0A1551" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navAvatarContainer} onPress={() => navigation.navigate('DoctorTabs', { screen: 'Profile' })}>
-            {profile?.photo ? (
-              <Image source={photoUri} style={styles.navAvatar} />
-            ) : (
-              <View style={[styles.navAvatar, { backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }]}>
-                <Ionicons name="person" size={20} color="#64748B" />
-              </View>
-            )}
-            <View style={styles.navOnlineDot} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[{ paddingBottom: 100 }, isWeb && styles.webContent]}
+        showsVerticalScrollIndicator={false}
+      >
         <PromoBanner />
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarLargeContainer}>
             {profile?.photo ? (
-              <Image source={photoUri} style={styles.avatarLarge} />
+              <Image source={{ uri: imgUrl(profile.photo) }} style={styles.avatarLarge} resizeMode="cover" />
             ) : (
               <View style={[styles.avatarLarge, { justifyContent: 'center', alignItems: 'center' }]}>
                 <Ionicons name="person" size={40} color="#94A3B8" />
@@ -273,7 +243,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
 
           <View style={styles.profileInfo}>
             <View style={styles.nameRow}>
-              <Text style={styles.doctorName}>Dr. {profile?.fullName || 'Not specified'}</Text>
+              <Text style={styles.doctorName}>{profile?.fullName ? drName(profile.fullName) : 'Not specified'}</Text>
               <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{marginLeft: 4}} />
             </View>
             <Text style={styles.specialtyText}>{profile?.specialization || 'General'}</Text>
@@ -370,9 +340,14 @@ export default function DoctorHomeScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  // Web: center the content and cap its width so it isn't stretched edge-to-edge
+  // (and reads well on small/narrow web windows).
+  webContent: { width: '100%', maxWidth: 980, alignSelf: 'center' },
   
   /* Navbar */
-  navbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  navbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, backgroundColor: '#F7FAFF', borderBottomWidth: 1, borderBottomColor: '#E8EFFB', position: 'relative', overflow: 'hidden' },
+  // Faint dental glyphs layered behind the white doctor navbar for subtle depth.
+  navGlyphs: { ...StyleSheet.absoluteFillObject },
   navBrandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   navLogoBox: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   navLogoImg: { width: 28, height: 28 },
@@ -380,7 +355,7 @@ const styles = StyleSheet.create({
   navDocName: { fontSize: 11, color: '#64748B', fontWeight: '500' },
   navActions: { flexDirection: 'row', alignItems: 'center' },
   navBackBtn: { padding: 4 },
-  navIconBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginLeft: 8, position: 'relative' },
+  navIconBtn: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center', marginLeft: 8, position: 'relative', shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   badge: { position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FFF' },
   badgeText: { color: '#FFF', fontSize: 8, fontWeight: 'bold' },
   navAvatarContainer: { position: 'relative', marginLeft: 12 },

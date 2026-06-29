@@ -12,7 +12,7 @@ const isWide = width >= 768;
 
 // Build the printable receipt HTML for either a thermal (57mm roll) or a
 // normal (A4/Letter) printer. `autoPrint` injects a window.print() for web.
-function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'thermal', autoPrint = false }) {
+export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'thermal', autoPrint = false }) {
   const isThermal = type === 'thermal';
   const rows = invoice.treatments
     .map((it, idx) => `<div class="row"><span>${idx + 1}. ${it.name}</span><span>${it.price}</span></div>`)
@@ -84,6 +84,9 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const [subTab, setSubTab] = useState('previous'); // previous, current, print
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [billSearch, setBillSearch] = useState('');
+  const [billStatusFilter, setBillStatusFilter] = useState('all');
+  const [billVisible, setBillVisible] = useState(20); // infinite-scroll window
   const [saving, setSaving] = useState(false);
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -451,6 +454,24 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const totalDiscount = bills.reduce((sum, b) => sum + (b.discountFromRewards || 0), 0);
   const totalOutstanding = bills.filter(b => b.status === 'unpaid').reduce((sum, b) => sum + Math.max(b.finalAmount - (b.paidAmount || 0), 0), 0);
 
+  // Search + status filter + infinite-scroll window for Previous Bills.
+  const billQ = billSearch.trim().toLowerCase();
+  const filteredBills = bills.filter((b) => {
+    if (billStatusFilter !== 'all' && (b.status || 'unpaid') !== billStatusFilter) return false;
+    if (!billQ) return true;
+    const hay = `${b.invoiceNumber || ''} ${b.treatmentName || ''} ${b.patientId?.fullName || ''}`.toLowerCase();
+    return hay.includes(billQ);
+  });
+  const visibleBills = filteredBills.slice(0, billVisible);
+  const hasMoreBills = visibleBills.length < filteredBills.length;
+  const BILL_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'paid', label: 'Paid' },
+    { key: 'unpaid', label: 'Unpaid' },
+    { key: 'draft', label: 'Draft' },
+  ];
+  React.useEffect(() => { setBillVisible(20); }, [billSearch, billStatusFilter]);
+
   return (
     <View style={styles.container}>
       {/* Sub Tabs — horizontal scroll so all tabs fit on any screen size */}
@@ -507,9 +528,36 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               </View>
             </View>
 
+            {/* Search + status filter */}
+            <View style={styles.billSearchWrap}>
+              <Ionicons name="search-outline" size={18} color="#94A3B8" />
+              <TextInput
+                style={styles.billSearchInput}
+                placeholder="Search invoice, treatment or patient..."
+                placeholderTextColor="#94A3B8"
+                value={billSearch}
+                onChangeText={setBillSearch}
+              />
+              {billSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setBillSearch('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.billFilterRow}>
+              {BILL_FILTERS.map((f) => {
+                const active = billStatusFilter === f.key;
+                return (
+                  <TouchableOpacity key={f.key} style={[styles.billChip, active && styles.billChipActive]} onPress={() => setBillStatusFilter(f.key)}>
+                    <Text style={[styles.billChipText, active && styles.billChipTextActive]}>{f.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             {loading ? (
               <ActivityIndicator size="small" color="#0052FF" style={{ marginVertical: 30 }} />
-            ) : bills.length > 0 ? (
+            ) : filteredBills.length > 0 ? (
               <ScrollView horizontal={!isWide} showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
                 <View style={styles.tableContainer}>
                   <View style={styles.tableHeader}>
@@ -525,7 +573,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                     <Text style={[styles.th, {width: 80, textAlign: 'center'}]}>Download</Text>
                   </View>
 
-                  {bills.map((inv, idx) => {
+                  {visibleBills.map((inv, idx) => {
                     const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
                     const billOut = Math.max(inv.finalAmount - (inv.paidAmount || 0), 0);
                     return (
@@ -600,7 +648,24 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 </View>
               </ScrollView>
             ) : (
-              <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>No bills found. Create a bill in the 'Current Bill' tab.</Text>
+              <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
+                {billQ || billStatusFilter !== 'all' ? 'No bills match your search.' : "No bills found. Create a bill in the 'Current Bill' tab."}
+              </Text>
+            )}
+
+            {/* Pagination: showing count + Load More */}
+            {!loading && filteredBills.length > 0 && (
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <Text style={{ color: '#94A3B8', fontSize: 12, marginBottom: hasMoreBills ? 10 : 0 }}>
+                  Showing {visibleBills.length} of {filteredBills.length}
+                </Text>
+                {hasMoreBills && (
+                  <TouchableOpacity style={styles.loadMoreBtn} onPress={() => setBillVisible((c) => c + 20)}>
+                    <Text style={styles.loadMoreText}>Load More</Text>
+                    <Ionicons name="chevron-down" size={16} color="#0052FF" style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
 
             {/* Support & Help — same card as the Profile tab (synced via utils/support.js) */}
@@ -925,6 +990,15 @@ const styles = StyleSheet.create({
 
   pageTitle: { fontSize: 20, fontWeight: 'bold', color: '#0A1551' },
   pageSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 20 },
+  billSearchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginBottom: 10 },
+  billSearchInput: { flex: 1, fontSize: 14, color: '#0F172A', paddingVertical: 6 },
+  billFilterRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  billChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
+  billChipActive: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  billChipText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  billChipTextActive: { color: '#FFFFFF' },
+  loadMoreBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22 },
+  loadMoreText: { color: '#0052FF', fontWeight: '700', fontSize: 13 },
 
   /* Previous Bills Stats */
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20, flexWrap: 'wrap' },

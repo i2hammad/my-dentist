@@ -22,7 +22,7 @@ const isWeb = Platform.OS === 'web';
 export default function DoctorHeader({ title, subtitle, right }) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, unreadChatCount = 0 } = useNotifications();
   const [photo, setPhoto] = useState(null);
 
   useEffect(() => {
@@ -72,6 +72,12 @@ export default function DoctorHeader({ title, subtitle, right }) {
 
           {/* Actions */}
           <View style={styles.actions}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('DoctorTabs', { screen: 'Inbox' })}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color="#0A1551" />
+              {unreadChatCount > 0 && (
+                <View style={styles.badge}><Text style={styles.badgeText}>{unreadChatCount > 99 ? '99+' : unreadChatCount}</Text></View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Notifications', { role: 'doctor' })}>
               <Ionicons name="notifications-outline" size={22} color="#0A1551" />
               {unreadCount > 0 && (

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,9 +9,21 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import PromoCard from '../components/PromoCard';
 import PatientHeader from '../components/PatientHeader';
+import { showDialog } from '../components/AppDialog';
+import PaymentSheet from '../components/PaymentSheet';
+import { buildReceiptHtml } from './doctor/tabs/BillsTab';
 import webContent, { isWeb } from '../config/webLayout';
+
+const PAGE_SIZE = 15; // bills per page (infinite scroll grows this)
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'draft', label: 'Draft' },
+];
 
 const rs = (n) => `Rs. ${Number(n || 0).toLocaleString()}`;
 const fmtDate = (d) => {
@@ -21,9 +33,10 @@ const fmtDate = (d) => {
 };
 
 const STATUS = {
-  paid:   { color: '#16A34A', bg: '#DCFCE7', label: 'Paid', icon: 'checkmark-circle' },
-  unpaid: { color: '#D97706', bg: '#FEF3C7', label: 'Unpaid', icon: 'time' },
-  draft:  { color: '#6B7280', bg: '#F3F4F6', label: 'Draft', icon: 'document-outline' },
+  paid:            { color: '#16A34A', bg: '#DCFCE7', label: 'Paid', icon: 'checkmark-circle' },
+  unpaid:          { color: '#D97706', bg: '#FEF3C7', label: 'Unpaid', icon: 'time' },
+  draft:           { color: '#6B7280', bg: '#F3F4F6', label: 'Draft', icon: 'document-outline' },
+  payment_pending: { color: '#7C3AED', bg: '#EDE9FE', label: 'Awaiting Confirmation', icon: 'hourglass-outline' },
 };
 
 function SummaryCard({ icon, label, value, color }) {
@@ -38,11 +51,12 @@ function SummaryCard({ icon, label, value, color }) {
   );
 }
 
-function BillCard({ bill, onPress }) {
+function BillCard({ bill, onPress, onPay, onDownload, paying }) {
   const doc = bill.doctorId || {};
   const s = STATUS[bill.status] || STATUS.unpaid;
   const final = bill.finalAmount || bill.amount;
   const hasDiscount = (bill.discountFromRewards || 0) > 0;
+  const isUnpaid = bill.status === 'unpaid';
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => onPress(bill)}>
       <View style={styles.cardTop}>
@@ -71,6 +85,40 @@ function BillCard({ bill, onPress }) {
           <Text style={styles.amount}>{rs(final)}</Text>
         </View>
       </View>
+
+      {bill.status === 'payment_pending' && (
+        <View style={styles.pendingHint}>
+          <Ionicons name="hourglass-outline" size={14} color="#7C3AED" />
+          <Text style={styles.pendingHintText}>
+            {bill.paymentMethodLabel ? `${bill.paymentMethodLabel} · ` : ''}Awaiting doctor confirmation
+          </Text>
+        </View>
+      )}
+
+      {/* Actions: preview/download receipt (always) + pay (unpaid only) */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.previewBtn} activeOpacity={0.85} onPress={() => onDownload(bill)}>
+          <Ionicons name="receipt-outline" size={16} color="#0052FF" />
+          <Text style={styles.previewBtnText}>Invoice</Text>
+        </TouchableOpacity>
+        {isUnpaid && (
+          <TouchableOpacity
+            style={styles.payBtn}
+            activeOpacity={0.85}
+            disabled={paying}
+            onPress={() => onPay(bill)}
+          >
+            {paying ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="card-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.payBtnText}>Pay Now · {rs(final)}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -79,6 +127,14 @@ export default function BillsHistoryScreen({ navigation }) {
   const [bills, setBills] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState(null);
+  const [paySheetBill, setPaySheetBill] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset the page window whenever search/filter changes.
+  React.useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search, statusFilter]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -108,6 +164,94 @@ export default function BillsHistoryScreen({ navigation }) {
     if (doc?._id) navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc });
   };
 
+  // Open the payment-method sheet.
+  const payNow = (bill) => setPaySheetBill(bill);
+
+  // Called by PaymentSheet with the chosen method.
+  const doPay = async (selection) => {
+    const bill = paySheetBill;
+    if (!bill) return;
+    setPaySheetBill(null);
+    setPayingId(bill._id);
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.put(`${API_BASE_URL}/api/bills/${bill._id}/pay`, selection, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data?.success) {
+        if (res.data.data?.pending) {
+          showDialog({ title: 'Cash Payment Recorded', message: `Marked bill #${bill.invoiceNumber} as paid by cash. Awaiting your doctor's confirmation.` });
+        } else {
+          showDialog({ title: 'Payment Successful', message: `Bill #${bill.invoiceNumber} has been paid.` });
+        }
+        fetchData(); // refresh list + summary
+      } else {
+        showDialog({ title: 'Payment Failed', message: res.data?.message || 'Could not pay this bill.' });
+      }
+    } catch (e) {
+      showDialog({ title: 'Payment Failed', message: e.response?.data?.message || 'Something went wrong. Please try again.' });
+    } finally {
+      setPayingId(null);
+    }
+  };
+
+  // Download / share the bill receipt (reuses the doctor BillsTab receipt builder).
+  const downloadReceipt = async (bill) => {
+    const doc = bill.doctorId || {};
+    const final = bill.finalAmount || bill.amount;
+    const invoice = {
+      invoiceNumber: bill.invoiceNumber,
+      date: fmtDate(bill.paidAt || bill.createdAt),
+      time: '',
+      patientName: 'You',
+      patientPhone: '',
+      treatments: String(bill.treatmentName || 'Treatment').split(',').map((n) => ({ name: n.trim(), price: '' })),
+      total: bill.amount,
+      discount: bill.discountFromRewards || 0,
+      paid: bill.paidAmount || 0,
+      outstanding: Math.max(0, final - (bill.paidAmount || 0)),
+      status: bill.status || 'unpaid',
+    };
+    const meta = {
+      docName: doc.fullName || 'Doctor',
+      clinic: doc.clinicName || 'Clinic',
+      spec: doc.specialization || '',
+    };
+    try {
+      if (isWeb) {
+        const html = buildReceiptHtml(invoice, { ...meta, type: 'normal', autoPrint: true });
+        const w = window.open('', '_blank');
+        if (w) { w.document.write(html); w.document.close(); }
+        return;
+      }
+      const Print = require('expo-print');
+      const html = buildReceiptHtml(invoice, { ...meta, type: 'thermal', autoPrint: false });
+      const { uri } = await Print.printToFileAsync({ html, width: 162 });
+      const Sharing = require('expo-sharing');
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+    } catch {
+      showDialog({ title: 'Error', message: 'Could not generate the receipt.' });
+    }
+  };
+
+  // Search + status filter + infinite-scroll window.
+  const q = search.trim().toLowerCase();
+  const filteredBills = bills.filter((b) => {
+    if (statusFilter !== 'all' && (b.status || 'unpaid') !== statusFilter) return false;
+    if (!q) return true;
+    const hay = `${b.invoiceNumber || ''} ${b.treatmentName || ''} ${b.doctorId?.fullName || ''}`.toLowerCase();
+    return hay.includes(q);
+  });
+  const visibleBills = filteredBills.slice(0, visibleCount);
+  const hasMore = visibleBills.length < filteredBills.length;
+
+  const onScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 200 && hasMore) {
+      setVisibleCount((c) => c + PAGE_SIZE);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
       {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
@@ -117,6 +261,8 @@ export default function BillsHistoryScreen({ navigation }) {
         style={styles.body}
         contentContainerStyle={[styles.bodyContent, webContent]}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         <PromoCard />
 
@@ -143,13 +289,71 @@ export default function BillsHistoryScreen({ navigation }) {
               </View>
             ) : (
               <>
-                <Text style={styles.countLabel}>{bills.length} bill{bills.length === 1 ? '' : 's'}</Text>
-                {bills.map((b) => <BillCard key={b._id} bill={b} onPress={openBill} />)}
+                {/* Search */}
+                <View style={styles.searchWrap}>
+                  <Ionicons name="search-outline" size={18} color="#94A3B8" />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search invoice, treatment or doctor..."
+                    placeholderTextColor="#94A3B8"
+                    value={search}
+                    onChangeText={setSearch}
+                  />
+                  {search.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+                      <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Status filter chips */}
+                <View style={styles.filterRow}>
+                  {STATUS_FILTERS.map((f) => {
+                    const active = statusFilter === f.key;
+                    return (
+                      <TouchableOpacity key={f.key} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setStatusFilter(f.key)}>
+                        <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {filteredBills.length === 0 ? (
+                  <Text style={styles.noMatch}>No bills match your search.</Text>
+                ) : (
+                  <>
+                    <Text style={styles.countLabel}>
+                      Showing {visibleBills.length} of {filteredBills.length}
+                    </Text>
+                    {visibleBills.map((b) => (
+                      <BillCard
+                        key={b._id}
+                        bill={b}
+                        onPress={openBill}
+                        onPay={payNow}
+                        onDownload={downloadReceipt}
+                        paying={payingId === b._id}
+                      />
+                    ))}
+                    {hasMore && (
+                      <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                        <ActivityIndicator color="#0052FF" />
+                      </View>
+                    )}
+                  </>
+                )}
               </>
             )}
           </>
         )}
       </ScrollView>
+
+      <PaymentSheet
+        visible={!!paySheetBill}
+        bill={paySheetBill}
+        onClose={() => setPaySheetBill(null)}
+        onConfirm={doPay}
+      />
     </SafeAreaView>
   );
 }
@@ -176,6 +380,14 @@ const styles = StyleSheet.create({
   sumLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
 
   countLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginTop: 18, marginBottom: 10, marginHorizontal: 18 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginHorizontal: 16, marginTop: 16 },
+  searchInput: { flex: 1, fontSize: 14, color: '#0F172A', paddingVertical: 6 },
+  filterRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 10, flexWrap: 'wrap' },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
+  filterChipActive: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  filterChipTextActive: { color: '#FFFFFF' },
+  noMatch: { textAlign: 'center', color: '#94A3B8', fontSize: 13, marginVertical: 30 },
 
   card: {
     marginHorizontal: 16, marginBottom: 12,
@@ -196,6 +408,13 @@ const styles = StyleSheet.create({
   date: { fontSize: 11.5, color: '#94A3B8', marginTop: 2 },
   discount: { fontSize: 11, color: '#16A34A', fontWeight: '700', marginBottom: 2 },
   amount: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  pendingHint: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F5F3FF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 12 },
+  pendingHintText: { fontSize: 12, color: '#7C3AED', fontWeight: '700' },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  previewBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
+  previewBtnText: { color: '#0052FF', fontWeight: '800', fontSize: 14 },
+  payBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 11 },
+  payBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 50 },
   emptyTitle: { fontSize: 16, fontWeight: '800', color: '#475569', marginTop: 14 },

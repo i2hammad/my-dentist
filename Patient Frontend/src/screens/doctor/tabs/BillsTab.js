@@ -125,6 +125,27 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     Alert.alert('Editing Draft', 'This draft is loaded for editing. Save it as a final bill or update the draft.');
   };
 
+  // Doctor confirms a pending (cash) payment.
+  const confirmPayment = (bill) => {
+    const run = async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.put(`${API_BASE_URL}/api/bills/${bill._id}/confirm-payment`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.data?.success) { Alert.alert('Confirmed', `Payment for ${bill.invoiceNumber} confirmed.`); fetchBills(); }
+        else Alert.alert('Error', res.data?.message || 'Could not confirm payment.');
+      } catch (e) {
+        Alert.alert('Error', e.response?.data?.message || 'Could not confirm payment.');
+      }
+    };
+    if (Platform.OS === 'web') { run(); return; }
+    Alert.alert('Confirm Payment', `Confirm cash payment received for ${bill.invoiceNumber}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: run },
+    ]);
+  };
+
   useEffect(() => {
     fetchBills();
     
@@ -467,6 +488,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const BILL_FILTERS = [
     { key: 'all', label: 'All' },
     { key: 'paid', label: 'Paid' },
+    { key: 'payment_pending', label: 'Pending' },
     { key: 'unpaid', label: 'Unpaid' },
     { key: 'draft', label: 'Draft' },
   ];
@@ -586,15 +608,29 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                         <Text style={[styles.td, {width: 100}]}>PKR {inv.discountFromRewards || 0}</Text>
                         <Text style={[styles.td, {width: 100}]}>PKR {billOut}</Text>
                         <View style={{width: 80, alignItems: 'center'}}>
-                          <View style={[styles.statusBadge, {backgroundColor: inv.status === 'paid' ? '#DCFCE7' : inv.status === 'draft' ? '#FEF3C7' : '#FEE2E2'}]}>
-                            <Text style={[styles.statusBadgeText, {color: inv.status === 'paid' ? '#16A34A' : inv.status === 'draft' ? '#D97706' : '#DC2626'}]}>
-                              {inv.status === 'paid' ? 'Paid' : inv.status === 'draft' ? 'Draft' : 'Unpaid'}
-                            </Text>
-                          </View>
+                          {(() => {
+                            const sm = {
+                              paid:            { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
+                              draft:           { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
+                              payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
+                              unpaid:          { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
+                            }[inv.status] || { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' };
+                            return (
+                              <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
+                                <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
+                              </View>
+                            );
+                          })()}
                           {inv.status === 'draft' && (
                             <TouchableOpacity onPress={() => editDraft(inv)} style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
                               <Ionicons name="create-outline" size={13} color="#0052FF" />
                               <Text style={{ color: '#0052FF', fontSize: 11, fontWeight: '700', marginLeft: 2 }}>Edit</Text>
+                            </TouchableOpacity>
+                          )}
+                          {inv.status === 'payment_pending' && (
+                            <TouchableOpacity onPress={() => confirmPayment(inv)} style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
+                              <Ionicons name="checkmark-circle-outline" size={13} color="#16A34A" />
+                              <Text style={{ color: '#16A34A', fontSize: 11, fontWeight: '700', marginLeft: 2 }}>Confirm</Text>
                             </TouchableOpacity>
                           )}
                         </View>

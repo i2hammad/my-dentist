@@ -14,9 +14,10 @@ const isWeb = Platform.OS === 'web';
 const rs = (n) => `Rs. ${Number(n || 0).toLocaleString()}`;
 
 const BILL_STATUS = {
-  paid:   { bg: '#DCFCE7', text: '#16A34A', label: 'Paid' },
-  unpaid: { bg: '#FEF3C7', text: '#D97706', label: 'Unpaid' },
-  draft:  { bg: '#F3F4F6', text: '#6B7280', label: 'Draft' },
+  paid:            { bg: '#DCFCE7', text: '#16A34A', label: 'Paid' },
+  unpaid:          { bg: '#FEF3C7', text: '#D97706', label: 'Unpaid' },
+  draft:           { bg: '#F3F4F6', text: '#6B7280', label: 'Draft' },
+  payment_pending: { bg: '#EDE9FE', text: '#7C3AED', label: 'Pending' },
 };
 
 const STATUS = {

@@ -26,6 +26,7 @@ const DOCTOR_TABS = [
   { name: 'DoctorHome', label: 'Home', icon: 'home', tabsRoute: 'DoctorTabs' },
   { name: 'Appointments', label: 'Appointments', icon: 'calendar', tabsRoute: 'DoctorTabs' },
   { name: 'Patients', label: 'Patients', icon: 'people', tabsRoute: 'DoctorTabs' },
+  { name: 'DoctorBills', label: 'Bills', icon: 'receipt', tabsRoute: 'DoctorTabs' },
   { name: 'Inbox', label: 'Inbox', icon: 'chatbubbles', tabsRoute: 'DoctorTabs' },
 ];
 

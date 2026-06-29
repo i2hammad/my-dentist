@@ -155,7 +155,7 @@ export default function NotificationsScreen({ navigation, route }) {
       }
     } else if (item.type === 'bill' || item.type === 'payment') {
       if (isDoctor) {
-        navigation.navigate('DoctorTabs', { screen: 'DoctorHome', params: { initialTab: 'bills' } });
+        navigation.navigate('DoctorTabs', { screen: 'DoctorBills' });
       } else {
         openPatientBill(item);
       }

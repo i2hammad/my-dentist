@@ -36,6 +36,7 @@ import DoctorProfileScreenDoc from '../screens/doctor/DoctorProfileScreen';
 import DoctorRegisterScreen from '../screens/doctor/DoctorRegisterScreen';
 import ClinicSetupScreen from '../screens/doctor/ClinicSetupScreen';
 import DoctorInboxScreen from '../screens/doctor/DoctorInboxScreen';
+import DoctorBillsScreen from '../screens/doctor/DoctorBillsScreen';
 
 import ImplantsScreen from '../screens/ImplantsScreen';
 import MyReviewsScreen from '../screens/MyReviewsScreen';
@@ -137,6 +138,7 @@ function DoctorTabNavigator() {
           if (route.name === 'DoctorHome') iconName = focused ? 'home' : 'home-outline';
           else if (route.name === 'Appointments') iconName = focused ? 'calendar' : 'calendar-outline';
           else if (route.name === 'Patients') iconName = focused ? 'people' : 'people-outline';
+          else if (route.name === 'DoctorBills') iconName = focused ? 'receipt' : 'receipt-outline';
           else if (route.name === 'Inbox') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
           else iconName = 'ellipse';
@@ -149,7 +151,10 @@ function DoctorTabNavigator() {
       <Tab.Screen name="DoctorHome" component={DoctorHomeScreen} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen name="Appointments" component={DoctorAppointmentsScreen} />
       <Tab.Screen name="Patients" component={DoctorPatientsScreen} />
-      <Tab.Screen name="Inbox" component={DoctorInboxScreen} options={{ tabBarBadge: chatBadge }} />
+      <Tab.Screen name="DoctorBills" component={DoctorBillsScreen} options={{ tabBarLabel: 'Bills' }} />
+      {/* Inbox + Profile are reachable from the top header (chat icon / avatar),
+          so they're hidden from the bottom bar. */}
+      <Tab.Screen name="Inbox" component={DoctorInboxScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tab.Screen name="Profile" component={DoctorProfileScreenDoc} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
     </Tab.Navigator>
   );

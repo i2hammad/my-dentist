@@ -13,6 +13,7 @@ const {
   createBill,
   updateBill,
   payBill,
+  confirmPayment,
   downloadBill,
   getPatientBills
 } = require('../controllers/bill.controller');
@@ -137,15 +138,29 @@ router.get(
 );
 
 // @route   PUT /api/bills/:id/pay
-// @desc    Pay a bill (patient only)
+// @desc    Pay a bill (patient only) — card/wallet settles, cash awaits confirm
 router.put(
   '/:id/pay',
   authorize('patient'),
   [
-    param('id').isMongoId().withMessage('Invalid bill ID')
+    param('id').isMongoId().withMessage('Invalid bill ID'),
+    body('paymentMethodId').optional().isMongoId().withMessage('Invalid payment method'),
+    body('paymentType').optional().isIn(['card', 'wallet', 'cash']).withMessage('Invalid payment type'),
   ],
   validate,
   payBill
+);
+
+// @route   PUT /api/bills/:id/confirm-payment
+// @desc    Doctor confirms a pending (cash) payment
+router.put(
+  '/:id/confirm-payment',
+  authorize('doctor'),
+  [
+    param('id').isMongoId().withMessage('Invalid bill ID')
+  ],
+  validate,
+  confirmPayment
 );
 
 // @route   GET /api/bills/:id/download

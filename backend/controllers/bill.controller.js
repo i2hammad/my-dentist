@@ -3,6 +3,7 @@ const PatientProfile = require('../models/PatientProfile');
 const DoctorProfile = require('../models/DoctorProfile');
 const Reward = require('../models/Reward');
 const Notification = require('../models/Notification');
+const PaymentMethod = require('../models/PaymentMethod');
 const { generateInvoiceNumber } = require('../utils/invoiceGenerator');
 
 // @desc    Get current user's bills (paginated)
@@ -284,19 +285,61 @@ const payBill = async (req, res) => {
       });
     }
 
-    if (bill.status === 'paid') {
+    if (bill.status === 'paid' || bill.status === 'payment_pending') {
       return res.status(400).json({
         success: false,
-        message: 'Bill is already paid'
+        message: bill.status === 'paid' ? 'Bill is already paid' : 'Payment already submitted, awaiting confirmation'
       });
     }
 
-    // Mark as paid
+    // ── Resolve the payment method ──
+    const { paymentMethodId } = req.body;
+    let paymentType = req.body.paymentType || 'cash';
+    let paymentMethodLabel = req.body.paymentMethodLabel || '';
+
+    if (paymentMethodId) {
+      const method = await PaymentMethod.findById(paymentMethodId);
+      if (!method || method.userId.toString() !== req.user._id.toString()) {
+        return res.status(400).json({ success: false, message: 'Invalid payment method' });
+      }
+      const isCard = method.type === 'visa' || method.type === 'mastercard';
+      paymentType = isCard ? 'card' : 'wallet';
+      paymentMethodLabel = `${String(method.type).toUpperCase()}${method.lastFourDigits ? ` ••••${method.lastFourDigits}` : ''}`;
+    } else if (paymentType === 'cash') {
+      paymentMethodLabel = paymentMethodLabel || 'Cash';
+    }
+
+    bill.paymentMethodId = paymentMethodId || null;
+    bill.paymentType = paymentType;
+    bill.paymentMethodLabel = paymentMethodLabel;
+
+    // Cash → needs doctor confirmation. Card/wallet → settled instantly.
+    if (paymentType === 'cash') {
+      bill.status = 'payment_pending';
+      await bill.save();
+
+      await Notification.create({
+        userId: bill.doctorId.userId,
+        type: 'bill',
+        title: 'Cash Payment to Confirm',
+        message: `${bill.patientId.fullName} marked bill ${bill.invoiceNumber} as paid by cash — confirm receipt.`,
+        relatedId: bill._id,
+        data: { billId: String(bill._id), action: 'confirm-payment' },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Marked as cash payment — awaiting doctor confirmation',
+        data: { bill, rewardPointsEarned: 0, pending: true },
+      });
+    }
+
+    // Card / wallet — mark paid now
     bill.status = 'paid';
     bill.paidAt = new Date();
+    bill.paidAmount = bill.finalAmount || bill.amount;
     await bill.save();
 
-    // Create reward entry for the patient (2% of amount)
     const rewardPoints = Math.floor(bill.amount * 0.02);
     if (rewardPoints > 0) {
       await Reward.create({
@@ -307,22 +350,19 @@ const payBill = async (req, res) => {
       });
     }
 
-    // Notify the doctor
     await Notification.create({
       userId: bill.doctorId.userId,
       type: 'bill',
       title: 'Bill Payment Received',
-      message: `${bill.patientId.fullName} has paid bill ${bill.invoiceNumber} ($${bill.amount.toFixed(2)}).`,
-      relatedId: bill._id
+      message: `${bill.patientId.fullName} paid bill ${bill.invoiceNumber} (PKR ${(bill.finalAmount || bill.amount).toLocaleString()}) via ${paymentMethodLabel}.`,
+      relatedId: bill._id,
+      data: { billId: String(bill._id) },
     });
 
     res.status(200).json({
       success: true,
       message: 'Bill paid successfully',
-      data: {
-        bill,
-        rewardPointsEarned: rewardPoints
-      }
+      data: { bill, rewardPointsEarned: rewardPoints }
     });
   } catch (error) {
     res.status(500).json({
@@ -330,6 +370,62 @@ const payBill = async (req, res) => {
       message: 'Failed to process payment',
       error: error.message
     });
+  }
+};
+
+// @desc    Doctor confirms a pending (cash) payment
+// @route   PUT /api/bills/:id/confirm-payment
+// @access  Private (Doctor only)
+const confirmPayment = async (req, res) => {
+  try {
+    const bill = await Bill.findById(req.params.id)
+      .populate({ path: 'patientId', select: 'userId fullName' })
+      .populate({ path: 'doctorId', select: 'userId fullName' });
+
+    if (!bill) {
+      return res.status(404).json({ success: false, message: 'Bill not found' });
+    }
+
+    const isDoctor = bill.doctorId &&
+      bill.doctorId.userId &&
+      bill.doctorId.userId.toString() === req.user._id.toString();
+    if (!isDoctor) {
+      return res.status(403).json({ success: false, message: 'Not authorized to confirm this payment' });
+    }
+
+    if (bill.status !== 'payment_pending') {
+      return res.status(400).json({ success: false, message: 'This bill is not awaiting payment confirmation' });
+    }
+
+    bill.status = 'paid';
+    bill.paidAt = new Date();
+    bill.paidAmount = bill.finalAmount || bill.amount;
+    await bill.save();
+
+    // Grant the reward now that the cash payment is confirmed.
+    const rewardPoints = Math.floor(bill.amount * 0.02);
+    if (rewardPoints > 0) {
+      await Reward.create({
+        patientId: bill.patientId._id,
+        type: 'visit',
+        points: rewardPoints,
+        description: 'Points earned from payment'
+      });
+    }
+
+    // Notify the patient.
+    await Notification.create({
+      userId: bill.patientId.userId,
+      type: 'bill',
+      title: 'Payment Confirmed',
+      message: `${bill.doctorId.fullName || 'Your doctor'} confirmed your payment for bill ${bill.invoiceNumber}.`,
+      relatedId: bill._id,
+      data: { billId: String(bill._id) },
+    });
+
+    res.status(200).json({ success: true, message: 'Payment confirmed', data: { bill, rewardPointsEarned: rewardPoints } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to confirm payment', error: error.message });
   }
 };
 
@@ -580,6 +676,7 @@ module.exports = {
   createBill,
   updateBill,
   payBill,
+  confirmPayment,
   downloadBill,
   getPatientBills
 };

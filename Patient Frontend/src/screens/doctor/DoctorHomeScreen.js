@@ -36,7 +36,6 @@ const TABS = [
   { id: 'facilities', label: 'Facilities' },
   { id: 'reviews', label: 'Reviews' },
   { id: 'appointments', label: 'Appointments' },
-  { id: 'bills', label: 'Bills & Bill History' },
   { id: 'rewards', label: 'Rewards & Payments' }
 ];
 
@@ -329,7 +328,6 @@ export default function DoctorHomeScreen({ route, navigation }) {
           {activeTab === 'facilities' && <FacilitiesTab profile={profile} />}
           {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
           {activeTab === 'appointments' && <AppointmentsTab appointments={appointments} onRefresh={fetchData} navigation={navigation} setActiveTab={setActiveTab} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
-          {activeTab === 'bills' && <BillsTab profile={profile} appointments={appointments} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
           {activeTab === 'rewards' && <RewardsTab profile={profile} bills={bills} setActiveTab={setActiveTab} />}
         </View>
       </ScrollView>

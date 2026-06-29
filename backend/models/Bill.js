@@ -49,10 +49,22 @@ const billSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ['paid', 'unpaid', 'draft'],
+        values: ['paid', 'unpaid', 'draft', 'payment_pending'],
         message: '{VALUE} is not a valid bill status',
       },
       default: 'unpaid',
+    },
+    // How the bill was paid (recorded at pay time).
+    paymentMethodId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PaymentMethod',
+      default: null,
+    },
+    paymentMethodLabel: { type: String, default: '' },
+    paymentType: {
+      type: String,
+      enum: ['card', 'wallet', 'cash', null],
+      default: null,
     },
     dueDate: {
       type: Date,

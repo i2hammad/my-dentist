@@ -49,9 +49,6 @@ export default function PromoBanner() {
         ? <Image source={{ uri: img }} style={styles.thumb} />
         : <View style={[styles.thumb, styles.thumbPlaceholder]}><Ionicons name="medkit" size={20} color="#8B5CF6" /></View>}
       <View style={styles.textWrap}>
-        <View style={styles.adRow}>
-          <Text style={styles.adTag}>SPONSORED</Text>
-        </View>
         <Text style={styles.title} numberOfLines={1}>{campaign.title}</Text>
         {!!campaign.bannerText && <Text style={styles.sub} numberOfLines={1}>{campaign.bannerText}</Text>}
       </View>

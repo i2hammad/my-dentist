@@ -222,10 +222,10 @@ const forgotPassword = async (req, res) => {
     const { sendEmail } = require('../utils/mailer');
     await sendEmail({
       to: user.email,
-      subject: 'My Dentist PK — Your New Password',
+      subject: 'My Dentist — Your New Password',
       text: `Your password has been reset.\n\nNew password: ${newPassword}\n\nPlease log in and change it from your profile for security.`,
       html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
-        <h2 style="color:#2563EB">My Dentist PK</h2>
+        <h2 style="color:#2563EB">My Dentist</h2>
         <p>Your password has been reset as requested.</p>
         <p style="font-size:16px">New password: <b style="background:#EFF6FF;padding:4px 10px;border-radius:6px">${newPassword}</b></p>
         <p style="color:#64748B;font-size:13px">For your security, please log in and change this password from your profile.</p>

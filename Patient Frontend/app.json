@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "My Dentist PK",
+    "name": "My Dentist",
     "slug": "patient-app",
     "scheme": "mydentist",
     "version": "1.0.0",
@@ -16,22 +16,30 @@
       "versionCode": 1,
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/app-logo.png",
+        "monochromeImage": "./assets/app-logo.png"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/app-logo.png"
     },
     "plugins": [
       "expo-secure-store",
       "@react-native-community/datetimepicker",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app-logo.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
+      [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow My Dentist PK to use your location to set your clinic's precise coordinates."
+          "locationAlwaysAndWhenInUsePermission": "Allow My Dentist to use your location to set your clinic's precise coordinates."
         }
       ]
     ]

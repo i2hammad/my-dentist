@@ -1,4 +1,4 @@
-// My Dentist PK — oladoc/Marham-style landing page.
+// My Dentist — oladoc/Marham-style landing page.
 import { useEffect, useState } from 'react';
 import {
   Tooth, MagnifyingGlass, CalendarCheck, ChatCircleDots, Receipt, Gift, ShieldCheck,

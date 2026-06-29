@@ -28,8 +28,8 @@ export default function WebAuthLayout({ children, title, subtitle, onBack }) {
         <View style={styles.blobB} />
         <View style={styles.brandInner}>
           <View style={styles.logoRow}>
-            <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.brandText}>My Dentist PK</Text>
+            <Image source={require('../../assets/logo-mark.png')} style={styles.logo} resizeMode="contain" />
+            <Text style={styles.brandText}>My Dentist</Text>
           </View>
           <Text style={styles.heroTitle}>{title || 'Trusted dental care,\nbooked in seconds.'}</Text>
           <Text style={styles.heroSub}>{subtitle || 'Find verified dentists, compare clinics, and manage your appointments — all in one place.'}</Text>
@@ -45,7 +45,7 @@ export default function WebAuthLayout({ children, title, subtitle, onBack }) {
             ))}
           </View>
         </View>
-        <Text style={styles.brandFooter}>© 2026 My Dentist PK</Text>
+        <Text style={styles.brandFooter}>© 2026 My Dentist</Text>
       </View>
 
       {/* Form panel */}

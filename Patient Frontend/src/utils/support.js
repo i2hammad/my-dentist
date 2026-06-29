@@ -1,6 +1,6 @@
 import { Linking, Platform } from 'react-native';
 
-// Central support contact details for My Dentist PK.
+// Central support contact details for My Dentist.
 export const SUPPORT_WHATSAPP = '03365257815';   // local format
 export const SUPPORT_WHATSAPP_INTL = '923365257815'; // wa.me needs intl, no +
 export const SUPPORT_EMAIL = 'mydentist840@gmail.com';
@@ -9,7 +9,7 @@ export const SUPPORT_EMAIL = 'mydentist840@gmail.com';
  * Open a WhatsApp chat with the support number. Falls back to wa.me (works on
  * web + when the app isn't installed).
  */
-export async function openWhatsApp(prefillMessage = 'Hello, I need help with My Dentist PK.') {
+export async function openWhatsApp(prefillMessage = 'Hello, I need help with My Dentist.') {
   const text = encodeURIComponent(prefillMessage);
   const appUrl = `whatsapp://send?phone=${SUPPORT_WHATSAPP_INTL}&text=${text}`;
   const webUrl = `https://wa.me/${SUPPORT_WHATSAPP_INTL}?text=${text}`;
@@ -25,6 +25,6 @@ export async function openWhatsApp(prefillMessage = 'Hello, I need help with My 
 }
 
 /** Open the device mail composer to the support email. */
-export function openSupportEmail(subject = 'My Dentist PK — Support') {
+export function openSupportEmail(subject = 'My Dentist — Support') {
   return Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`);
 }

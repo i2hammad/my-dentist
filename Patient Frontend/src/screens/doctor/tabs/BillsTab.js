@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
-import { openWhatsApp } from '../../../utils/support';
+import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../../utils/support';
 import { drName } from '../../../utils/doctorName';
 
 const { width } = Dimensions.get('window');
@@ -74,7 +74,7 @@ function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'thermal', au
       <div class="row bold"><span>Paid:</span><span>PKR ${invoice.paid}</span></div>
       <div class="row bold"><span>Outstanding:</span><span>PKR ${invoice.outstanding}</span></div>
       <div class="row bold"><span>Status:</span><span>${invoice.status.toUpperCase()}</span></div>
-      <div class="footer">Thank you for visiting!<br/>Powered by My Dentist PK</div>
+      <div class="footer">Thank you for visiting!<br/>Powered by My Dentist</div>
       ${autoPrintScript}
     </body>
     </html>`;
@@ -609,14 +609,18 @@ Thank you for visiting!
               <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>No bills found. Create a bill in the 'Current Bill' tab.</Text>
             )}
 
-            <View style={styles.supportBox}>
-              <View style={styles.supportIcon}><Ionicons name="help" size={20} color="#0052FF" /></View>
-              <View style={{flex: 1, marginLeft: 12}}>
-                <Text style={styles.supportTitle}>Need help with billing?</Text>
-                <Text style={styles.supportDesc}>Contact our support team for setup assistance.</Text>
-              </View>
-              <TouchableOpacity style={styles.contactBtn} onPress={() => openWhatsApp('Hello, I need help with billing on My Dentist PK.')}>
-                <Text style={styles.contactBtnText}>Support</Text>
+            {/* Support & Help — same card as the Profile tab (synced via utils/support.js) */}
+            <View style={styles.supportCard}>
+              <Text style={styles.supportCardTitle}>Support & Help</Text>
+              <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I need help with billing on My Dentist.')}>
+                <View style={[styles.supportRowIcon, { backgroundColor: '#DCFCE7' }]}><Ionicons name="logo-whatsapp" size={22} color="#25D366" /></View>
+                <View style={{ flex: 1 }}><Text style={styles.supportRowLabel}>WhatsApp Support</Text><Text style={styles.supportRowValue}>{SUPPORT_WHATSAPP}</Text></View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist — Billing Support')}>
+                <View style={[styles.supportRowIcon, { backgroundColor: '#DBEAFE' }]}><Ionicons name="mail-outline" size={22} color="#2563EB" /></View>
+                <View style={{ flex: 1 }}><Text style={styles.supportRowLabel}>Email Support</Text><Text style={styles.supportRowValue}>{SUPPORT_EMAIL}</Text></View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </TouchableOpacity>
             </View>
           </View>
@@ -949,6 +953,12 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   statusBadgeText: { fontSize: 10, fontWeight: 'bold' },
 
+  supportCard: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginTop: 20 },
+  supportCardTitle: { fontSize: 15, fontWeight: '700', color: '#0A1551', marginBottom: 6 },
+  supportRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  supportRowIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  supportRowLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
+  supportRowValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
   supportBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', marginTop: 20 },
   supportIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#0052FF' },
   supportTitle: { fontSize: 13, fontWeight: 'bold', color: '#0A1551' },

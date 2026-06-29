@@ -1,8 +1,8 @@
-// Terms, Privacy, and Support pages for My Dentist PK.
+// Terms, Privacy, and Support pages for My Dentist.
 import { ArrowLeft, EnvelopeSimple, Phone, ChatCircleDots, ArrowRight } from '@phosphor-icons/react';
 import appLogo from '../assets/app-logo.png';
 
-const BRAND = 'My Dentist PK';
+const BRAND = 'My Dentist';
 const SUPPORT_EMAIL = 'support@mydentistpk.com';
 const SUPPORT_PHONE = '+92 300 1234567';
 

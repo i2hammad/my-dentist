@@ -1,4 +1,4 @@
-// My Dentist PK — shared color theme.
+// My Dentist — shared color theme.
 // Single source of truth for the app palette so screens stay cohesive.
 export const colors = {
   // Brand blues

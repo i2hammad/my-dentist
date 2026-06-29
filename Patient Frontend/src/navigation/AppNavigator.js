@@ -13,6 +13,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
+import MapScreen from '../screens/MapScreen';
 import AppointmentsScreen from '../screens/AppointmentsScreen';
 import AppointmentDetailScreen from '../screens/AppointmentDetailScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -37,13 +38,14 @@ import ClinicSetupScreen from '../screens/doctor/ClinicSetupScreen';
 import DoctorInboxScreen from '../screens/doctor/DoctorInboxScreen';
 
 import ImplantsScreen from '../screens/ImplantsScreen';
+import MyReviewsScreen from '../screens/MyReviewsScreen';
 import CosmeticScreen from '../screens/CosmeticScreen';
 import OrthodonticsScreen from '../screens/OrthodonticsScreen';
+import BillsHistoryScreen from '../screens/BillsHistoryScreen';
 
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
 import WebTopNav from '../components/WebTopNav';
-import CampaignBanner from '../components/CampaignBanner';
 
 // On web, a single root-level top navbar (WebTopNav, rendered above the stack)
 // handles all navigation, so the per-navigator tab bars are hidden. Native keeps
@@ -94,9 +96,9 @@ function MainTabNavigator() {
           let iconName;
 
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'Implants') iconName = focused ? 'medkit' : 'medkit-outline';
+          else if (route.name === 'MyReviews') iconName = focused ? 'star' : 'star-outline';
           else if (route.name === 'Campaigns') iconName = focused ? 'calendar' : 'calendar-outline';
-          else if (route.name === 'Orthodontics') iconName = focused ? 'options' : 'options-outline';
+          else if (route.name === 'BillsHistory') iconName = focused ? 'receipt' : 'receipt-outline';
           else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -105,12 +107,16 @@ function MainTabNavigator() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Implants" component={ImplantsScreen} />
+      <Tab.Screen name="MyReviews" component={MyReviewsScreen} options={{ tabBarLabel: 'Reviews' }} />
       <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Appointments' }} />
-      <Tab.Screen name="Orthodontics" component={OrthodonticsScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-      {/* Cosmetic is reachable from the web top nav + search, but hidden from the bottom bar. */}
+      <Tab.Screen name="BillsHistory" component={BillsHistoryScreen} options={{ tabBarLabel: 'Bills' }} />
+      {/* Profile, Cosmetic, Implants, Orthodontics are reachable from the top nav /
+          search / treatment links, but hidden from the bottom bar. Profile sits in
+          the top bar so it doesn't need a bottom tab. */}
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tab.Screen name="Cosmetic" component={CosmeticScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tab.Screen name="Implants" component={ImplantsScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tab.Screen name="Orthodontics" component={OrthodonticsScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
     </Tab.Navigator>
   );
 }
@@ -189,9 +195,9 @@ export default function AppNavigator() {
     >
       <View style={{ flex: 1 }}>
         {isWeb && <WebTopNav navRef={navRef} navInfo={navInfo} />}
-        {/* Top campaign strip is web-only (sits under WebTopNav). On phone the
-            in-screen <PromoCard /> shows the marketing banner instead. */}
-        {isWeb && <CampaignBanner navRef={navRef} navInfo={navInfo} />}
+        {/* The marketing banner is shown in-screen via <PromoCard /> on every
+            patient screen (web + phone). No separate top strip — that caused a
+            duplicate banner on web. */}
         <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />
@@ -214,6 +220,7 @@ export default function AppNavigator() {
         <Stack.Screen name="PatientInbox" component={PatientInboxScreen} />
         {/* Hide default Search and Appointments screens from tabs, but make them accessible if needed */}
         <Stack.Screen name="Search" component={SearchScreen} />
+        <Stack.Screen name="Map" component={MapScreen} />
         <Stack.Screen name="Appointments" component={AppointmentsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="SavedDoctors" component={SavedDoctorsScreen} />

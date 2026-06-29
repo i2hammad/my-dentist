@@ -92,11 +92,11 @@ export default function RoleSelectionScreen({ navigation }) {
   if (isWide) {
     return (
       <WebAuthLayout
-        title={'Welcome to\nMy Dentist PK.'}
+        title={'Welcome to\nMy Dentist.'}
         subtitle="Pakistan's trusted platform to discover dentists, book appointments, and manage dental care."
       >
         <Text style={styles.webHeading}>Continue as</Text>
-        <Text style={styles.webSubheading}>Choose how you’d like to use My Dentist PK</Text>
+        <Text style={styles.webSubheading}>Choose how you’d like to use My Dentist</Text>
         {roleCards}
       </WebAuthLayout>
     );
@@ -118,11 +118,11 @@ export default function RoleSelectionScreen({ navigation }) {
         {/* Logo + App Name */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/app-logo.png')}
+            source={require('../../assets/logo-mark.png')}
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>My Dentist PK</Text>
+          <Text style={styles.appName}>My Dentist</Text>
           <Text style={styles.subtitle}>
             Welcome! Please select how you would like to continue
           </Text>

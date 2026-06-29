@@ -5,12 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../config/storage';
 import { SkeletonList } from '../components/Skeleton';
-import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
-import { setStatusBarStyle } from 'expo-status-bar';
+import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
 import PromoCard from '../components/PromoCard';
+import PatientHeader from '../components/PatientHeader';
 
 const STATUS_CONFIG = {
   pending:     { bg: '#FEF3C7', text: '#D97706', icon: 'time',              label: 'Pending'     },
@@ -159,26 +159,9 @@ export default function AppointmentsScreen({ navigation }) {
   const activeData = activeTab === 'upcoming' ? upcoming : past;
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.safe, !isWeb && { backgroundColor: '#0052FF' }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View pointerEvents="none" style={styles.headerBlob} />
-        <View style={[styles.headerInner, isWide && styles.centeredColumn]}>
-          <PressableScale style={styles.headerBtn} hitSlop={10} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home')}>
-            <Ionicons name="arrow-back" size={22} color="#FFF" />
-          </PressableScale>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>My Appointments</Text>
-            <Text style={styles.headerSub}>Your dental appointments</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => navigation.navigate('Search')}
-          >
-            <Ionicons name="add" size={22} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+    <SafeAreaView edges={isWeb ? ['top'] : []} style={[styles.safe, !isWeb && { backgroundColor: '#0052FF' }]}>
+      {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
+      <PatientHeader greeting="My Appointments" subtitle="Your dental appointments" />
 
       <View style={[styles.body, isWide && styles.centeredColumn, isWide && { width: '100%' }]}>
       {/* Marketing banner */}

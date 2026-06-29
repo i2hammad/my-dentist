@@ -87,12 +87,12 @@ export default function SplashScreen({ navigation }) {
         <View style={styles.webCard}>
           <View style={styles.logoBadge}>
             <Image
-              source={require('../../assets/app-logo.png')}
+              source={require('../../assets/logo-mark.png')}
               style={styles.webLogo}
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.webBrand}>My Dentist PK</Text>
+          <Text style={styles.webBrand}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text></Text>
           <Text style={styles.webTagline}>Find &amp; book trusted dentists across Pakistan</Text>
 
           <View style={styles.webLoaderRow}>
@@ -101,20 +101,35 @@ export default function SplashScreen({ navigation }) {
           </View>
         </View>
 
-        <Text style={styles.webFooter}>© 2026 My Dentist PK</Text>
+        <Text style={styles.webFooter}>© 2026 My Dentist</Text>
       </View>
     );
   }
 
-  // ── Phone splash (unchanged) ──
+  // ── Phone splash — minimal, white, polished ──
   return (
     <View style={styles.container}>
-      <Image
-        source={require('../../assets/app-logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
-      <ActivityIndicator size="small" color="#2563EB" style={styles.loader} />
+      {/* Soft brand accents — barely-there, keep the white feel */}
+      <View pointerEvents="none" style={[styles.softBlob, styles.softBlobA]} />
+      <View pointerEvents="none" style={[styles.softBlob, styles.softBlobB]} />
+
+      <View style={styles.brandWrap}>
+        <View style={styles.logoBadgePhone}>
+          <Image
+            source={require('../../assets/logo-mark.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+        <Text style={styles.brandName}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text></Text>
+        <View style={styles.brandRule} />
+        <Text style={styles.brandTagline}>Find &amp; book trusted dentists across Pakistan</Text>
+      </View>
+
+      <View style={styles.loaderRow}>
+        <ActivityIndicator size="small" color="#2563EB" />
+        <Text style={styles.loaderText}>Getting things ready…</Text>
+      </View>
     </View>
   );
 }
@@ -125,15 +140,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  logo: {
-    width: Dimensions.get('window').width * 0.7,
-    height: Dimensions.get('window').width * 0.7,
+  // Faint off-white/blue blobs for subtle depth without losing the white feel.
+  softBlob: { position: 'absolute', borderRadius: 9999 },
+  softBlobA: { width: 360, height: 360, backgroundColor: '#F2F7FF', top: -140, right: -110 },
+  softBlobB: { width: 300, height: 300, backgroundColor: '#F5F9FF', bottom: -120, left: -90 },
+
+  brandWrap: { alignItems: 'center', paddingHorizontal: 32 },
+  logoBadgePhone: {
+    width: 132,
+    height: 132,
+    borderRadius: 34,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 22,
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
-  loader: {
-    position: 'absolute',
-    bottom: 100,
-  },
+  logo: { width: 96, height: 96 },
+  brandName: { fontSize: 26, fontWeight: '800', color: '#0F172A', letterSpacing: 0.3 },
+  brandRule: { width: 36, height: 3, borderRadius: 2, backgroundColor: '#0052FF', marginTop: 10, marginBottom: 12 },
+  brandTagline: { fontSize: 13.5, color: '#64748B', textAlign: 'center', lineHeight: 19 },
+  loaderRow: { position: 'absolute', bottom: 56, flexDirection: 'row', alignItems: 'center' },
+  loaderText: { marginLeft: 8, fontSize: 13, color: '#94A3B8', fontWeight: '600' },
   skipButton: {
     position: 'absolute',
     bottom: 40,

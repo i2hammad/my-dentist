@@ -18,7 +18,7 @@ import useResponsive from '../hooks/useResponsive';
 const PATIENT_TABS = [
   { name: 'Home', label: 'Home', icon: 'home', tabsRoute: 'MainTabs' },
   { name: 'Campaigns', label: 'Appointments', icon: 'calendar', tabsRoute: 'MainTabs' },
-  { name: 'Implants', label: 'Implants', icon: 'medkit', tabsRoute: 'MainTabs' },
+  { name: 'MyReviews', label: 'My Reviews', icon: 'star', tabsRoute: 'MainTabs' },
   { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs' },
   { name: 'Orthodontics', label: 'Orthodontics', icon: 'options', tabsRoute: 'MainTabs' },
 ];
@@ -89,8 +89,8 @@ export default function WebTopNav({ navRef, navInfo }) {
       <View style={styles.inner}>
         {/* LEFT: Brand */}
         <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
-          <Image source={require('../../assets/app-logo.png')} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.brandText}>My Dentist <Text style={styles.brandAccent}>PK</Text></Text>
+          <Image source={require('../../assets/logo-mark.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.brandText}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={styles.brandAccent}>Dentist</Text></Text>
         </Pressable>
 
         {/* CENTER: primary nav links (wide screens only) */}
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   logo: { width: 32, height: 32, borderRadius: 8 },
   brandText: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
-  brandAccent: { color: '#0052FF' },
+  brandAccent: { color: '#60A5FA' },
 
   leftCluster: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   links: { flexDirection: 'row', alignItems: 'center', gap: 4, flexGrow: 1, justifyContent: 'center', marginHorizontal: 16 },

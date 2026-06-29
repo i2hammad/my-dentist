@@ -33,7 +33,7 @@ async function sendEmail({ to, subject, text, html }) {
     return { sent: false };
   }
   await tx.sendMail({
-    from: process.env.MAIL_FROM || `My Dentist PK <${process.env.SMTP_USER}>`,
+    from: process.env.MAIL_FROM || `My Dentist <${process.env.SMTP_USER}>`,
     to, subject, text, html,
   });
   return { sent: true };

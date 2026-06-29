@@ -112,7 +112,7 @@ export default function ProfileScreen({ navigation }) {
       } catch (e) { return Alert.alert('Error', 'Could not load your referral code. Please try again.'); }
     }
     const msg = [
-      `🦷 Join me on My Dentist PK!`,
+      `🦷 Join me on My Dentist!`,
       ``,
       `Use my referral code: *${data.code}*`,
       `We both earn 100 reward points after your first treatment! 🎁`,
@@ -122,7 +122,7 @@ export default function ProfileScreen({ navigation }) {
       `• iPhone: ${data.iosLink || data.webLink}`,
       `• Web: ${data.webLink}`,
     ].join('\n');
-    Share.share({ message: msg, title: 'Join My Dentist PK' });
+    Share.share({ message: msg, title: 'Join My Dentist' });
   };
 
   const fetchUserProfile = async () => {
@@ -723,12 +723,12 @@ export default function ProfileScreen({ navigation }) {
             {/* Support & Help */}
             <View style={styles.supportCard}>
               <Text style={styles.supportTitle}>Support & Help</Text>
-              <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I am a patient on My Dentist PK and need support.')}>
+              <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I am a patient on My Dentist and need support.')}>
                 <View style={[styles.supportIcon, { backgroundColor: '#DCFCE7' }]}><Ionicons name="logo-whatsapp" size={22} color="#25D366" /></View>
                 <View style={{ flex: 1 }}><Text style={styles.supportLabel}>WhatsApp Support</Text><Text style={styles.supportValue}>{SUPPORT_WHATSAPP}</Text></View>
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist PK — Patient Support')}>
+              <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist — Patient Support')}>
                 <View style={[styles.supportIcon, { backgroundColor: '#DBEAFE' }]}><Ionicons name="mail-outline" size={22} color="#2563EB" /></View>
                 <View style={{ flex: 1 }}><Text style={styles.supportLabel}>Email Support</Text><Text style={styles.supportValue}>{SUPPORT_EMAIL}</Text></View>
                 <Ionicons name="chevron-forward" size={18} color="#94A3B8" />

@@ -13,6 +13,7 @@ import useResponsive from '../hooks/useResponsive';
 import { SkeletonDoctorDetail, ShimmerImage } from '../components/Skeleton';
 import { drName } from '../utils/doctorName';
 import PromoCard from '../components/PromoCard';
+import { openWhatsApp, openSupportEmail } from '../utils/support';
 
 // Used only by a couple of static StyleSheet entries below (half-width cards).
 // Component layout uses the live useResponsive() hook instead.
@@ -371,7 +372,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
       const docId = doctor._id || doctor.userId;
       const shareUrl = `mydentist://doctor/${docId}`;
       await Share.share({
-        message: `Check out ${drName(doctor.fullName)}'s profile on My Dentist PK: ${shareUrl}`,
+        message: `Check out ${drName(doctor.fullName)}'s profile on My Dentist: ${shareUrl}`,
         url: shareUrl,
         title: `${drName(doctor.fullName)}'s Profile`
       });
@@ -761,12 +762,6 @@ Thank you for visiting!
             )}
           </View>
         )}
-        {doctor.consultationFee ? (
-          <View style={styles.webFeeRow}>
-            <Text style={styles.webFeeLabel}>Consultation Fee</Text>
-            <Text style={styles.webFeeValue}>Rs. {doctor.consultationFee}</Text>
-          </View>
-        ) : null}
         {(activeTab === 'Treatments' || activeTab === 'Appointments') && (
           <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
             <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
@@ -933,15 +928,6 @@ Thank you for visiting!
                   )}
                 </View>
               )}
-              {doctor.consultationFee ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="cash-outline" size={14} color="#D97706" />
-                  </View>
-                  <Text style={{ fontSize: 13, color: '#475569' }}>Consultation Fee</Text>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', marginLeft: 'auto' }}>Rs. {doctor.consultationFee}</Text>
-                </View>
-              ) : null}
             </View>
           </View>
         )}
@@ -1510,7 +1496,18 @@ Thank you for visiting!
                   <Text style={styles.helpTitle}>Need help with a payment?</Text>
                   <Text style={styles.helpSub}>Our support team is available 24/7 to assist you with billing queries.</Text>
                 </View>
-                <TouchableOpacity style={styles.contactSupportBtn}>
+                <TouchableOpacity
+                  style={styles.contactSupportBtn}
+                  onPress={() => {
+                    const msg = 'Hello, I need help with a payment on My Dentist.';
+                    if (Platform.OS === 'web') { openWhatsApp(msg); return; }
+                    Alert.alert('Contact Support', 'How would you like to reach us?', [
+                      { text: 'WhatsApp', onPress: () => openWhatsApp(msg) },
+                      { text: 'Email', onPress: () => openSupportEmail('My Dentist — Payment Support') },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]);
+                  }}
+                >
                   <Text style={styles.contactSupportText}>Contact Support</Text>
                 </TouchableOpacity>
               </View>
@@ -1618,49 +1615,8 @@ Thank you for visiting!
               </View>
 
 
-              {/* Saved Payment Methods — 2×2 grid */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 10 }}>
-                <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
-                <TouchableOpacity 
-                  style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#BFDBFE' }}
-                  onPress={() => setShowAddMethodModal(true)}
-                >
-                  <Text style={{ fontSize: 11, color: '#0052FF', fontWeight: 'bold' }}>+ Add Method</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.paymentGrid}>
-                {paymentMethods.length > 0 ? (
-                  paymentMethods.map((pm) => {
-                    const isCard = pm.type === 'visa' || pm.type === 'mastercard';
-                    const bgColor = pm.type === 'visa' ? '#1E3A8A' : pm.type === 'mastercard' ? '#374151' : pm.type === 'easypaisa' ? '#16A34A' : '#DC2626';
-                    return (
-                      <View key={pm._id} style={[styles.paymentCard, { backgroundColor: bgColor }]}>
-                        <View style={styles.paymentCardTop}>
-                          <Ionicons name={isCard ? "card-outline" : "phone-portrait-outline"} size={22} color="#FFF" />
-                          {pm.isDefault && (
-                            <View style={styles.defaultBadge}><Text style={styles.defaultBadgeText}>Default</Text></View>
-                          )}
-                        </View>
-                        <Text style={styles.paymentCardNum}>
-                          {pm.type.toUpperCase()} {isCard ? `●●●● ${pm.lastFourDigits || ''}` : ''}
-                        </Text>
-                        <Text style={styles.paymentCardExp}>
-                          {isCard ? `Expires ${pm.expiryDate || ''}` : pm.accountNumber}
-                        </Text>
-                        <TouchableOpacity onPress={() => handleDeletePaymentMethod(pm._id)}>
-                          <Text style={styles.removeTextCard}>Remove</Text>
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })
-                ) : (
-                  <Text style={[styles.emptyText, { width: '100%' }]}>
-                    No saved payment methods. Add one to complete your profile!
-                  </Text>
-                )}
-              </View>
-              
+              {/* Saved Payment Methods moved to the patient Profile tab (<PaymentMethods /> in ProfileScreen). */}
+
               {/* Payment History */}
               <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Payment History</Text>
               {bills.filter(b => b.status === 'paid').length > 0 ? (
@@ -1687,29 +1643,7 @@ Thank you for visiting!
                 <Text style={styles.emptyText}>No paid transaction history.</Text>
               )}
 
-              {/* Referral Banner */}
-              <View style={styles.referralBanner}>
-                <View style={styles.referralIconWrap}>
-                  <Ionicons name="gift" size={30} color="#FFF" />
-                </View>
-                <View style={{ flex: 1, marginHorizontal: 12 }}>
-                  <Text style={styles.referralTitle}>Refer a Friend & Get 100 Points</Text>
-                  <Text style={styles.referralSub}>You and your friend get 100 points each on your friend's first visit completion and online payment in My Dentist accounts.</Text>
-                  <TouchableOpacity style={styles.referNowBtn} onPress={async () => {
-                    try {
-                      const token = await storage.getItem('userToken');
-                      const res = await axios.get(`${API_BASE_URL}/api/users/referral`, { headers: { Authorization: `Bearer ${token}` } });
-                      const data = res.data?.data;
-                      if (data?.code) {
-                        Share.share({ message: `🦷 Join me on My Dentist PK!\n\nUse my referral code: *${data.code}*\n\nWe both earn 100 reward points after your first treatment! 🎁` });
-                      }
-                    } catch (e) { Alert.alert('Error', 'Could not load referral code.'); }
-                  }}>
-                    <Text style={styles.referNowBtnText}>Refer Now</Text>
-                  </TouchableOpacity>
-                </View>
-                <Ionicons name="happy-outline" size={40} color="rgba(255,255,255,0.4)" />
-              </View>
+              {/* Refer-a-Friend moved to the Profile tab. */}
             </View>
           )}
 

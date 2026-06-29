@@ -175,9 +175,6 @@ export default function AppointmentDetailScreen({ route, navigation }) {
             label="Type"
             value={appt.consultationType === 'online' ? 'Video Call' : 'In-Clinic'}
           />
-          {appt.doctorId?.consultationFee ? (
-            <DetailRow icon="cash-outline" label="Consultation Fee" value={`Rs. ${Number(appt.doctorId.consultationFee).toLocaleString()}`} />
-          ) : null}
           <DetailRow icon="medkit-outline" label="Treatments" value={treatments.join(', ')} last />
         </View>
 

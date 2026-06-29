@@ -393,7 +393,7 @@ export default function DoctorProfileScreen({ navigation }) {
           </View>
           <Text style={styles.supportHint}>In case of any query, problem or support — reach us directly.</Text>
 
-          <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I am a doctor on My Dentist PK and need support.')}>
+          <TouchableOpacity style={styles.supportRow} onPress={() => openWhatsApp('Hello, I am a doctor on My Dentist and need support.')}>
             <View style={[styles.supportIcon, { backgroundColor: '#DCFCE7' }]}>
               <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
             </View>
@@ -404,7 +404,7 @@ export default function DoctorProfileScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist PK — Doctor Support')}>
+          <TouchableOpacity style={styles.supportRow} onPress={() => openSupportEmail('My Dentist — Doctor Support')}>
             <View style={[styles.supportIcon, { backgroundColor: '#DBEAFE' }]}>
               <Ionicons name="mail-outline" size={22} color="#2563EB" />
             </View>

@@ -1,7 +1,7 @@
-// Public read-only calls to the My Dentist PK backend.
+// Public read-only calls to the My Dentist backend.
 export const API_URL = import.meta.env.VITE_API_URL || 'https://my-dentist-sigma.vercel.app';
 export const APP_URL = import.meta.env.VITE_APP_URL || '#';
-export const BRAND = 'My Dentist PK';
+export const BRAND = 'My Dentist';
 
 export async function getDoctors(params = {}) {
   const qs = new URLSearchParams(params).toString();

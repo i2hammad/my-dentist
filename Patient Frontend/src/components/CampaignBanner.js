@@ -76,7 +76,6 @@ export default function CampaignBanner({ navRef, navInfo }) {
         <Ionicons name="megaphone-outline" size={15} color="#FFF" style={{ marginRight: 8 }} />
         <Text style={styles.title} numberOfLines={1}>{c.title || 'Special Offer'}</Text>
         {c.bannerText ? <Text style={styles.sub} numberOfLines={1}> — {c.bannerText}</Text> : null}
-        <View style={styles.promoTag}><Text style={styles.promoText}>PROMO</Text></View>
       </TouchableOpacity>
       {campaigns.length > 1 && (
         <View style={styles.dots}>

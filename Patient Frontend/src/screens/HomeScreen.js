@@ -44,6 +44,7 @@ import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
+import { ctaLabel } from '../utils/promo';
 
 // ─── Filter tab config ──────────────────────────────────────────────
 const FILTER_TABS = [
@@ -55,8 +56,19 @@ const FILTER_TABS = [
 ];
 
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
-function filterDoctors(doctors, tab, favorites) {
-  if (tab === 'Nearby')    return doctors;
+function filterDoctors(doctors, tab, favorites, patientCoords) {
+  if (tab === 'Nearby') {
+    if (!patientCoords) return doctors;
+    const distOf = (d) => {
+      if (!d.coordinates) return Infinity;
+      const dc = String(d.coordinates).split(',').map(Number);
+      if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return Infinity;
+      if (Math.abs(dc[0]) < 0.001 && Math.abs(dc[1]) < 0.001) return Infinity; // skip 0,0
+      const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
+      return km == null ? Infinity : km;
+    };
+    return [...doctors].sort((a, b) => distOf(a) - distOf(b));
+  }
   if (tab === 'Favorites') return doctors.filter(d => favorites && (favorites[String(d._id)] || favorites[String(d.userId)]));
   if (tab === 'Elite')     return doctors.filter(d => (d.facilityScore || 0) >= 31);
   if (tab === 'Modern')    return doctors.filter(d => {
@@ -177,19 +189,11 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
             </Text>
           </View>
 
-          {/* Location + Distance */}
+          {/* Location — distance already shows as a pill beside the specialty above */}
           <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={13} color="#64748B" />
             <Text style={styles.infoText} numberOfLines={1}>
               {doc.clinicCity || doc.address || 'Islamabad'}
-              {(() => {
-                if (!patientCoords || !doc.coordinates) return '';
-                const dc = String(doc.coordinates).split(',').map(Number);
-                if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return '';
-                if (Math.abs(dc[0]) < 0.001 && Math.abs(dc[1]) < 0.001) return '';
-                const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
-                return km !== null ? ` · ${fmtKm(km)} away` : '';
-              })()}
             </Text>
           </View>
         </View>
@@ -378,7 +382,7 @@ export default function HomeScreen({ navigation }) {
       setActiveCampaignIdx(prev => {
         const next = (prev + 1) % campaigns.length;
         try {
-          campaignScrollRef.current?.scrollTo({ x: next * (campaignCardW + 12), animated: true });
+          campaignScrollRef.current?.scrollTo({ x: next * (campaignCardW + 16), animated: true });
         } catch {}
         return next;
       });
@@ -406,7 +410,7 @@ export default function HomeScreen({ navigation }) {
 
   const filteredDoctors = filterTab === 'Favorites'
     ? favoriteDoctors
-    : filterDoctors(doctors, filterTab, favorites);
+    : filterDoctors(doctors, filterTab, favorites, patientCoords);
 
   // Greeting + first name for the header.
   const firstName = (profile?.fullName || '').trim().split(/\s+/)[0] || '';
@@ -441,9 +445,9 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerRow1}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.headerLogoBadge}>
-              <Ionicons name="medical" size={18} color="#0052FF" />
+              <Image source={require('../../assets/logo-mark.png')} style={styles.headerLogo} resizeMode="contain" />
             </View>
-            <Text style={styles.headerTitle}>My Dentist PK</Text>
+            <Text style={styles.headerTitle}>My Dentist</Text>
           </View>
           <View style={styles.headerRight}>
             <PressableScale
@@ -520,14 +524,14 @@ export default function HomeScreen({ navigation }) {
             <ScrollView
               ref={campaignScrollRef}
               horizontal
-              snapToInterval={campaignCardW + 12}
+              snapToInterval={campaignCardW + 16}
               snapToAlignment="start"
               decelerationRate="fast"
               disableIntervalMomentum
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16 }}
               onMomentumScrollEnd={e => {
-                const idx = Math.round(e.nativeEvent.contentOffset.x / (campaignCardW + 12));
+                const idx = Math.round(e.nativeEvent.contentOffset.x / (campaignCardW + 16));
                 setActiveCampaignIdx(idx);
               }}
             >
@@ -544,7 +548,7 @@ export default function HomeScreen({ navigation }) {
                     activeOpacity={0.9}
                     onPress={() => navigation.navigate('Promo', { campaign: c })}
                     style={{
-                      width: campaignCardW, height: 118, marginRight: campaigns.length > 1 ? 12 : 0,
+                      width: campaignCardW, height: 118, marginRight: campaigns.length > 1 ? 16 : 0,
                       backgroundColor: bg, borderRadius: 16, overflow: 'hidden', justifyContent: 'flex-end',
                       shadowColor: bg, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5,
                     }}
@@ -560,11 +564,6 @@ export default function HomeScreen({ navigation }) {
                       <Ionicons name="megaphone" size={88} color="rgba(255,255,255,0.12)" style={{ position: 'absolute', top: -8, right: -6 }} />
                     )}
 
-                    {/* PROMO pill — top-right so it never collides with the bottom title */}
-                    <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                      <Text style={{ color: bg, fontWeight: '800', fontSize: 8.5, letterSpacing: 0.5 }}>PROMO</Text>
-                    </View>
-
                     {/* Text block at the bottom */}
                     <View style={{ padding: 14 }}>
                       <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 17, textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 4 }} numberOfLines={1}>
@@ -576,7 +575,7 @@ export default function HomeScreen({ navigation }) {
                         </Text>
                       )}
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
-                        <Text style={{ color: bg, fontWeight: '800', fontSize: 12 }}>{c.ctaLabel || 'View Offer'}</Text>
+                        <Text style={{ color: bg, fontWeight: '800', fontSize: 12 }}>{ctaLabel(c.ctaLabel, 'View Offer')}</Text>
                         <Ionicons name="arrow-forward" size={13} color={bg} style={{ marginLeft: 4 }} />
                       </View>
                     </View>
@@ -685,7 +684,11 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Nearby Doctors</Text>
             <Text style={styles.sectionSubtitle}>Top dentists near you</Text>
           </View>
-          <TouchableOpacity style={styles.seeMapBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.seeMapBtn}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('Map', { doctors, patientCoords })}
+          >
             <Text style={styles.seeMapText}>See Map</Text>
             <Ionicons name="map-outline" size={14} color="#2563EB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
@@ -771,7 +774,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+    overflow: 'hidden',
   },
+  headerLogo: { width: 24, height: 24 },
   headerRow1: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -862,8 +867,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginHorizontal: 16,
-    marginTop: 14,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -1014,7 +1019,7 @@ const styles = StyleSheet.create({
 
   // Filter tabs
   filterTabsScroll: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   filterTabsContainer: {
     paddingHorizontal: 16,

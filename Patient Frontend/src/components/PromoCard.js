@@ -6,6 +6,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
+import { ctaLabel } from '../utils/promo';
 
 const COLORS = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
 const isWeb = Platform.OS === 'web';
@@ -44,7 +45,7 @@ export default function PromoCard({ style }) {
     const timer = setInterval(() => {
       setIdx(prev => {
         const next = (prev + 1) % campaigns.length;
-        try { scrollRef.current?.scrollTo({ x: next * (cardW + 12), animated: true }); } catch {}
+        try { scrollRef.current?.scrollTo({ x: next * (cardW + 16), animated: true }); } catch {}
         return next;
       });
     }, rotationInterval * 1000);
@@ -58,13 +59,13 @@ export default function PromoCard({ style }) {
       <ScrollView
         ref={scrollRef}
         horizontal
-        snapToInterval={cardW + 12}
+        snapToInterval={cardW + 16}
         snapToAlignment="start"
         decelerationRate="fast"
         disableIntervalMomentum
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16 }}
-        onMomentumScrollEnd={e => setIdx(Math.round(e.nativeEvent.contentOffset.x / (cardW + 12)))}
+        onMomentumScrollEnd={e => setIdx(Math.round(e.nativeEvent.contentOffset.x / (cardW + 16)))}
       >
         {campaigns.map((c, i) => {
           const bg = COLORS[i % COLORS.length];
@@ -76,7 +77,7 @@ export default function PromoCard({ style }) {
               activeOpacity={0.9}
               onPress={() => navigation.navigate('Promo', { campaign: c })}
               style={{
-                width: cardW, height: 118, marginRight: campaigns.length > 1 ? 12 : 0,
+                width: cardW, height: 118, marginRight: campaigns.length > 1 ? 16 : 0,
                 backgroundColor: bg, borderRadius: 16, overflow: 'hidden', justifyContent: 'flex-end',
                 shadowColor: bg, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5,
               }}
@@ -84,9 +85,6 @@ export default function PromoCard({ style }) {
               {imgUri && <Image source={{ uri: imgUri }} style={{ ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' }} resizeMode="cover" />}
               <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: imgUri ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0.06)' }} />
               {!imgUri && <Ionicons name="megaphone" size={88} color="rgba(255,255,255,0.12)" style={{ position: 'absolute', top: -8, right: -6 }} />}
-              <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                <Text style={{ color: bg, fontWeight: '800', fontSize: 8.5, letterSpacing: 0.5 }}>PROMO</Text>
-              </View>
               <View style={{ padding: 14 }}>
                 <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 17, textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 4 }} numberOfLines={1}>
                   {c.title || 'Special Offer'}
@@ -97,7 +95,7 @@ export default function PromoCard({ style }) {
                   </Text>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
-                  <Text style={{ color: bg, fontWeight: '800', fontSize: 12 }}>{c.ctaLabel || 'View Offer'}</Text>
+                  <Text style={{ color: bg, fontWeight: '800', fontSize: 12 }}>{ctaLabel(c.ctaLabel, 'View Offer')}</Text>
                   <Ionicons name="arrow-forward" size={13} color={bg} style={{ marginLeft: 4 }} />
                 </View>
               </View>

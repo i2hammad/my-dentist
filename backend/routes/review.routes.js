@@ -12,8 +12,15 @@ const {
   createReview,
   toggleHelpful,
   deleteReview,
-  replyToReview
+  replyToReview,
+  getMyReviews
 } = require('../controllers/review.controller');
+
+// --- Protected: patient's own reviews ---
+
+// @route   GET /api/reviews/my
+// @desc    Reviews written by the logged-in patient (with doctor info)
+router.get('/my', protect, authorize('patient'), getMyReviews);
 
 // --- Public routes ---
 

@@ -139,6 +139,18 @@ export default function SearchScreen({ navigation, route }) {
     return matchesQuery;
   });
 
+  // Nearby filter: sort by distance from the patient (nearest first).
+  if (activeFilter === 'Nearby' && patientCoords) {
+    const distOf = (d) => {
+      if (!d.coordinates) return Infinity;
+      const dc = String(d.coordinates).split(',').map(Number);
+      if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return Infinity;
+      const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
+      return km == null ? Infinity : km;
+    };
+    filteredDoctors.sort((a, b) => distOf(a) - distOf(b));
+  }
+
   const filters = [
     { id: 'Nearby', label: 'Nearby', icon: 'navigate' },
     { id: 'Favorites', label: 'Favorites', icon: 'heart' },
@@ -251,7 +263,7 @@ export default function SearchScreen({ navigation, route }) {
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </PressableScale>
             <View>
-              <Text style={styles.headerTitle}>My Dentist PK</Text>
+              <Text style={styles.headerTitle}>My Dentist</Text>
               <PressableScale style={styles.locationDropdown} scaleTo={0.96}>
                 <Ionicons name="location" size={14} color="#FFFFFF" />
                 <Text style={styles.locationText}>Islamabad, Pakistan</Text>
@@ -340,7 +352,10 @@ export default function SearchScreen({ navigation, route }) {
             <Text style={styles.listTitle}>Nearby Doctors</Text>
             <Text style={styles.listSubtitle}>Top dentists near you</Text>
           </View>
-          <TouchableOpacity style={styles.mapBtn}>
+          <TouchableOpacity
+            style={styles.mapBtn}
+            onPress={() => navigation.navigate('Map', { doctors: filteredDoctors, patientCoords })}
+          >
             <Text style={styles.mapBtnTxt}>See Map</Text>
             <Ionicons name="map-outline" size={16} color="#0066FF" style={{ marginLeft: 4 }} />
           </TouchableOpacity>

@@ -10,6 +10,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { webContent } from '../config/webLayout';
+import PromoCard from '../components/PromoCard';
 
 const getTreatIcon = (name = '') => {
   const n = name.toLowerCase();
@@ -68,7 +69,6 @@ export default function BookingScreen({ route, navigation }) {
   const [loading, setLoading]                       = useState(false);
   const [userRole, setUserRole]                     = useState(null);
   const [doctorTreatments, setDoctorTreatments]     = useState([]);
-  const [campaign, setCampaign]                     = useState(null);
 
   const [showDatePicker, setShowDatePicker]         = useState(false);
   const [showTimePicker, setShowTimePicker]         = useState(false);
@@ -82,21 +82,15 @@ export default function BookingScreen({ route, navigation }) {
       const token = await storage.getItem('userToken');
       if (!token) return;
       try {
-        const [meRes, treatRes, campRes] = await Promise.allSettled([
+        const [meRes, treatRes] = await Promise.allSettled([
           axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${API_BASE_URL}/api/treatments/doctor/${doctor._id}`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_BASE_URL}/api/campaigns/active-patient`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
         if (meRes.status === 'fulfilled' && meRes.value.data?.success) {
           setUserRole(meRes.value.data.data.user?.role || meRes.value.data.data.role);
         }
         if (treatRes.status === 'fulfilled' && treatRes.value.data?.success) {
           setDoctorTreatments(treatRes.value.data.data || []);
-        }
-        if (campRes.status === 'fulfilled' && campRes.value.data?.success) {
-          const d = campRes.value.data.data;
-          const c = Array.isArray(d) ? d[0] : d;
-          if (c) setCampaign(c);
         }
       } catch {}
     })();
@@ -210,21 +204,8 @@ export default function BookingScreen({ route, navigation }) {
 
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, webContent]} showsVerticalScrollIndicator={false}>
 
-          {/* Campaign Banner from Admin */}
-          {campaign && (
-            <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('Promo', { campaign })} style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Ionicons name="megaphone-outline" size={22} color="#FFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>{campaign.title || 'Special Offer'}</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }}>{campaign.body || campaign.description || ''}</Text>
-              </View>
-              <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
-                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 11 }}>PROMO</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          {/* Marketing banner — reusable PromoCard (full-bleed, so offset the content padding) */}
+          <PromoCard style={{ marginTop: 0, marginHorizontal: -16, marginBottom: 4 }} />
 
           {/* Doctor Card */}
           <View style={styles.doctorCard}>

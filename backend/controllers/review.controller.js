@@ -377,11 +377,43 @@ const replyToReview = async (req, res) => {
   }
 };
 
+// @desc    Get all reviews written by the logged-in patient (with doctor info)
+// @route   GET /api/reviews/my
+// @access  Private (patient)
+const getMyReviews = async (req, res) => {
+  try {
+    const patientProfile = await PatientProfile.findOne({ userId: req.user._id });
+    if (!patientProfile) {
+      return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    }
+
+    const reviews = await Review.find({ patientId: patientProfile._id })
+      .populate({
+        path: 'doctorId',
+        select: 'fullName photo specialization clinicName clinicTier coordinates avgRating',
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: reviews.length,
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch your reviews',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getDoctorReviews,
   getDoctorReviewStats,
   createReview,
   toggleHelpful,
   deleteReview,
-  replyToReview
+  replyToReview,
+  getMyReviews
 };

@@ -14,7 +14,7 @@ import PromoCard from '../components/PromoCard';
 import PatientHeader from '../components/PatientHeader';
 import { showDialog } from '../components/AppDialog';
 import PaymentSheet from '../components/PaymentSheet';
-import { buildReceiptHtml } from './doctor/tabs/BillsTab';
+import { buildReceiptHtml, thermalPdfSize } from './doctor/tabs/BillsTab';
 import webContent, { isWeb } from '../config/webLayout';
 
 const PAGE_SIZE = 15; // bills per page (infinite scroll grows this)
@@ -226,7 +226,7 @@ export default function BillsHistoryScreen({ navigation }) {
       }
       const Print = require('expo-print');
       const html = buildReceiptHtml(invoice, { ...meta, type: 'thermal', autoPrint: false });
-      const { uri } = await Print.printToFileAsync({ html, width: 162 });
+      const { uri } = await Print.printToFileAsync({ html, ...thermalPdfSize(invoice) });
       const Sharing = require('expo-sharing');
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
     } catch {

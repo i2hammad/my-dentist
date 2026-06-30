@@ -8,7 +8,7 @@ import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
 import { drName } from '../../utils/doctorName';
 import { showDialog } from '../../components/AppDialog';
-import { buildReceiptHtml } from './tabs/BillsTab';
+import { buildReceiptHtml, thermalPdfSize } from './tabs/BillsTab';
 
 const isWeb = Platform.OS === 'web';
 const rs = (n) => `Rs. ${Number(n || 0).toLocaleString()}`;
@@ -100,7 +100,7 @@ export default function DoctorPatientDetailScreen({ route, navigation }) {
       }
       const Print = require('expo-print');
       const html = buildReceiptHtml(invoice, { docName, clinic, spec, type: 'thermal', autoPrint: false });
-      const { uri } = await Print.printToFileAsync({ html, width: 162 });
+      const { uri } = await Print.printToFileAsync({ html, ...thermalPdfSize(invoice) });
       const Sharing = require('expo-sharing');
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
     } catch {}

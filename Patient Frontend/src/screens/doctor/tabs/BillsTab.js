@@ -6,12 +6,26 @@ import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../../utils/support';
 import { drName } from '../../../utils/doctorName';
+import BtPrinterPicker from '../../../components/BtPrinterPicker';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
 
 // Build the printable receipt HTML for either a thermal (57mm roll) or a
 // normal (A4/Letter) printer. `autoPrint` injects a window.print() for web.
+// expo-print's printToFileAsync defaults the PDF page to A4 (595x842pt) and does
+// NOT honor CSS `@page { size: 57mm auto }`. For a thermal receipt we must pass
+// an explicit narrow width AND a content-fit height in the print options, else
+// the receipt sits at the top of a tall A4 page. 57mm ≈ 162pt wide. Height is
+// estimated from the number of content lines so the page hugs the receipt.
+export function thermalPdfSize(invoice) {
+  const rows = (invoice?.treatments?.length || 1);
+  // base header/footer/totals lines + one per treatment, ~16pt per line, + padding
+  const lines = 18 + rows;
+  const height = Math.max(260, Math.round(lines * 16 + 40));
+  return { width: 162, height };
+}
+
 export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'thermal', autoPrint = false }) {
   const isThermal = type === 'thermal';
   const rows = invoice.treatments
@@ -23,9 +37,13 @@ export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'therm
 
   const thermalCss = `
     @page { size: 57mm auto; margin: 0; }
-    body { font-family: 'Courier New', Courier, monospace; width: 57mm; margin: 0 auto; padding: 6px 8px; color: #000; font-size: 11px; }
-    .clinic { font-size: 14px; font-weight: bold; }
-    .meta { font-size: 10px; margin-top: 2px; }
+    html, body { width: 100%; }
+    body { font-family: 'Courier New', Courier, monospace; margin: 0; padding: 4px 5px; color: #000; font-size: 12px; line-height: 1.35; }
+    .clinic { font-size: 15px; font-weight: bold; }
+    .meta { font-size: 11px; margin-top: 1px; }
+    .row { margin: 2px 0; }
+    .divider { margin: 5px 0; }
+    .footer { margin-top: 8px; font-size: 10px; }
     @media screen { body { border: 1px dashed #999; margin-top: 16px; border-radius: 6px; } }
   `;
   const normalCss = `
@@ -107,6 +125,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const [currentInvoice, setCurrentInvoice] = useState(null);
   // Printer type for the receipt layout: 'thermal' (57mm roll) or 'normal' (A4/Letter).
   const [printerType, setPrinterType] = useState('thermal');
+  const [btInvoice, setBtInvoice] = useState(null); // invoice passed to the BT printer picker
   // Draft being edited (id) — null when creating fresh.
   const [editingBillId, setEditingBillId] = useState(null);
 
@@ -364,12 +383,21 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     const clinic  = profile?.clinicName || 'Dentist Clinic';
     const spec    = profile?.specialization || 'General Doctor';
     const html    = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: false });
-    const opts    = printerType === 'thermal' ? { html, width: 162 } : { html };
+    const opts    = printerType === 'thermal' ? { html, ...thermalPdfSize(invoice) } : { html };
     const { uri } = await Print.printToFileAsync(opts);
     return { uri, html, docName, clinic, spec };
   };
 
   // ── PRINT ──────────────────────────────────────────────────────────────────
+  // Open the Bluetooth thermal-printer picker for the current receipt.
+  const openBtPrinter = () => {
+    if (!currentInvoice && !selectedPatient) {
+      Alert.alert('No Bill Selected', 'Please select a patient and create a bill before printing.');
+      return;
+    }
+    setBtInvoice(buildInvoice());
+  };
+
   const handlePrint = async () => {
     if (!currentInvoice && !selectedPatient) {
       Alert.alert('No Bill Selected', 'Please select a patient and create a bill before printing.');
@@ -986,10 +1014,18 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 </View>
               </View>
 
-              {/* Print — opens native OS print dialog (detects paired Bluetooth / Wi-Fi printers) */}
-              <TouchableOpacity style={[styles.printNowBtn, { width: 320, marginTop: 20 }]} onPress={handlePrint}>
-                <Ionicons name="print-outline" size={18} color="#FFF" style={{marginRight: 8}} />
-                <Text style={styles.printNowText}>Print Receipt</Text>
+              {/* Bluetooth thermal printer — direct ESC/POS to a paired 58mm printer (native only) */}
+              {Platform.OS !== 'web' && (
+                <TouchableOpacity style={[styles.printNowBtn, { width: 320, marginTop: 20 }]} onPress={openBtPrinter}>
+                  <Ionicons name="bluetooth-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.printNowText}>Print to Thermal Printer</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Print — opens native OS print dialog (Wi-Fi / system printers) or web print */}
+              <TouchableOpacity style={[styles.printNowBtnGhost, { width: 320, marginTop: 12 }]} onPress={handlePrint}>
+                <Ionicons name="print-outline" size={18} color="#0052FF" style={{marginRight: 8}} />
+                <Text style={styles.printNowTextGhost}>{Platform.OS === 'web' ? 'Print Receipt' : 'System Print / PDF'}</Text>
               </TouchableOpacity>
 
               {/* Save PDF directly to device storage */}
@@ -1008,6 +1044,16 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         )}
 
       </ScrollView>
+
+      <BtPrinterPicker
+        visible={!!btInvoice}
+        invoice={btInvoice}
+        meta={{ docName: drName(profile?.fullName, 'Dentist'), clinic: profile?.clinicName || 'Dentist Clinic', spec: profile?.specialization || '' }}
+        onClose={(res) => {
+          setBtInvoice(null);
+          if (res?.ok) Alert.alert('Printed', 'Receipt sent to the printer.');
+        }}
+      />
     </View>
   );
 }

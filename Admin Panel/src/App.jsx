@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Admins from './pages/Admins.jsx';
 import Dentists from './pages/Dentists.jsx';
 import DentistDetail from './pages/DentistDetail.jsx';
+import Verification from './pages/Verification.jsx';
 import Patients from './pages/Patients.jsx';
 import PatientDetail from './pages/PatientDetail.jsx';
 import Treatments from './pages/Treatments.jsx';
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="admins" element={<Admins />} />
         <Route path="dentists" element={<Dentists />} />
         <Route path="dentists/:id" element={<DentistDetail />} />
+        <Route path="verification" element={<Verification />} />
         <Route path="patients" element={<Patients />} />
         <Route path="patients/:id" element={<PatientDetail />} />
         <Route path="treatments" element={<Treatments />} />

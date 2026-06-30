@@ -66,7 +66,7 @@ export default function Patients() {
                   <div className="ec-top clickable" onClick={() => nav(`/patients/${p._id}`)}>
                     {p.profileImage ? <img className="ec-avatar" src={imgUrl(p.profileImage)} alt="" /> : <div className="ec-avatar" />}
                     <div style={{ minWidth: 0 }}>
-                      <div className="ec-name">{p.fullName || '—'}</div>
+                      <div className="ec-name">{p.fullName || '—'}{p.isBlocked && <span className="badge red" style={{ marginLeft: 6 }}>Suspended</span>}</div>
                       <div className="ec-sub">Joined {fmtDate(p.userId?.createdAt || p.createdAt)}</div>
                     </div>
                   </div>
@@ -91,12 +91,18 @@ export default function Patients() {
         </>
       ) : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>Patient</th><th>Phone</th><th>Gender</th><th>City</th><th>Joined</th><th>Actions</th></tr></thead>
             <tbody>
               {L.data.map((p) => (
                 <tr key={p._id}>
-                  <td><UserCell name={p.fullName} sub={p.userId?.email} img={p.profileImage} onClick={() => nav(`/patients/${p._id}`)} /></td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <UserCell name={p.fullName} sub={p.userId?.email} img={p.profileImage} onClick={() => nav(`/patients/${p._id}`)} />
+                      {p.isBlocked && <span className="badge red">Suspended</span>}
+                    </div>
+                  </td>
                   <td>{p.mobileNumber || '—'}</td>
                   <td style={{ textTransform: 'capitalize' }}>{p.gender || '—'}</td>
                   <td>{p.city || '—'}</td>
@@ -110,6 +116,7 @@ export default function Patients() {
               {!L.data.length && <tr><td colSpan={6} className="empty">No patients found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}

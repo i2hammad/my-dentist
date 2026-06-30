@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { ChartLine, Users, Tooth, CurrencyDollar } from '@phosphor-icons/react';
 import api from '../lib/api';
-import { PageHeader, StatCards } from '../components/ui.jsx';
+import { PageHeader, StatCards, UserCell, money } from '../components/ui.jsx';
 import { SkeletonStatCards } from '../components/Skeleton.jsx';
 
 const COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899', '#84CC16'];
@@ -123,6 +123,52 @@ export default function Analytics() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* Retention + Commission */}
+          <div className="dash-grid">
+            {/* Retention */}
+            <div className="card">
+              <div className="card-head"><h3>Patient Retention</h3></div>
+              <StatCards items={[
+                { label: 'Repeat Rate', value: `${d.retention?.rate ?? 0}%`, icon: Users, tone: 'green' },
+              ]} />
+              <div className="sub" style={{ marginTop: 8 }}>
+                {(d.retention?.repeat ?? 0)} of {(d.retention?.withVisit ?? 0)} returned
+              </div>
+            </div>
+
+            {/* Commission */}
+            <div className="card">
+              <div className="card-head"><h3>Commission</h3></div>
+              <StatCards items={[
+                { label: 'Earned', value: money(d.commissionTotals?.earned), icon: CurrencyDollar, tone: 'blue' },
+                { label: 'Collected', value: money(d.commissionTotals?.collected), icon: CurrencyDollar, tone: 'green' },
+                { label: 'Outstanding', value: money(d.commissionTotals?.outstanding), icon: CurrencyDollar, tone: 'amber' },
+              ]} />
+            </div>
+          </div>
+
+          {/* Top Earning Dentists */}
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="card-head"><h3>Top Earning Dentists</h3></div>
+            {(d.topEarningDentists || []).length === 0 ? (
+              <div className="empty">No earning dentists yet</div>
+            ) : (
+              <div className="table-scroll">
+                <table className="table">
+                  <tbody>
+                    {(d.topEarningDentists || []).map((dent) => (
+                      <tr key={dent._id}>
+                        <td><UserCell name={dent.fullName} sub={dent.city} img={dent.photo} /></td>
+                        <td style={{ textAlign: 'right' }}>{dent.bills} bills</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(dent.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}

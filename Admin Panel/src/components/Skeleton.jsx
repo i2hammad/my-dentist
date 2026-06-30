@@ -24,28 +24,30 @@ export function SkeletonStatCards({ count = 4 }) {
 // avatar+lines cell; anything else renders a plain line.
 export function SkeletonTable({ rows = 6, cols = 5, withUser = true }) {
   return (
-    <table>
-      <tbody>
-        {Array.from({ length: rows }).map((_, r) => (
-          <tr key={r}>
-            {Array.from({ length: cols }).map((_, c) => (
-              <td key={c}>
-                {withUser && c === 0 ? (
-                  <div className="sk-cell">
-                    <div className="skeleton sk-circle" />
-                    <div style={{ flex: 1 }}>
-                      <SkeletonLine w="70%" h={11} />
-                      <SkeletonLine w="45%" h={9} />
+    <div className="table-scroll">
+      <table>
+        <tbody>
+          {Array.from({ length: rows }).map((_, r) => (
+            <tr key={r}>
+              {Array.from({ length: cols }).map((_, c) => (
+                <td key={c}>
+                  {withUser && c === 0 ? (
+                    <div className="sk-cell">
+                      <div className="skeleton sk-circle" />
+                      <div style={{ flex: 1 }}>
+                        <SkeletonLine w="70%" h={11} />
+                        <SkeletonLine w="45%" h={9} />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <SkeletonLine w={`${50 + ((r + c) % 4) * 12}%`} />
-                )}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                  ) : (
+                    <SkeletonLine w={`${50 + ((r + c) % 4) * 12}%`} />
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

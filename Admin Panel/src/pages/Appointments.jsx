@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { CalendarBlank, CheckCircle, Clock, XCircle } from '@phosphor-icons/react';
+import { CalendarBlank, CheckCircle, Clock, XCircle, Eye } from '@phosphor-icons/react';
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import ExportButton from '../components/ExportButton.jsx';
+import Modal from '../components/Modal.jsx';
 
 const map = { completed: 'green', confirmed: 'blue', pending: 'amber', cancelled: 'red' };
 
@@ -18,6 +19,7 @@ const APPT_CSV_COLS = [
 
 export default function Appointments() {
   const [status, setStatus] = useState('all');
+  const [view, setView] = useState(null);
   const L = useList('/api/admin/appointments', { status });
   const c = L.counts;
 
@@ -45,8 +47,9 @@ export default function Appointments() {
 
       {L.loading ? <SkeletonTable cols={6} /> : (
         <>
+          <div className="table-scroll">
           <table>
-            <thead><tr><th>Patient</th><th>Dentist</th><th>Date</th><th>Time</th><th>Treatment</th><th>Status</th></tr></thead>
+            <thead><tr><th>Patient</th><th>Dentist</th><th>Date</th><th>Time</th><th>Treatment</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {L.data.map((a) => (
                 <tr key={a._id}>
@@ -56,13 +59,51 @@ export default function Appointments() {
                   <td>{a.time || '—'}</td>
                   <td>{a.treatmentType || '—'}</td>
                   <td><span className={`badge ${map[a.status] || 'gray'}`}>{a.status}</span></td>
+                  <td><button className="icon-btn" title="View" onClick={() => setView(a)}><Eye size={16} /></button></td>
                 </tr>
               ))}
-              {!L.data.length && <tr><td colSpan={6} className="empty">No appointments found</td></tr>}
+              {!L.data.length && <tr><td colSpan={7} className="empty">No appointments found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
+      )}
+
+      {view && (
+        <Modal title="Appointment Details" onClose={() => setView(null)}>
+          <div className="detail-grid">
+            <div className="muted">Patient</div>
+            <div><UserCell name={view.patientId?.fullName} img={view.patientId?.profileImage} /></div>
+            <div className="muted">Dentist</div>
+            <div><UserCell name={view.doctorId?.fullName} img={view.doctorId?.photo} /></div>
+            <div className="muted">Treatment</div>
+            <div>{view.treatmentType || '—'}</div>
+            <div className="muted">Date &amp; Time</div>
+            <div>{fmtDate(view.date)}{view.time ? ` · ${view.time}` : ''}</div>
+            <div className="muted">Duration</div>
+            <div>{view.duration ? `${view.duration} min` : '—'}</div>
+            <div className="muted">Status</div>
+            <div><span className={`badge ${map[view.status] || 'gray'}`}>{view.status}</span></div>
+            <div className="muted">Consultation</div>
+            <div>{view.consultationType || '—'}</div>
+            <div className="muted">Description</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{view.description || '—'}</div>
+            <div className="muted">Visit summary</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{view.visitSummary || '—'}</div>
+            {view.rescheduleRequest?.requested && (
+              <>
+                <div className="muted">Reschedule requested</div>
+                <div>
+                  {fmtDate(view.rescheduleRequest.date)}
+                  {view.rescheduleRequest.time ? ` · ${view.rescheduleRequest.time}` : ''}
+                </div>
+              </>
+            )}
+            <div className="muted">Created</div>
+            <div>{fmtDate(view.createdAt)}</div>
+          </div>
+        </Modal>
       )}
     </div>
   );

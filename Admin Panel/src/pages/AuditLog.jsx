@@ -17,13 +17,16 @@ const AUDIT_CSV_COLS = [
 
 export default function AuditLog() {
   const [action, setAction] = useState('all');
-  const L = useList('/api/admin/audit-logs', { action });
+  const [entity, setEntity] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const L = useList('/api/admin/audit-logs', { action, entity, from, to });
   const c = L.counts;
 
   return (
     <div className="card">
       <PageHeader title="Activity Log" crumb="Activity Log"
-        actions={<ExportButton path="/api/admin/audit-logs" params={{ action }} columns={AUDIT_CSV_COLS} filename="activity-log.csv" />} />
+        actions={<ExportButton path="/api/admin/audit-logs" params={{ action, entity, from, to }} columns={AUDIT_CSV_COLS} filename="activity-log.csv" />} />
 
       {L.loading ? <SkeletonStatCards /> : (
         <StatCards items={[
@@ -42,10 +45,25 @@ export default function AuditLog() {
           <option value="create">Create</option>
           <option value="broadcast">Broadcast</option>
         </select>
+        <select value={entity} onChange={(e) => setEntity(e.target.value)}>
+          <option value="all">All Entities</option>
+          <option value="dentist">Dentist</option>
+          <option value="patient">Patient</option>
+          <option value="bill">Bill</option>
+          <option value="review">Review</option>
+          <option value="appointment">Appointment</option>
+          <option value="treatment">Treatment</option>
+          <option value="gallery">Gallery</option>
+          <option value="notification">Notification</option>
+          <option value="admin">Admin</option>
+        </select>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
       </div>
 
       {L.loading ? <SkeletonTable cols={5} withUser={false} /> : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Entity</th><th>Description</th></tr></thead>
             <tbody>
@@ -61,6 +79,7 @@ export default function AuditLog() {
               {!L.data.length && <tr><td colSpan={5} className="empty">No activity recorded yet</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}

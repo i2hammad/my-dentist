@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, SealCheck, Check, Trash, Wallet, Receipt, WarningCircle, CheckCircle } from '@phosphor-icons/react';
 import api, { imgUrl } from '../lib/api';
+import { ZoomImg } from '../components/Lightbox';
 import { Stars, fmtDate, money, PopularBadge, StatCards } from '../components/ui.jsx';
 import { SkeletonStatCards } from '../components/Skeleton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
@@ -107,7 +108,7 @@ export default function DentistDetail() {
       {/* Hero */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="detail-hero" style={{ marginBottom: 0 }}>
-          {doc.photo ? <img src={imgUrl(doc.photo)} alt="" /> : <div className="avatar" style={{ width: 72, height: 72 }} />}
+          {doc.photo ? <ZoomImg src={doc.photo} alt={doc.fullName} caption={doc.fullName} /> : <div className="avatar" style={{ width: 72, height: 72 }} />}
           <div>
             <h2>{doc.fullName}</h2>
             <div className="muted">{doc.specialization} · {doc.clinicName || 'No clinic'}</div>
@@ -190,9 +191,7 @@ export default function DentistDetail() {
                 {docs.map(([label, src]) => (
                   <div key={label}>
                     <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{label}</div>
-                    <a href={imgUrl(src)} target="_blank" rel="noreferrer">
-                      <img src={imgUrl(src)} alt={label} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }} />
-                    </a>
+                    <ZoomImg src={src} alt={label} caption={label} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }} />
                   </div>
                 ))}
               </div>
@@ -285,7 +284,7 @@ export default function DentistDetail() {
               <div className="card-head"><h3>Gallery ({d.gallery.length})</h3></div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
                 {d.gallery.slice(0, 9).map((g) => (
-                  <img key={g._id} src={imgUrl(g.imageUrl || g.beforeImage)} alt="" style={{ width: '100%', height: 70, objectFit: 'cover', borderRadius: 8 }} />
+                  <ZoomImg key={g._id} src={g.imageUrl || g.beforeImage} alt={g.title || ''} caption={g.title || undefined} style={{ width: '100%', height: 70, objectFit: 'cover', borderRadius: 8 }} />
                 ))}
               </div>
             </div>

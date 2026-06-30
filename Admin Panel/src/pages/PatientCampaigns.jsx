@@ -5,6 +5,7 @@ import { PageHeader, StatCards, fmtDate } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import Modal from '../components/Modal.jsx';
 import Field from '../components/Field.jsx';
+import { ZoomImg } from '../components/Lightbox.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
 
 export default function PatientCampaigns() {
@@ -13,6 +14,7 @@ export default function PatientCampaigns() {
   const [data, setData] = useState(null);
   const [counts, setCounts] = useState({});
   const [edit, setEdit] = useState(null);
+  const [view, setView] = useState(null);
   const [rotationInterval, setRotationInterval] = useState(10);
   const [savingInterval, setSavingInterval] = useState(false);
 
@@ -61,6 +63,7 @@ export default function PatientCampaigns() {
       )}
 
       {!data ? <SkeletonTable cols={7} withUser={false} /> : (
+        <div className="table-scroll">
         <table>
           <thead><tr><th>Campaign</th><th>Targeting</th><th>Schedule</th><th>Views</th><th>Clicks</th><th>CTR</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
@@ -68,7 +71,7 @@ export default function PatientCampaigns() {
               <tr key={c._id}>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {c.bannerImage ? <img src={imgUrl(c.bannerImage)} alt="" style={{ width: 52, height: 36, borderRadius: 8, objectFit: 'cover' }} /> : <div style={{ width: 52, height: 36, borderRadius: 8, background: '#FDF2F8', display: 'grid', placeItems: 'center' }}><Sparkle size={18} color="#DB2777" /></div>}
+                    {c.bannerImage ? <ZoomImg src={c.bannerImage} alt="" caption={c.title} style={{ width: 52, height: 36, borderRadius: 8, objectFit: 'cover' }} /> : <div style={{ width: 52, height: 36, borderRadius: 8, background: '#FDF2F8', display: 'grid', placeItems: 'center' }}><Sparkle size={18} color="#DB2777" /></div>}
                     <div>
                       <div style={{ fontWeight: 600 }}>{c.title}</div>
                       <div className="muted" style={{ fontSize: 12 }}>{c.company || '—'}</div>
@@ -82,6 +85,7 @@ export default function PatientCampaigns() {
                 <td>{c.ctr}%</td>
                 <td><span className={`badge ${c.live ? 'green' : c.isActive ? 'amber' : 'gray'}`}>{c.live ? 'Live' : c.isActive ? 'Scheduled' : 'Paused'}</span></td>
                 <td className="row-actions">
+                  <button className="icon-btn" title="Preview" onClick={() => setView(c)}><Eye size={16} /></button>
                   <button className="icon-btn" title={c.isActive ? 'Pause' : 'Activate'} onClick={() => toggle(c)}>{c.isActive ? '❚❚' : '▶'}</button>
                   <button className="icon-btn" title="Edit" onClick={() => setEdit(c)}><PencilSimple size={16} /></button>
                   <button className="icon-btn del" title="Delete" onClick={() => del(c)}><Trash size={16} /></button>
@@ -91,6 +95,7 @@ export default function PatientCampaigns() {
             {!data.length && <tr><td colSpan={8} className="empty">No patient campaigns yet. Create one to promote to patients.</td></tr>}
           </tbody>
         </table>
+        </div>
       )}
 
       {/* Rotation Interval Setting */}
@@ -109,7 +114,35 @@ export default function PatientCampaigns() {
 
       {edit && <CampaignForm c={edit} onClose={() => setEdit(null)}
         onSaved={() => { setEdit(null); load(); toast(edit._id ? 'Campaign updated' : 'Campaign created'); }} toast={toast} />}
+
+      {view && <CampaignPreview c={view} onClose={() => setView(null)} />}
     </div>
+  );
+}
+
+function CampaignPreview({ c, onClose }) {
+  return (
+    <Modal title="Promo Preview" size="lg" onClose={onClose}
+      footer={<button className="btn ghost" onClick={onClose}>Close</button>}>
+      <div style={{ maxWidth: 420, margin: '0 auto' }}>
+        {c.bannerImage
+          ? <ZoomImg src={c.bannerImage} alt="" caption={c.title} style={{ width: '100%', borderRadius: 12, objectFit: 'cover', maxHeight: 200 }} />
+          : <div style={{ width: '100%', height: 160, borderRadius: 12, background: '#FDF2F8', display: 'grid', placeItems: 'center' }}><Sparkle size={32} color="#DB2777" /></div>}
+        <h2 style={{ margin: '16px 0 4px', fontSize: 20 }}>{c.title}</h2>
+        {c.company && <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>{c.company}</div>}
+        {c.bannerText && <p style={{ fontWeight: 600, margin: '8px 0', color: '#DB2777' }}>{c.bannerText}</p>}
+        {c.body && <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#374151' }}>{c.body}</p>}
+        <button className="btn primary" style={{ width: '100%', marginTop: 12 }} disabled>{c.ctaLabel || 'Learn More'}</button>
+      </div>
+
+      <div className="detail-grid" style={{ marginTop: 20, borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
+        <span>Schedule</span><span>{fmtDate(c.startAt)} → {fmtDate(c.endAt)}</span>
+        <span>Targeting</span><span>{c.cities?.length ? c.cities.join(', ') : 'All cities'}</span>
+        <span>Views</span><span>{(c.views || 0).toLocaleString()}</span>
+        <span>Clicks</span><span>{(c.clicks || 0).toLocaleString()}</span>
+        {c.ctaLink && <><span>CTA Link</span><span>{c.ctaLink}</span></>}
+      </div>
+    </Modal>
   );
 }
 

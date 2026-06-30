@@ -66,6 +66,7 @@ export default function Dashboard() {
 
       <div className="card">
         <div className="card-head"><h3>Recent Appointments</h3></div>
+        <div className="table-scroll">
         <table>
           <thead><tr><th>Patient</th><th>Dentist</th><th>Treatment</th><th>Date</th><th>Status</th></tr></thead>
           <tbody>
@@ -80,6 +81,7 @@ export default function Dashboard() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   );

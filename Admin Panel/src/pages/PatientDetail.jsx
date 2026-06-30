@@ -15,8 +15,10 @@ export default function PatientDetail() {
   const confirm = useConfirm();
   const [d, setD] = useState(null);
 
+  const load = () => api.get(`/api/admin/patients/${id}`).then((r) => setD(r.data.data)).catch(() => { toast('Failed to load', 'error'); nav('/patients'); });
+
   useEffect(() => {
-    api.get(`/api/admin/patients/${id}`).then((r) => setD(r.data.data)).catch(() => { toast('Failed to load', 'error'); nav('/patients'); });
+    load();
     // eslint-disable-next-line
   }, [id]);
 
@@ -29,11 +31,24 @@ export default function PatientDetail() {
     catch { toast('Failed', 'error'); }
   };
 
+  const toggleBlock = async () => {
+    if (p.isBlocked) {
+      try { await api.patch(`/api/admin/patients/${id}/unblock`); toast('Patient reinstated'); load(); } catch { toast('Failed', 'error'); }
+    } else {
+      const reason = window.prompt('Reason for suspension?');
+      if (reason === null) return;
+      try { await api.patch(`/api/admin/patients/${id}/block`, { reason }); toast('Patient suspended'); load(); } catch { toast('Failed', 'error'); }
+    }
+  };
+
   return (
     <div>
       <div className="card-head" style={{ marginBottom: 16 }}>
         <button className="btn ghost" onClick={() => nav('/patients')}><ArrowLeft size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Back to Patients</button>
-        <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className={`btn ${p.isBlocked ? 'ghost' : 'danger'}`} onClick={toggleBlock}>{p.isBlocked ? 'Reinstate' : 'Suspend'}</button>
+          <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -42,7 +57,11 @@ export default function PatientDetail() {
           <div>
             <h2>{p.fullName}</h2>
             <div className="muted">{p.userId?.email}</div>
-            <div style={{ marginTop: 6 }} className="badge purple">{d.points} reward points</div>
+            <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="badge purple">{d.points} reward points</span>
+              {p.isBlocked && <span className="badge red">Suspended</span>}
+            </div>
+            {p.isBlocked && p.blockReason && <div className="muted" style={{ marginTop: 6 }}>Reason: {p.blockReason}</div>}
           </div>
         </div>
       </div>

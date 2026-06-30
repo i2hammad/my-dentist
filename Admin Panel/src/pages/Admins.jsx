@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, UserCheck, Prohibit, Crown, ToggleLeft, ToggleRight, Trash, Plus } from '@phosphor-icons/react';
+import { ShieldCheck, UserCheck, Prohibit, Crown, ToggleLeft, ToggleRight, Trash, Plus, Eye } from '@phosphor-icons/react';
 import api from '../lib/api';
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate } from '../components/ui.jsx';
@@ -16,6 +16,7 @@ export default function Admins() {
   const toast = useToast();
   const confirm = useConfirm();
   const [showAdd, setShowAdd] = useState(false);
+  const [view, setView] = useState(null);
 
   const toggle = async (a) => {
     try { await L.patch(a._id, { status: a.status === 'active' ? 'inactive' : 'active' }); toast('Status updated'); }
@@ -49,6 +50,7 @@ export default function Admins() {
 
       {L.loading ? <SkeletonTable cols={6} /> : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>Admin</th><th>Role</th><th>Status</th><th>Last Login</th><th>Joined</th><th>Actions</th></tr></thead>
             <tbody>
@@ -60,6 +62,7 @@ export default function Admins() {
                   <td>{a.lastLogin ? fmtDate(a.lastLogin) : '—'}</td>
                   <td>{fmtDate(a.createdAt)}</td>
                   <td className="row-actions">
+                    <button className="icon-btn" title="View" onClick={() => setView(a)}><Eye size={16} /></button>
                     <button className="icon-btn" title={a.status === 'active' ? 'Deactivate admin' : 'Activate admin'} onClick={() => toggle(a)}>
                       {a.status === 'active'
                         ? <ToggleRight size={20} weight="fill" color="#16A34A" />
@@ -72,11 +75,35 @@ export default function Admins() {
               {!L.data.length && <tr><td colSpan={6} className="empty">No admins found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}
 
       {showAdd && <AddAdmin onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); L.reload(); toast('Admin created'); }} toast={toast} />}
+
+      {view && (
+        <Modal title="Admin Details" onClose={() => setView(null)}>
+          <div style={{ marginBottom: 16 }}>
+            <UserCell name={view.fullName} sub={view.userId?.email} img={view.profileImage} />
+          </div>
+          <div className="detail-grid">
+            <span>Email</span><span>{view.userId?.email || '—'}</span>
+            <span>Role</span><span><span className={`badge ${view.adminRole === 'super_admin' ? 'purple' : 'blue'}`}>{view.adminRole === 'super_admin' ? 'Super Admin' : 'Admin'}</span></span>
+            <span>Status</span><span><span className={`badge ${view.status === 'active' ? 'green' : 'gray'}`}>{view.status}</span></span>
+            <span>Last Login</span><span>{view.lastLogin ? fmtDate(view.lastLogin) : '—'}</span>
+            <span>Joined</span><span>{fmtDate(view.createdAt)}</span>
+            <span>Permissions</span>
+            <span>
+              {view.adminRole === 'super_admin'
+                ? <span className="pill">All (super admin)</span>
+                : view.permissions?.length
+                  ? <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{view.permissions.map((p) => <span key={p} className="pill">{p}</span>)}</span>
+                  : '—'}
+            </span>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

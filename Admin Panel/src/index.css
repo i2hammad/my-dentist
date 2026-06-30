@@ -256,11 +256,9 @@ tr:hover td { background: #FAFBFF; }
   .field-row { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
 
-  /* Tables scroll horizontally instead of squashing: the card itself scrolls.
-     The toolbar wraps above stays put; only the table overflows. */
+  /* Tables: wrapped in a .table-scroll div (see bottom rules) so the table stays
+     a single table (aligned columns) while only the wrapper scrolls sideways. */
   .card { padding: 14px; }
-  .card > table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
-  .card > table > tbody, .card > table > thead { display: table; width: 100%; min-width: max-content; }
 
   /* Modals fill more of the screen */
   .modal { max-width: 100%; max-height: 92vh; }
@@ -273,4 +271,33 @@ tr:hover td { background: #FAFBFF; }
 @media (max-width: 480px) {
   .stat-grid { grid-template-columns: 1fr; }
   .toolbar input[type=text] { min-width: 0; width: 100%; }
+}
+
+/* ── Image lightbox ── */
+.zoomable { cursor: zoom-in; }
+.lightbox-overlay {
+  position: fixed; inset: 0; z-index: 200; background: rgba(2,6,23,.82);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: pop .15s ease;
+}
+.lightbox-inner { max-width: 92vw; max-height: 90vh; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.lightbox-img { max-width: 92vw; max-height: 82vh; object-fit: contain; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); background: #fff; }
+.lightbox-caption { color: #fff; font-size: 13px; text-align: center; max-width: 92vw; }
+.lightbox-close {
+  position: fixed; top: 18px; right: 18px; z-index: 201; width: 40px; height: 40px;
+  border-radius: 999px; background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center;
+}
+.lightbox-close:hover { background: rgba(255,255,255,.26); }
+
+/* Horizontal-scroll wrapper for wide tables. The table stays a single
+   `display:table` element so header + body columns line up; only this wrapper
+   scrolls sideways on narrow screens. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+
+@media (max-width: 860px) {
+  /* Let the table grow to its content and scroll inside the wrapper (aligned). */
+  .table-scroll > table { min-width: max-content; width: 100%; }
+  .table-scroll th, .table-scroll td { white-space: nowrap; }
+  /* Bigger, tappable gallery thumbnails on phones. */
+  .gallery-thumb { width: 72px !important; height: 52px !important; }
 }

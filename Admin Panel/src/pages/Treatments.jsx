@@ -54,6 +54,7 @@ export default function Treatments() {
 
       {L.loading ? <SkeletonTable cols={7} withUser={false} /> : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>#</th><th>Treatment</th><th>Dentist</th><th>Price (PKR)</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
             <tbody>
@@ -74,6 +75,7 @@ export default function Treatments() {
               {!L.data.length && <tr><td colSpan={7} className="empty">No treatments found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}

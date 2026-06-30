@@ -135,26 +135,28 @@ function PermissionsTab({ isSuper }) {
   return (
     <div className="card" style={{ overflowX: 'auto' }}>
       <div className="card-head"><h3>Permissions & Roles</h3></div>
-      <table>
-        <thead><tr><th>Admin</th><th>Role</th>{ALL_PERMS.map((p) => <th key={p} style={{ textTransform: 'capitalize' }}>{p}</th>)}</tr></thead>
-        <tbody>
-          {admins.map((a) => {
-            const sup = a.adminRole === 'super_admin';
-            return (
-              <tr key={a._id}>
-                <td style={{ fontWeight: 600 }}>{a.fullName}</td>
-                <td><span className={`badge ${sup ? 'purple' : 'blue'}`}>{sup ? 'Super' : 'Admin'}</span></td>
-                {ALL_PERMS.map((p) => (
-                  <td key={p} style={{ textAlign: 'center' }}>
-                    <input type="checkbox" checked={sup || a.permissions?.includes(p)} disabled={sup}
-                      onChange={() => togglePerm(a, p)} />
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <thead><tr><th>Admin</th><th>Role</th>{ALL_PERMS.map((p) => <th key={p} style={{ textTransform: 'capitalize' }}>{p}</th>)}</tr></thead>
+          <tbody>
+            {admins.map((a) => {
+              const sup = a.adminRole === 'super_admin';
+              return (
+                <tr key={a._id}>
+                  <td style={{ fontWeight: 600 }}>{a.fullName}</td>
+                  <td><span className={`badge ${sup ? 'purple' : 'blue'}`}>{sup ? 'Super' : 'Admin'}</span></td>
+                  {ALL_PERMS.map((p) => (
+                    <td key={p} style={{ textAlign: 'center' }}>
+                      <input type="checkbox" checked={sup || a.permissions?.includes(p)} disabled={sup}
+                        onChange={() => togglePerm(a, p)} />
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Super admins always have full access.</p>
     </div>
   );
@@ -180,6 +182,7 @@ function AppTab({ isSuper }) {
         defaultConsultationFee: Number(s.defaultConsultationFee),
         commissionRate: Number(s.commissionRate),
         supportEmail: s.supportEmail, payments: s.payments,
+        maintenanceMode: !!s.maintenanceMode,
       });
       toast('Settings saved');
     } catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
@@ -223,6 +226,12 @@ function AppTab({ isSuper }) {
           <Field label="Bank Title of Account" value={s.payments?.bankTitle || ''} onChange={setPay('bankTitle')} />
           <div />
         </div>
+        <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Maintenance</h4>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: isSuper ? 'pointer' : 'default', marginBottom: 6 }}>
+          <input type="checkbox" checked={!!s.maintenanceMode} onChange={(e) => set('maintenanceMode')(e.target.checked)} />
+          <span style={{ fontWeight: 600 }}>Maintenance Mode</span>
+        </label>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>When ON, the patient/doctor apps show a maintenance screen.</p>
         {isSuper && <button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save Settings'}</button>}
       </fieldset>
     </div>

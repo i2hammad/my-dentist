@@ -4,16 +4,17 @@ import {
   SquaresFour, ShieldCheck, Tooth, Users, Heartbeat,
   Image, Star, CalendarBlank, Receipt, Gift, SignOut, Bell, MagnifyingGlass,
   Gear, CaretDown, UserCircle, Megaphone, Sparkle, List, X,
-  ChartLine, PaperPlaneTilt, ClockCounterClockwise, Percent,
+  ChartLine, PaperPlaneTilt, ClockCounterClockwise, Percent, SealCheck,
 } from '@phosphor-icons/react';
 import { useAuth } from '../lib/auth.jsx';
-import { imgUrl } from '../lib/api';
+import api, { imgUrl } from '../lib/api';
 
 const NAV = [
   { to: '/', label: 'Dashboard', Icon: SquaresFour, end: true },
   { to: '/analytics', label: 'Analytics', Icon: ChartLine },
   { to: '/admins', label: 'Admins', Icon: ShieldCheck },
   { to: '/dentists', label: 'Dentists', Icon: Tooth },
+  { to: '/verification', label: 'Verification', Icon: SealCheck },
   { to: '/patients', label: 'Patients', Icon: Users },
   { to: '/treatments', label: 'Treatments', Icon: Heartbeat },
   { to: '/gallery', label: 'Gallery', Icon: Image },
@@ -44,6 +45,29 @@ export default function Layout() {
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
+  // Topbar global search
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState(null);
+  const searchRef = useRef(null);
+  useEffect(() => {
+    const onClick = (e) => { if (searchRef.current && !searchRef.current.contains(e.target)) setResults(null); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setResults(null); return; }
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/api/admin/search', { params: { q: term } });
+        setResults(data?.data || data || {});
+      } catch { setResults(null); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const goSearch = (to) => { setResults(null); setQ(''); nav(to); };
+
   const go = (to) => { setMenuOpen(false); nav(to); };
 
   return (
@@ -68,7 +92,68 @@ export default function Layout() {
       <div className="main">
         <header className="topbar">
           <button className="hamburger" onClick={() => setNavOpen(true)} aria-label="Open menu"><List size={22} /></button>
-          <div className="search"><MagnifyingGlass size={16} className="search-ic" weight="regular" /><input placeholder="Search anything…" /></div>
+          <div className="search" ref={searchRef}>
+            <MagnifyingGlass size={16} className="search-ic" weight="regular" />
+            <input
+              placeholder="Search anything…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onFocus={() => { if (results) setResults(results); }}
+            />
+            {results && (() => {
+              const dentists = results.dentists || [];
+              const patients = results.patients || [];
+              const bills = results.bills || [];
+              const empty = !dentists.length && !patients.length && !bills.length;
+              return (
+                <div className="dropdown" style={{ left: 0, right: 0, top: 46, maxHeight: 380, overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                  {empty && <div className="muted" style={{ padding: '10px 12px', fontSize: 13 }}>No results found</div>}
+                  {dentists.length > 0 && (
+                    <>
+                      <div className="muted" style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>Dentists</div>
+                      {dentists.map((d) => (
+                        <button key={d._id} className="dropdown-item" onClick={() => goSearch('/dentists/' + d._id)}>
+                          {d.photo ? <img src={imgUrl(d.photo)} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : <div className="avatar" style={{ width: 28, height: 28 }} />}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.fullName || 'Dentist'}</div>
+                            <div className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[d.clinicName, d.city].filter(Boolean).join(' · ')}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {patients.length > 0 && (
+                    <>
+                      <div className="muted" style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>Patients</div>
+                      {patients.map((p) => (
+                        <button key={p._id} className="dropdown-item" onClick={() => goSearch('/patients/' + p._id)}>
+                          {p.profileImage ? <img src={imgUrl(p.profileImage)} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : <div className="avatar" style={{ width: 28, height: 28 }} />}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.fullName || 'Patient'}</div>
+                            <div className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[p.mobileNumber, p.city].filter(Boolean).join(' · ')}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {bills.length > 0 && (
+                    <>
+                      <div className="muted" style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>Bills</div>
+                      {bills.map((b) => (
+                        <button key={b._id} className="dropdown-item" onClick={() => goSearch('/bills')}>
+                          <span className="ic" style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F1F5F9', borderRadius: '50%' }}><Receipt size={15} /></span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.invoiceNumber || b.treatmentName || 'Bill'}</div>
+                            <div className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[b.treatmentName, b.status].filter(Boolean).join(' · ')}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
           <div className="spacer" />
           <Bell size={20} className="muted" />
           <div className="admin-chip" ref={menuRef} style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setMenuOpen((o) => !o)}>

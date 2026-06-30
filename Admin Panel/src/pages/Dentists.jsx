@@ -110,6 +110,7 @@ export default function Dentists() {
         </>
       ) : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>Dentist</th><th>Specialization</th><th>City</th><th>Verification</th><th>Popular</th><th>Joined</th><th>Actions</th></tr></thead>
             <tbody>
@@ -131,6 +132,7 @@ export default function Dentists() {
               {!L.data.length && <tr><td colSpan={7} className="empty">No dentists found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}

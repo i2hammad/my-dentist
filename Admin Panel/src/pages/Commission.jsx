@@ -48,6 +48,7 @@ export default function Commission() {
         </label>
       </div>
 
+      <div className="table-scroll">
       <table>
         <thead><tr><th>Doctor</th><th>City</th><th>Collected</th><th>Commission ({d.rate}%)</th><th>Paid</th><th>Outstanding</th><th></th></tr></thead>
         <tbody>
@@ -72,6 +73,7 @@ export default function Commission() {
           {!rows.length && <tr><td colSpan={7} className="empty">No doctors found</td></tr>}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

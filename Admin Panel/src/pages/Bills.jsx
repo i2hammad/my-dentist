@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { Receipt, CurrencyDollar, Clock, Wallet, CheckCircle, WarningCircle, Eye } from '@phosphor-icons/react';
 import useList from '../lib/useList';
+import api from '../lib/api';
+import { useToast } from '../components/feedback.jsx';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate, money } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import ExportButton from '../components/ExportButton.jsx';
 import Modal from '../components/Modal.jsx';
+
+const statusBadgeClass = (s) => s === 'paid' ? 'green' : s === 'refunded' ? 'gray' : s === 'draft' ? 'gray' : 'amber';
+const statusLabel = (s) => s === 'refunded' ? 'Refunded' : s;
 
 const BILL_CSV_COLS = [
   { header: 'Invoice', value: (r) => r.invoiceNumber },
@@ -58,6 +63,7 @@ export default function Bills() {
 
       {L.loading ? <SkeletonTable cols={8} /> : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>Invoice</th><th>Patient</th><th>Dentist</th><th>Treatment</th><th>Final</th><th>Paid</th><th>Status</th><th>Date</th><th></th></tr></thead>
             <tbody>
@@ -69,7 +75,7 @@ export default function Bills() {
                   <td>{b.treatmentName || '—'}</td>
                   <td>{money(b.finalAmount)}</td>
                   <td>{money(b.paidAmount)}</td>
-                  <td><span className={`badge ${b.status === 'paid' ? 'green' : b.status === 'draft' ? 'gray' : 'amber'}`}>{b.status}</span></td>
+                  <td><span className={`badge ${statusBadgeClass(b.status)}`}>{statusLabel(b.status)}</span></td>
                   <td>{fmtDate(b.createdAt)}</td>
                   <td className="row-actions">
                     <button className="icon-btn" title="View invoice" onClick={() => setView(b)}><Eye size={16} /></button>
@@ -79,27 +85,53 @@ export default function Bills() {
               {!L.data.length && <tr><td colSpan={9} className="empty">No bills found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}
 
-      {view && <BillDetail bill={view} onClose={() => setView(null)} />}
+      {view && <BillDetail bill={view} onClose={() => setView(null)} onRefunded={L.load} />}
     </div>
   );
 }
 
-function BillDetail({ bill, onClose }) {
+function BillDetail({ bill, onClose, onRefunded }) {
+  const toast = useToast();
   const due = Math.max(0, (bill.finalAmount || 0) - (bill.paidAmount || 0));
+  const payLabel = bill.paymentMethodLabel || bill.paymentType;
+  const canRefund = bill.status !== 'refunded' && ['paid', 'payment_pending'].includes(bill.status);
+
+  const refund = async () => {
+    const reason = window.prompt('Refund reason?');
+    if (reason === null) return;
+    try {
+      await api.patch('/api/admin/bills/' + bill._id + '/refund', { reason });
+      toast('Bill refunded');
+      onClose();
+      onRefunded?.();
+    } catch (e) {
+      toast(e?.response?.data?.message || 'Failed to refund bill', 'error');
+    }
+  };
+
   return (
     <Modal title={`Invoice ${bill.invoiceNumber || ''}`} onClose={onClose}
-      footer={<button className="btn primary" onClick={onClose}>Close</button>}>
+      footer={<>
+        {canRefund && <button className="btn danger" onClick={refund}>Refund</button>}
+        <button className="btn primary" onClick={onClose}>Close</button>
+      </>}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginBottom: 16 }}>
+        <UserCell name={bill.patientId?.fullName} sub="Patient" img={bill.patientId?.profileImage} />
+        <UserCell name={bill.doctorId?.fullName} sub="Dentist" img={bill.doctorId?.photo} />
+      </div>
       <div className="detail-grid">
-        <div><div className="k">Patient</div><div className="v">{bill.patientId?.fullName || '—'}</div></div>
-        <div><div className="k">Dentist</div><div className="v">{bill.doctorId?.fullName || '—'}</div></div>
-        <div><div className="k">Treatment</div><div className="v">{bill.treatmentName || '—'}</div></div>
-        <div><div className="k">Date</div><div className="v">{fmtDate(bill.createdAt)}</div></div>
-        <div><div className="k">Status</div><div className="v" style={{ textTransform: 'capitalize' }}>{bill.status}</div></div>
         <div><div className="k">Invoice #</div><div className="v">{bill.invoiceNumber || '—'}</div></div>
+        <div><div className="k">Status</div><div className="v"><span className={`badge ${statusBadgeClass(bill.status)}`}>{statusLabel(bill.status)}</span></div></div>
+        <div><div className="k">Treatment</div><div className="v">{bill.treatmentName || '—'}</div></div>
+        {payLabel && <div><div className="k">Payment Method</div><div className="v" style={{ textTransform: 'capitalize' }}>{payLabel}</div></div>}
+        <div><div className="k">Created</div><div className="v">{fmtDate(bill.createdAt)}</div></div>
+        {bill.dueDate && <div><div className="k">Due Date</div><div className="v">{fmtDate(bill.dueDate)}</div></div>}
+        {bill.paidAt && <div><div className="k">Paid At</div><div className="v">{fmtDate(bill.paidAt)}</div></div>}
       </div>
       <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14, marginTop: 4 }}>
         <Row k="Amount" v={money(bill.amount)} />

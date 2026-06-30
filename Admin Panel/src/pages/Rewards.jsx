@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Gift, CreditCard, ArrowsClockwise, Trophy, Star, Plus } from '@phosphor-icons/react';
+import { useNavigate } from 'react-router-dom';
+import { Gift, CreditCard, ArrowsClockwise, Trophy, Star, Plus, Eye } from '@phosphor-icons/react';
 import api from '../lib/api';
 import useList from '../lib/useList';
 import { PageHeader, StatCards, UserCell, Pagination, fmtDate, PopularBadge } from '../components/ui.jsx';
@@ -30,6 +31,7 @@ export default function Rewards() {
 }
 
 function PatientRewards() {
+  const navigate = useNavigate();
   const L = useList('/api/admin/rewards');
   const c = L.counts;
   return (
@@ -47,21 +49,29 @@ function PatientRewards() {
       </div>
       {L.loading ? <SkeletonTable cols={5} /> : (
         <>
+          <div className="table-scroll">
           <table>
-            <thead><tr><th>Patient</th><th>Description</th><th>Points</th><th>Status</th><th>Date</th></tr></thead>
+            <thead><tr><th>Patient</th><th>Description</th><th>Points</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
             <tbody>
-              {L.data.map((r) => (
-                <tr key={r._id}>
-                  <td><UserCell name={r.patientId?.fullName} img={r.patientId?.profileImage} /></td>
-                  <td className="muted">{r.description || '—'}</td>
-                  <td style={{ fontWeight: 700, color: r.points >= 0 ? '#15803D' : '#B91C1C' }}>{r.points >= 0 ? '+' : ''}{r.points}</td>
-                  <td><span className={`badge ${r.isRedeemed ? 'gray' : 'green'}`}>{r.isRedeemed ? 'Redeemed' : 'Active'}</span></td>
-                  <td>{fmtDate(r.createdAt)}</td>
-                </tr>
-              ))}
-              {!L.data.length && <tr><td colSpan={5} className="empty">No reward transactions found</td></tr>}
+              {L.data.map((r) => {
+                const patientId = r.patientId?._id || r.patientId;
+                return (
+                  <tr key={r._id}>
+                    <td><UserCell name={r.patientId?.fullName} img={r.patientId?.profileImage} onClick={patientId ? () => navigate('/patients/' + patientId) : undefined} /></td>
+                    <td className="muted">{r.description || '—'}</td>
+                    <td style={{ fontWeight: 700, color: r.points >= 0 ? '#15803D' : '#B91C1C' }}>{r.points >= 0 ? '+' : ''}{r.points}</td>
+                    <td><span className={`badge ${r.isRedeemed ? 'gray' : 'green'}`}>{r.isRedeemed ? 'Redeemed' : 'Active'}</span></td>
+                    <td>{fmtDate(r.createdAt)}</td>
+                    <td className="row-actions">
+                      {patientId && <button className="btn sm ghost" onClick={() => navigate('/patients/' + patientId)}><Eye size={16} /> View</button>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!L.data.length && <tr><td colSpan={6} className="empty">No reward transactions found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}
@@ -70,6 +80,7 @@ function PatientRewards() {
 }
 
 function DoctorPopularity() {
+  const navigate = useNavigate();
   const toast = useToast();
   const confirm = useConfirm();
   const [docs, setDocs] = useState(null);
@@ -105,16 +116,18 @@ function DoctorPopularity() {
       <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
         Doctors auto-earn the green badge at 20,000 points. Grant the blue badge manually after a doctor pays the popularity fee (PKR 100,000). Popular doctors rank to the top of patient search.
       </p>
+      <div className="table-scroll">
       <table>
         <thead><tr><th>Doctor</th><th>City</th><th>Points</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           {docs.map((d) => (
             <tr key={d._id}>
-              <td><UserCell name={d.fullName} sub={d.specialization} img={d.photo} /></td>
+              <td><UserCell name={d.fullName} sub={d.specialization} img={d.photo} onClick={() => navigate('/dentists/' + d._id)} /></td>
               <td>{d.city || '—'}</td>
               <td style={{ fontWeight: 600 }}>{(d.rewardPoints || 0).toLocaleString()}</td>
               <td>{d.popularType ? <PopularBadge type={d.popularType} /> : <span className="muted">—</span>}</td>
               <td className="row-actions">
+                <button className="btn sm ghost" onClick={() => navigate('/dentists/' + d._id)}><Eye size={16} /> View</button>
                 {d.popularType !== 'paid' && <button className="btn sm primary" onClick={() => grantPaid(d)}>Grant Paid</button>}
                 {d.isPopular && <button className="btn sm ghost" onClick={() => revoke(d)}>Revoke</button>}
               </td>
@@ -122,6 +135,7 @@ function DoctorPopularity() {
           ))}
         </tbody>
       </table>
+      </div>
     </>
   );
 }

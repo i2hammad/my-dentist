@@ -4,6 +4,7 @@ import useList from '../lib/useList';
 import { PageHeader, StatCards, Pagination, fmtDate } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
+import { ZoomImg } from '../components/Lightbox';
 import { imgUrl } from '../lib/api';
 
 export default function Gallery() {
@@ -40,14 +41,16 @@ export default function Gallery() {
 
       {L.loading ? <SkeletonTable cols={6} withUser={false} /> : (
         <>
+          <div className="table-scroll">
           <table>
             <thead><tr><th>Thumbnail</th><th>Title</th><th>Dentist</th><th>Category</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {L.data.map((g) => (
                 <tr key={g._id}>
                   <td>
-                    <img src={imgUrl(g.imageUrl || g.beforeImage)} alt="" style={{ width: 56, height: 40, borderRadius: 8, objectFit: 'cover', background: '#E2E8F0' }}
-                      onError={(e) => { e.target.style.visibility = 'hidden'; }} />
+                    <ZoomImg src={g.imageUrl || g.beforeImage} alt={g.title || ''} className="gallery-thumb"
+                      caption={[g.title, (g.category || '').replace(/_/g, ' ')].filter(Boolean).join(' — ')}
+                      style={{ width: 56, height: 40, borderRadius: 8, objectFit: 'cover', background: '#E2E8F0' }} />
                   </td>
                   <td style={{ fontWeight: 600 }}>{g.title || '—'}</td>
                   <td>{g.doctorId?.fullName || '—'}</td>
@@ -61,6 +64,7 @@ export default function Gallery() {
               {!L.data.length && <tr><td colSpan={6} className="empty">No images found</td></tr>}
             </tbody>
           </table>
+          </div>
           <Pagination page={L.page} pages={L.pages} total={L.total} onPage={L.setPage} />
         </>
       )}

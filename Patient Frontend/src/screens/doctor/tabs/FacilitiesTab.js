@@ -28,7 +28,11 @@ export default function FacilitiesTab({ profile }) {
     setSavingServices(true);
     try {
       const token = await storage.getItem('userToken');
-      await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { services: list }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(
+        `${API_BASE_URL}/api/users/doctor-profile`,
+        { services: list, facilityScore: list.length },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
     } catch (e) {
       Alert.alert('Error', 'Could not save services. Please try again.');
     } finally {
@@ -49,7 +53,7 @@ export default function FacilitiesTab({ profile }) {
     persistServices(list);
   };
 
-  const facilityScore = profile?.facilityScore || 0;
+  const facilityScore = services.length;
   const grade = getClinicTier(facilityScore);
   const gradeIcon = grade.tier === 'elite' ? 'ribbon' : grade.tier === 'modern' ? 'business' : 'shield-checkmark';
   const gradeBlurb = grade.tier === 'elite'

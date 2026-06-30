@@ -37,6 +37,7 @@ import DoctorRegisterScreen from '../screens/doctor/DoctorRegisterScreen';
 import ClinicSetupScreen from '../screens/doctor/ClinicSetupScreen';
 import DoctorInboxScreen from '../screens/doctor/DoctorInboxScreen';
 import DoctorBillsScreen from '../screens/doctor/DoctorBillsScreen';
+import PointsHistoryScreen from '../screens/doctor/PointsHistoryScreen';
 
 import ImplantsScreen from '../screens/ImplantsScreen';
 import MyReviewsScreen from '../screens/MyReviewsScreen';
@@ -229,6 +230,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Appointments" component={AppointmentsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="SavedDoctors" component={SavedDoctorsScreen} />
+        <Stack.Screen name="PointsHistory" component={PointsHistoryScreen} />
       </Stack.Navigator>
         </View>
       </View>

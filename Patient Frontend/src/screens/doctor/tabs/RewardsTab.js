@@ -10,7 +10,7 @@ const { width } = Dimensions.get('window');
 const isWide = width >= 768;
 
 
-export default function RewardsTab({ profile, bills = [], setActiveTab }) {
+export default function RewardsTab({ profile, bills = [], setActiveTab, navigation }) {
   const [earnings, setEarnings] = useState({
     totalPoints: 0,
     totalEarnings: '0',
@@ -24,7 +24,9 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
   const [platformPayments, setPlatformPayments] = useState({
     bankAccount: '',
     bankName: '',
+    bankTitle: '',
     easypaisaNumber: '',
+    easypaisaTitle: '',
     jazzcashNumber: '',
   });
 
@@ -205,7 +207,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
 
           <TouchableOpacity 
             style={styles.historyBtn} 
-            onPress={() => Alert.alert('Points History', `You have earned a total of ${earnings.totalPoints} points from patient visits, online payments, and reviews.`)}
+            onPress={() => navigation?.navigate('PointsHistory', { totalPoints: earnings.totalPoints })}
           >
             <Ionicons name="gift-outline" size={16} color="#0052FF" style={{marginRight: 8}} />
             <Text style={styles.historyBtnText}>View Points History</Text>
@@ -412,6 +414,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
                 <Ionicons name="card-outline" size={15} color="#0052FF" style={{marginRight: 8}} />
                 <View style={{flex: 1}}>
                   {platformPayments.bankName ? <Text style={styles.acctLabel}>{platformPayments.bankName}</Text> : null}
+                  {platformPayments.bankTitle ? <Text style={styles.acctTitle}>{platformPayments.bankTitle}</Text> : null}
                   <TouchableOpacity
                     style={{flexDirection: 'row', alignItems: 'center'}}
                     onPress={() => {
@@ -432,6 +435,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab }) {
                 <Ionicons name="phone-portrait-outline" size={15} color="#16A34A" style={{marginRight: 8}} />
                 <View style={{flex: 1}}>
                   <Text style={styles.acctLabel}>EasyPaisa</Text>
+                  {platformPayments.easypaisaTitle ? <Text style={styles.acctTitle}>{platformPayments.easypaisaTitle}</Text> : null}
                   <TouchableOpacity
                     style={{flexDirection: 'row', alignItems: 'center'}}
                     onPress={() => {
@@ -606,6 +610,7 @@ const styles = StyleSheet.create({
   paymentDesc: { fontSize: 11, color: '#64748B', lineHeight: 16 },
   acctRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   acctLabel: { fontSize: 10, color: '#64748B', fontWeight: '600', marginBottom: 2 },
+  acctTitle: { fontSize: 12, color: '#0A1551', fontWeight: '700', marginBottom: 2 },
   acctValue: { fontSize: 13, fontWeight: 'bold', color: '#0052FF' },
 
   footerBanner: { backgroundColor: '#020617', borderRadius: 16, padding: 24, marginTop: 30, overflow: 'hidden' },

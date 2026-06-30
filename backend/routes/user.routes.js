@@ -42,7 +42,9 @@ router.get('/platform-settings', async (req, res) => {
         payments: {
           bankAccount:      s.payments?.bankAccount      || '',
           bankName:         s.payments?.bankName         || '',
+          bankTitle:        s.payments?.bankTitle        || '',
           easypaisaNumber:  s.payments?.easypaisaNumber  || '',
+          easypaisaTitle:   s.payments?.easypaisaTitle   || '',
           jazzcashNumber:   s.payments?.jazzcashNumber   || '',
         },
         commissionRate: s.commissionRate ?? 10,

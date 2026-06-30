@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Image, ActivityIndicator, Alert, Share, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Image, ActivityIndicator, Alert, Share, Platform, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -128,6 +128,11 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const [btInvoice, setBtInvoice] = useState(null); // invoice passed to the BT printer picker
   // Draft being edited (id) — null when creating fresh.
   const [editingBillId, setEditingBillId] = useState(null);
+  // Patient bills modal
+  const [patientModal, setPatientModal] = useState(null); // { _id, name } | null
+  const [billDetail, setBillDetail] = useState(null);     // individual bill for detail view inside modal
+  // Treatment mode in Current Bill: 'view' = auto-loaded from appointment, 'edit' = manual editable form
+  const [treatmentMode, setTreatmentMode] = useState('edit');
 
   // Load a draft bill back into the Current Bill form for editing.
   const editDraft = (bill) => {
@@ -140,6 +145,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     if (p && (p._id || p)) {
       setSelectedPatient({ id: p._id || p, name: p.fullName || 'Patient', phone: p.mobileNumber || '' });
     }
+    setTreatmentMode('edit');
     setSubTab('current');
     Alert.alert('Editing Draft', 'This draft is loaded for editing. Save it as a final bill or update the draft.');
   };
@@ -181,16 +187,31 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
           patientMap[pid] = {
             id: pid,
             name: apt.patientId.fullName || 'Patient',
-            phone: apt.patientId.mobileNumber || ''
+            phone: apt.patientId.mobileNumber || '',
+            appointments: [],
           };
+        }
+        if (apt.treatmentType) {
+          patientMap[pid].appointments.push({
+            _id: apt._id,
+            treatmentType: apt.treatmentType,
+            date: apt.date,
+            description: apt.description || '',
+          });
         }
       }
     });
-    
+
     const pts = Object.values(patientMap);
     setPatients(pts);
     if (pts.length > 0) {
-      setSelectedPatient(pts[0]);
+      const first = pts[0];
+      setSelectedPatient(first);
+      // Pre-load treatments from the first patient's appointments
+      if (first.appointments && first.appointments.length > 0) {
+        setItems(first.appointments.map(a => ({ name: a.treatmentType, price: '' })));
+        setTreatmentMode('view');
+      }
     }
   }, [appointments]);
 
@@ -546,7 +567,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         </TouchableOpacity>
       </ScrollView>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         
         {/* --- PREVIOUS BILLS --- */}
         {subTab === 'previous' && (
@@ -587,6 +608,9 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 placeholderTextColor="#94A3B8"
                 value={billSearch}
                 onChangeText={setBillSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
               />
               {billSearch.length > 0 && (
                 <TouchableOpacity onPress={() => setBillSearch('')} hitSlop={8}>
@@ -611,7 +635,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               <ScrollView horizontal={!isWide} showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
                 <View style={styles.tableContainer}>
                   <View style={styles.tableHeader}>
-                    <Text style={[styles.th, {width: 120}]}>Invoice No.</Text>
+                    <Text style={[styles.th, {width: 140}]}>Invoice / Patient</Text>
                     <Text style={[styles.th, {width: 100}]}>Date</Text>
                     <Text style={[styles.th, {width: 150}]}>Description</Text>
                     <Text style={[styles.th, {width: 100}]}>Total Amount</Text>
@@ -626,9 +650,22 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   {visibleBills.map((inv, idx) => {
                     const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
                     const billOut = Math.max(inv.finalAmount - (inv.paidAmount || 0), 0);
+                    const patientName = inv.patientId?.fullName || 'Patient';
+                    const patientId   = inv.patientId?._id || inv.patientId;
                     return (
                       <View key={inv._id || idx} style={styles.tableRow}>
-                        <Text style={[styles.td, {width: 120, color: '#0A1551', fontWeight: 'bold'}]}>{inv.invoiceNumber}</Text>
+                        <View style={{width: 140}}>
+                          <Text style={[styles.td, {color: '#0A1551', fontWeight: 'bold'}]}>{inv.invoiceNumber}</Text>
+                          <TouchableOpacity
+                            onPress={() => setPatientModal({ _id: patientId, name: patientName })}
+                            hitSlop={6}
+                          >
+                            <View style={styles.patientNamePill}>
+                              <Ionicons name="person-circle-outline" size={12} color="#0052FF" />
+                              <Text style={styles.patientNamePillText} numberOfLines={1}>{patientName}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
                         <Text style={[styles.td, {width: 100}]}>{billDate}</Text>
                         <Text style={[styles.td, {width: 150}]}>{inv.treatmentName}</Text>
                         <Text style={[styles.td, {width: 100, fontWeight: 'bold'}]}>PKR {inv.amount}</Text>
@@ -765,15 +802,35 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               {showPatientDropdown && (
                 <View style={styles.dropdownContainer}>
                   {patients.length > 0 ? patients.map(p => (
-                    <TouchableOpacity 
-                      key={p.id} 
+                    <TouchableOpacity
+                      key={p.id}
                       style={styles.dropdownItem}
                       onPress={() => {
                         setSelectedPatient(p);
                         setShowPatientDropdown(false);
+                        // Load actual treatments from this patient's appointments
+                        if (p.appointments && p.appointments.length > 0) {
+                          setItems(p.appointments.map(a => ({ name: a.treatmentType, price: '' })));
+                          setTreatmentMode('view');
+                        } else {
+                          setItems([{ name: '', price: '' }]);
+                          setTreatmentMode('edit');
+                        }
+                        setDiscount('0');
+                        setPaidAmount('0');
+                        setPointsCode('');
+                        setEditingBillId(null);
                       }}
                     >
-                      <Text style={{ fontSize: 13, color: '#0A1551' }}>{p.name}</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, color: '#0A1551', fontWeight: '600' }}>{p.name}</Text>
+                        {p.appointments?.length > 0 && (
+                          <Text style={{ fontSize: 11, color: '#64748B' }}>{p.appointments.length} treatment{p.appointments.length !== 1 ? 's' : ''}</Text>
+                        )}
+                      </View>
+                      {p.appointments?.slice(0, 2).map((a, i) => (
+                        <Text key={i} style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>• {a.treatmentType}</Text>
+                      ))}
                     </TouchableOpacity>
                   )) : (
                     <Text style={{ padding: 12, fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>No patients found from appointments.</Text>
@@ -790,42 +847,91 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               <View style={{flex: 1.5, paddingRight: isWide ? 20 : 0}}>
                 <Text style={styles.sectionHeading}>Treatments / Items</Text>
                 
-                {/* Items Table */}
-                <View style={styles.itemsTable}>
-                  <View style={styles.itemsHeader}>
-                    <Text style={[styles.th, {width: 40, textAlign: 'center'}]}>#</Text>
-                    <Text style={[styles.th, {flex: 1}]}>Treatment Name</Text>
-                    <Text style={[styles.th, {width: 120}]}>Price (PKR)</Text>
-                    <Text style={[styles.th, {width: 60, textAlign: 'center'}]}>Action</Text>
-                  </View>
-                  
-                  {items.map((it, i) => (
-                    <View key={i} style={styles.itemRow}>
-                      <Text style={[styles.td, {width: 40, textAlign: 'center', fontWeight: 'bold'}]}>{i+1}</Text>
-                      <TextInput 
-                        style={[styles.inputBox, {flex: 1, marginRight: 8}]} 
-                        value={it.name} 
-                        placeholder="e.g. Scaling"
-                        onChangeText={(txt) => handleItemChange(i, 'name', txt)}
-                      />
-                      <TextInput 
-                        style={[styles.inputBox, {width: 120}]} 
-                        value={it.price} 
-                        keyboardType="numeric"
-                        placeholder="Price"
-                        onChangeText={(txt) => handleItemChange(i, 'price', txt)}
-                      />
-                      <TouchableOpacity style={{width: 60, alignItems: 'center'}} onPress={() => handleItemDelete(i)}>
-                        <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                {/* VIEW MODE — treatments from appointment, price editable inline */}
+                {treatmentMode === 'view' ? (
+                  <View>
+                    <View style={styles.tmViewHeader}>
+                      <View style={styles.tmBadge}>
+                        <Ionicons name="calendar-outline" size={13} color="#0052FF" />
+                        <Text style={styles.tmBadgeText}>From Appointment</Text>
+                      </View>
+                      <TouchableOpacity style={styles.tmEditBtn} onPress={() => setTreatmentMode('edit')}>
+                        <Ionicons name="create-outline" size={14} color="#0052FF" />
+                        <Text style={styles.tmEditBtnText}>Edit</Text>
                       </TouchableOpacity>
                     </View>
-                  ))}
 
-                  <TouchableOpacity style={styles.addAnotherBtn} onPress={handleAddTreatment}>
-                    <Ionicons name="add" size={16} color="#0052FF" />
-                    <Text style={styles.addAnotherText}>Add Another Treatment</Text>
-                  </TouchableOpacity>
-                </View>
+                    {items.map((it, i) => (
+                      <View key={i} style={styles.tmCard}>
+                        <View style={styles.tmCardTop}>
+                          <View style={styles.tmCardIcon}>
+                            <Ionicons name="medical-outline" size={18} color="#0052FF" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.tmTreatName}>{it.name || 'Treatment'}</Text>
+                            <View style={styles.tmPtsBadge}>
+                              <Ionicons name="star" size={11} color="#D97706" />
+                              <Text style={styles.tmPtsText}>50 reward pts on payment</Text>
+                            </View>
+                          </View>
+                          <View style={styles.tmPriceWrap}>
+                            <Text style={styles.tmPriceLabel}>PKR</Text>
+                            <TextInput
+                              style={styles.tmPriceInput}
+                              value={it.price}
+                              keyboardType="numeric"
+                              placeholder="0"
+                              placeholderTextColor="#CBD5E1"
+                              onChangeText={(txt) => handleItemChange(i, 'price', txt)}
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+
+                    <TouchableOpacity style={styles.tmAddMore} onPress={() => setTreatmentMode('edit')}>
+                      <Ionicons name="add-circle-outline" size={16} color="#0052FF" />
+                      <Text style={styles.tmAddMoreText}>Add / modify treatments</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  /* EDIT MODE — full editable table */
+                  <View style={styles.itemsTable}>
+                    <View style={styles.itemsHeader}>
+                      <Text style={[styles.th, {width: 40, textAlign: 'center'}]}>#</Text>
+                      <Text style={[styles.th, {flex: 1}]}>Treatment Name</Text>
+                      <Text style={[styles.th, {width: 120}]}>Price (PKR)</Text>
+                      <Text style={[styles.th, {width: 60, textAlign: 'center'}]}>Action</Text>
+                    </View>
+
+                    {items.map((it, i) => (
+                      <View key={i} style={styles.itemRow}>
+                        <Text style={[styles.td, {width: 40, textAlign: 'center', fontWeight: 'bold'}]}>{i + 1}</Text>
+                        <TextInput
+                          style={[styles.inputBox, {flex: 1, marginRight: 8}]}
+                          value={it.name}
+                          placeholder="e.g. Scaling"
+                          onChangeText={(txt) => handleItemChange(i, 'name', txt)}
+                        />
+                        <TextInput
+                          style={[styles.inputBox, {width: 120}]}
+                          value={it.price}
+                          keyboardType="numeric"
+                          placeholder="Price"
+                          onChangeText={(txt) => handleItemChange(i, 'price', txt)}
+                        />
+                        <TouchableOpacity style={{width: 60, alignItems: 'center'}} onPress={() => handleItemDelete(i)}>
+                          <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+
+                    <TouchableOpacity style={styles.addAnotherBtn} onPress={handleAddTreatment}>
+                      <Ionicons name="add" size={16} color="#0052FF" />
+                      <Text style={styles.addAnotherText}>Add Another Treatment</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* Right Col */}
@@ -935,110 +1041,172 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         {/* --- PRINT PREVIEW --- */}
         {subTab === 'print' && (
           <View>
-            <Text style={styles.pageTitle}>Receipt Specimen</Text>
-            <Text style={styles.pageSubtitle}>Select your printer type, tap Print to send to a paired printer, or Save PDF to download the receipt to your device.</Text>
-
-            {/* Printer type selector */}
-            <Text style={styles.printerLabel}>Printer Type</Text>
-            <View style={styles.printerTypeRow}>
-              <TouchableOpacity
-                style={[styles.printerTypeBtn, printerType === 'thermal' && styles.printerTypeBtnActive]}
-                onPress={() => setPrinterType('thermal')}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="receipt-outline" size={20} color={printerType === 'thermal' ? '#0052FF' : '#64748B'} />
-                <View style={{ marginLeft: 10 }}>
-                  <Text style={[styles.printerTypeTitle, printerType === 'thermal' && { color: '#0052FF' }]}>Thermal (57mm)</Text>
-                  <Text style={styles.printerTypeSub}>Roll / POS receipt printer</Text>
+            {/* Page header */}
+            <View style={styles.printHeader}>
+              <View style={styles.printHeaderLeft}>
+                <View style={styles.printHeaderIcon}>
+                  <Ionicons name="print-outline" size={22} color="#0052FF" />
                 </View>
-                {printerType === 'thermal' && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 'auto' }} />}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.printerTypeBtn, printerType === 'normal' && styles.printerTypeBtnActive]}
-                onPress={() => setPrinterType('normal')}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="print-outline" size={20} color={printerType === 'normal' ? '#0052FF' : '#64748B'} />
-                <View style={{ marginLeft: 10 }}>
-                  <Text style={[styles.printerTypeTitle, printerType === 'normal' && { color: '#0052FF' }]}>Normal (A4)</Text>
-                  <Text style={styles.printerTypeSub}>Inkjet / laser A4 printer</Text>
+                <View>
+                  <Text style={styles.printHeaderTitle}>Receipt Preview</Text>
+                  <Text style={styles.printHeaderSub}>Preview, print or download the receipt</Text>
                 </View>
-                {printerType === 'normal' && <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginLeft: 'auto' }} />}
-              </TouchableOpacity>
+              </View>
+              {currentInvoice && (
+                <View style={styles.invBadge}>
+                  <Text style={styles.invBadgeText}>{currentInvoice.invoiceNumber}</Text>
+                </View>
+              )}
             </View>
 
-            <View style={[styles.splitLayout, { alignItems: 'center' }]}>
-              
-              {/* Receipt Paper */}
-              <View style={styles.receiptPaper}>
-                <View style={styles.receiptInner}>
-                  <Ionicons name="medical-outline" size={32} color="#0052FF" style={{alignSelf: 'center'}} />
-                  <Text style={styles.rTitle}>{profile?.clinicName?.toUpperCase() || 'MY DENTIST CLINIC'}</Text>
-                  <Text style={styles.rSub}>{drName(profile?.fullName)}</Text>
-                  <Text style={styles.rSub}>{profile?.specialization || 'Dental Specialist'}</Text>
-                  
-                  <Text style={styles.rDivider}>----------------------------------------</Text>
-                  <Text style={styles.rHeading}>RECEIPT</Text>
+            <View style={[styles.splitLayout, { alignItems: 'flex-start', gap: isWide ? 24 : 20 }]}>
 
-                  <View style={styles.rRow}><Text style={styles.rLabel}>Bill No.</Text><Text style={styles.rVal}>: {currentInvoice?.invoiceNumber || '—'}</Text></View>
-                  <View style={styles.rRow}><Text style={styles.rLabel}>Date</Text><Text style={styles.rVal}>: {currentInvoice?.date || new Date().toLocaleDateString()}</Text></View>
-                  <View style={styles.rRow}><Text style={styles.rLabel}>Time</Text><Text style={styles.rVal}>: {currentInvoice?.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View>
-                  <View style={styles.rRow}><Text style={styles.rLabel}>Patient</Text><Text style={styles.rVal}>: {currentInvoice?.patientName || '—'}</Text></View>
-                  <View style={styles.rRow}><Text style={styles.rLabel}>Method</Text><Text style={styles.rVal}>: {(currentInvoice?.paymentMethod || 'cash').toUpperCase()}</Text></View>
-
-                  <Text style={styles.rDivider}>----------------------------------------</Text>
-
-                  <View style={[styles.rRow, {marginBottom: 8}]}>
-                    <Text style={[styles.rLabel, {width: 20}]}>#</Text>
-                    <Text style={[styles.rLabel, {flex: 1}]}>Item</Text>
-                    <Text style={styles.rLabel}>Price (PKR)</Text>
+              {/* ── Left: receipt paper ── */}
+              <View style={{ flex: isWide ? 1 : undefined, alignItems: 'center' }}>
+                <View style={styles.receiptPaper}>
+                  {/* Clinic banner */}
+                  <View style={styles.receiptBanner}>
+                    <View style={styles.receiptBannerIcon}>
+                      <Ionicons name="medical" size={28} color="#FFF" />
+                    </View>
+                    <Text style={styles.receiptClinic}>{profile?.clinicName?.toUpperCase() || 'MY DENTIST CLINIC'}</Text>
+                    <Text style={styles.receiptDocName}>{drName(profile?.fullName)}</Text>
+                    <Text style={styles.receiptSpec}>{profile?.specialization || 'Dental Specialist'}</Text>
                   </View>
 
-                  {(currentInvoice?.treatments || items).map((it, idx) => (
-                    <View key={idx} style={styles.rRow}>
-                      <Text style={[styles.rVal, {width: 20}]}>{idx+1}</Text>
-                      <Text style={[styles.rVal, {flex: 1}]}>{it.name || 'Treatment'}</Text>
-                      <Text style={styles.rVal}>{parseFloat(it.price).toLocaleString()}</Text>
+                  <View style={styles.receiptBody}>
+                    {/* Invoice meta */}
+                    <View style={styles.rMetaGrid}>
+                      <View style={styles.rMetaCell}>
+                        <Text style={styles.rMetaLabel}>Bill No.</Text>
+                        <Text style={styles.rMetaVal}>{currentInvoice?.invoiceNumber || '—'}</Text>
+                      </View>
+                      <View style={styles.rMetaCell}>
+                        <Text style={styles.rMetaLabel}>Date</Text>
+                        <Text style={styles.rMetaVal}>{currentInvoice?.date || new Date().toLocaleDateString()}</Text>
+                      </View>
+                      <View style={styles.rMetaCell}>
+                        <Text style={styles.rMetaLabel}>Patient</Text>
+                        <Text style={styles.rMetaVal}>{currentInvoice?.patientName || '—'}</Text>
+                      </View>
+                      <View style={styles.rMetaCell}>
+                        <Text style={styles.rMetaLabel}>Method</Text>
+                        <Text style={[styles.rMetaVal, { textTransform: 'uppercase' }]}>{currentInvoice?.paymentMethod || 'Cash'}</Text>
+                      </View>
                     </View>
-                  ))}
 
-                  <Text style={styles.rDivider}>----------------------------------------</Text>
+                    {/* Treatments */}
+                    <View style={styles.rTreatSection}>
+                      <View style={styles.rTreatHeader}>
+                        <Text style={[styles.rTreatTh, { flex: 1 }]}>Treatment</Text>
+                        <Text style={styles.rTreatTh}>PKR</Text>
+                      </View>
+                      {(currentInvoice?.treatments || items).map((it, idx) => (
+                        <View key={idx} style={styles.rTreatRow}>
+                          <Text style={[styles.rTreatTd, { flex: 1 }]}>{it.name || 'Treatment'}</Text>
+                          <Text style={styles.rTreatTd}>{Number(it.price || 0).toLocaleString()}</Text>
+                        </View>
+                      ))}
+                    </View>
 
-                  <View style={styles.rRow}><Text style={[styles.rLabel, {fontWeight: 'bold', color: '#000'}]}>Total Amount</Text><Text style={[styles.rVal, {fontWeight: 'bold', color: '#000'}]}>{currentInvoice?.total || totalAmount}</Text></View>
-                  <View style={styles.rRow}><Text style={[styles.rLabel, {color: '#16A34A'}]}>Discount</Text><Text style={[styles.rVal, {color: '#16A34A'}]}>-{currentInvoice?.discount || discountVal}</Text></View>
-                  <View style={styles.rRow}><Text style={[styles.rLabel, {fontWeight: 'bold', color: '#000'}]}>Amount Paid</Text><Text style={[styles.rVal, {fontWeight: 'bold', color: '#000'}]}>{currentInvoice?.paid || paidVal}</Text></View>
-                  <View style={styles.rRow}><Text style={[styles.rLabel, {fontWeight: 'bold', color: '#DC2626'}]}>Outstanding</Text><Text style={[styles.rVal, {fontWeight: 'bold', color: '#DC2626'}]}>{currentInvoice?.outstanding || outstandingVal}</Text></View>
+                    {/* Totals */}
+                    <View style={styles.rTotals}>
+                      <View style={styles.rTotalRow}>
+                        <Text style={styles.rTotalLabel}>Total Amount</Text>
+                        <Text style={styles.rTotalVal}>PKR {(currentInvoice?.total || totalAmount).toLocaleString()}</Text>
+                      </View>
+                      {(currentInvoice?.discount || discountVal) > 0 && (
+                        <View style={styles.rTotalRow}>
+                          <Text style={[styles.rTotalLabel, { color: '#16A34A' }]}>Discount</Text>
+                          <Text style={[styles.rTotalVal, { color: '#16A34A' }]}>- PKR {(currentInvoice?.discount || discountVal).toLocaleString()}</Text>
+                        </View>
+                      )}
+                      <View style={styles.rTotalRow}>
+                        <Text style={styles.rTotalLabel}>Amount Paid</Text>
+                        <Text style={styles.rTotalVal}>PKR {(currentInvoice?.paid || paidVal).toLocaleString()}</Text>
+                      </View>
+                      <View style={[styles.rTotalRow, styles.rTotalRowFinal]}>
+                        <Text style={styles.rTotalLabelFinal}>Outstanding</Text>
+                        <Text style={[styles.rTotalValFinal, { color: (currentInvoice?.outstanding ?? outstandingVal) > 0 ? '#DC2626' : '#16A34A' }]}>
+                          PKR {(currentInvoice?.outstanding ?? outstandingVal).toLocaleString()}
+                        </Text>
+                      </View>
+                    </View>
 
-                  <Text style={styles.rDivider}>----------------------------------------</Text>
-                  <Text style={[styles.rSub, {marginTop: 10, color: '#000', fontWeight: 'bold'}]}>Thank you for visiting!</Text>
+                    <Text style={styles.rThankYou}>Thank you for visiting! — Powered by My Dentist</Text>
+                  </View>
                 </View>
               </View>
 
-              {/* Bluetooth thermal printer — direct ESC/POS to a paired 58mm printer (native only) */}
-              {Platform.OS !== 'web' && (
-                <TouchableOpacity style={[styles.printNowBtn, { width: 320, marginTop: 20 }]} onPress={openBtPrinter}>
-                  <Ionicons name="bluetooth-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.printNowText}>Print to Thermal Printer</Text>
+              {/* ── Right: printer options + actions ── */}
+              <View style={{ flex: isWide ? 1 : undefined, width: isWide ? undefined : '100%' }}>
+
+                {/* Printer type */}
+                <Text style={styles.optSectionTitle}>Printer Type</Text>
+                <View style={styles.printerTypeRow}>
+                  {[
+                    { key: 'thermal', icon: 'receipt-outline', label: 'Thermal (57mm)', sub: 'Roll / POS receipt' },
+                    { key: 'normal',  icon: 'print-outline',   label: 'Normal (A4)',    sub: 'Inkjet / laser printer' },
+                  ].map(pt => (
+                    <TouchableOpacity
+                      key={pt.key}
+                      style={[styles.printerTypeBtn, printerType === pt.key && styles.printerTypeBtnActive]}
+                      onPress={() => setPrinterType(pt.key)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[styles.ptIconWrap, printerType === pt.key && { backgroundColor: '#EFF6FF' }]}>
+                        <Ionicons name={pt.icon} size={20} color={printerType === pt.key ? '#0052FF' : '#94A3B8'} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.printerTypeTitle, printerType === pt.key && { color: '#0052FF' }]}>{pt.label}</Text>
+                        <Text style={styles.printerTypeSub}>{pt.sub}</Text>
+                      </View>
+                      <View style={[styles.ptRadio, printerType === pt.key && styles.ptRadioActive]}>
+                        {printerType === pt.key && <View style={styles.ptRadioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Action buttons */}
+                <Text style={styles.optSectionTitle}>Actions</Text>
+
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity style={styles.actionBtn} onPress={openBtPrinter} activeOpacity={0.85}>
+                    <View style={[styles.actionBtnIcon, { backgroundColor: '#1D4ED8' }]}>
+                      <Ionicons name="bluetooth-outline" size={18} color="#FFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.actionBtnLabel}>Bluetooth Thermal Print</Text>
+                      <Text style={styles.actionBtnSub}>Send directly to paired 58mm printer</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity style={styles.actionBtn} onPress={handlePrint} activeOpacity={0.85}>
+                  <View style={[styles.actionBtnIcon, { backgroundColor: '#0052FF' }]}>
+                    <Ionicons name="print-outline" size={18} color="#FFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionBtnLabel}>Print Receipt</Text>
+                    <Text style={styles.actionBtnSub}>{Platform.OS === 'web' ? 'Opens browser print dialog' : 'Opens system print dialog'}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
                 </TouchableOpacity>
-              )}
 
-              {/* Print — opens native OS print dialog (Wi-Fi / system printers) or web print */}
-              <TouchableOpacity style={[styles.printNowBtnGhost, { width: 320, marginTop: 12 }]} onPress={handlePrint}>
-                <Ionicons name="print-outline" size={18} color="#0052FF" style={{marginRight: 8}} />
-                <Text style={styles.printNowTextGhost}>{Platform.OS === 'web' ? 'Print Receipt' : 'System Print / PDF'}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={handleDownloadReceipt} activeOpacity={0.85}>
+                  <View style={[styles.actionBtnIcon, { backgroundColor: '#16A34A' }]}>
+                    <Ionicons name="download-outline" size={18} color="#FFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionBtnLabel}>{Platform.OS === 'web' ? 'Save / Download PDF' : 'Save PDF to Device'}</Text>
+                    <Text style={styles.actionBtnSub}>{Platform.OS === 'web' ? 'Opens receipt in new tab' : 'Share or save to Files'}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+                </TouchableOpacity>
 
-              {/* Save PDF directly to device storage */}
-              <TouchableOpacity style={[styles.printNowBtnGhost, { width: 320, marginTop: 12 }]} onPress={handleDownloadReceipt}>
-                <Ionicons name="download-outline" size={18} color="#0052FF" style={{marginRight: 8}} />
-                <Text style={styles.printNowTextGhost}>{Platform.OS === 'web' ? 'Save / Download PDF' : 'Save PDF to Device'}</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.printerHint}>
-                Print: opens the print dialog — select a paired printer.{'\n'}
-                Save PDF: opens the share sheet — tap "Save to Files / Downloads" to save, or send via WhatsApp / Email.
-              </Text>
-
+              </View>
             </View>
           </View>
         )}
@@ -1054,6 +1222,179 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
           if (res?.ok) Alert.alert('Printed', 'Receipt sent to the printer.');
         }}
       />
+
+      {/* ── Patient Bills Modal ─────────────────────────────────── */}
+      {patientModal && (() => {
+        const pid = patientModal._id;
+        const pBills = bills.filter(b => (b.patientId?._id || b.patientId) === pid);
+        const pendingCount = pBills.filter(b => b.status === 'unpaid' || b.status === 'payment_pending').length;
+        const totalPaidP = pBills.filter(b => b.status === 'paid').reduce((s, b) => s + (b.paidAmount || b.amount || 0), 0);
+
+        return (
+          <Modal visible transparent animationType="slide" onRequestClose={() => { setPatientModal(null); setBillDetail(null); }}>
+            <View style={styles.pmOverlay}>
+              <View style={styles.pmSheet}>
+
+                {/* Header */}
+                <View style={styles.pmHeader}>
+                  <View style={styles.pmAvatar}>
+                    <Ionicons name="person" size={22} color="#0052FF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pmName}>{patientModal.name}</Text>
+                    <Text style={styles.pmSub}>{pBills.length} bill{pBills.length !== 1 ? 's' : ''} total</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => { setPatientModal(null); setBillDetail(null); }} hitSlop={8}>
+                    <Ionicons name="close-circle" size={26} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Summary chips */}
+                <View style={styles.pmChipsRow}>
+                  <View style={[styles.pmChip, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />
+                    <Text style={[styles.pmChipText, { color: '#DC2626' }]}>{pendingCount} Pending</Text>
+                  </View>
+                  <View style={[styles.pmChip, { backgroundColor: '#DCFCE7' }]}>
+                    <Ionicons name="checkmark-circle-outline" size={14} color="#16A34A" />
+                    <Text style={[styles.pmChipText, { color: '#16A34A' }]}>PKR {totalPaidP.toLocaleString()} Collected</Text>
+                  </View>
+                </View>
+
+                {/* Bill detail expanded */}
+                {billDetail ? (
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+                    <TouchableOpacity onPress={() => setBillDetail(null)} style={styles.bdBackRow}>
+                      <Ionicons name="chevron-back" size={16} color="#0052FF" />
+                      <Text style={styles.bdBackText}>Back to bills</Text>
+                    </TouchableOpacity>
+
+                    {/* Bill detail card */}
+                    <View style={styles.bdCard}>
+                      <View style={styles.bdCardTop}>
+                        <View>
+                          <Text style={styles.bdInvNo}>{billDetail.invoiceNumber}</Text>
+                          <Text style={styles.bdDate}>{new Date(billDetail.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
+                        </View>
+                        {(() => {
+                          const sm = {
+                            paid: { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
+                            draft: { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
+                            payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
+                            unpaid: { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
+                          }[billDetail.status] || { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' };
+                          return (
+                            <View style={[styles.statusBadge, { backgroundColor: sm.bg, paddingHorizontal: 12, paddingVertical: 6 }]}>
+                              <Text style={[styles.statusBadgeText, { color: sm.color, fontSize: 12 }]}>{sm.label}</Text>
+                            </View>
+                          );
+                        })()}
+                      </View>
+
+                      <View style={styles.bdDivider} />
+
+                      <Text style={styles.bdSectionLabel}>Treatment</Text>
+                      <Text style={styles.bdTreatment}>{billDetail.treatmentName}</Text>
+
+                      <View style={styles.bdDivider} />
+
+                      <View style={styles.bdRow}><Text style={styles.bdLabel}>Total Amount</Text><Text style={styles.bdVal}>PKR {(billDetail.amount || 0).toLocaleString()}</Text></View>
+                      {(billDetail.discountFromRewards || 0) > 0 && (
+                        <View style={styles.bdRow}>
+                          <Text style={[styles.bdLabel, { color: '#16A34A' }]}>Points Discount</Text>
+                          <Text style={[styles.bdVal, { color: '#16A34A' }]}>- PKR {billDetail.discountFromRewards.toLocaleString()}</Text>
+                        </View>
+                      )}
+                      <View style={styles.bdRow}><Text style={styles.bdLabel}>Payable Amount</Text><Text style={[styles.bdVal, { color: '#0052FF', fontWeight: '800' }]}>PKR {(billDetail.finalAmount || 0).toLocaleString()}</Text></View>
+                      <View style={styles.bdRow}><Text style={styles.bdLabel}>Amount Paid</Text><Text style={styles.bdVal}>PKR {(billDetail.paidAmount || 0).toLocaleString()}</Text></View>
+                      <View style={[styles.bdRow, styles.bdRowFinal]}>
+                        <Text style={styles.bdLabelFinal}>Outstanding</Text>
+                        <Text style={[styles.bdValFinal, { color: Math.max((billDetail.finalAmount || 0) - (billDetail.paidAmount || 0), 0) > 0 ? '#DC2626' : '#16A34A' }]}>
+                          PKR {Math.max((billDetail.finalAmount || 0) - (billDetail.paidAmount || 0), 0).toLocaleString()}
+                        </Text>
+                      </View>
+
+                      <View style={styles.bdDivider} />
+                      <View style={styles.bdRow}><Text style={styles.bdLabel}>Payment Method</Text><Text style={styles.bdVal}>{(billDetail.paymentMethod || 'cash').toUpperCase()}</Text></View>
+                      <View style={styles.bdRow}><Text style={styles.bdLabel}>Created</Text><Text style={styles.bdVal}>{new Date(billDetail.createdAt).toLocaleString()}</Text></View>
+                    </View>
+
+                    {/* View Receipt button */}
+                    <TouchableOpacity
+                      style={styles.bdViewBtn}
+                      onPress={() => {
+                        const d = billDetail;
+                        const dDate = new Date(d.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                        const dOut = Math.max((d.finalAmount || 0) - (d.paidAmount || 0), 0);
+                        setCurrentInvoice({
+                          invoiceNumber: d.invoiceNumber,
+                          date: dDate,
+                          time: new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                          patientName: patientModal.name,
+                          patientPhone: 'Provided',
+                          treatments: [{ name: d.treatmentName, price: (d.amount || 0).toString() }],
+                          total: d.amount || 0,
+                          discount: d.discountFromRewards || 0,
+                          paid: d.paidAmount || 0,
+                          payable: d.finalAmount || 0,
+                          outstanding: dOut,
+                          status: d.status,
+                          paymentMethod: d.paymentMethod || 'cash',
+                        });
+                        setPatientModal(null);
+                        setBillDetail(null);
+                        setSubTab('print');
+                      }}
+                    >
+                      <Ionicons name="receipt-outline" size={16} color="#FFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.bdViewBtnText}>Open Receipt / Print Preview</Text>
+                    </TouchableOpacity>
+                  </ScrollView>
+                ) : (
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+                    {pBills.length === 0 ? (
+                      <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 30 }}>No bills found for this patient.</Text>
+                    ) : (
+                      pBills.map((b, i) => {
+                        const bDate = new Date(b.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                        const bOut = Math.max((b.finalAmount || 0) - (b.paidAmount || 0), 0);
+                        const sm = {
+                          paid: { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
+                          draft: { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
+                          payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
+                          unpaid: { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
+                        }[b.status] || { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' };
+                        return (
+                          <TouchableOpacity key={b._id || i} style={styles.pmBillRow} onPress={() => setBillDetail(b)} activeOpacity={0.75}>
+                            <View style={styles.pmBillLeft}>
+                              <View style={styles.pmBillIcon}>
+                                <Ionicons name="document-text-outline" size={16} color="#0052FF" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.pmBillInv}>{b.invoiceNumber}</Text>
+                                <Text style={styles.pmBillTreat} numberOfLines={1}>{b.treatmentName}</Text>
+                                <Text style={styles.pmBillDate}>{bDate}</Text>
+                              </View>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <View style={[styles.statusBadge, { backgroundColor: sm.bg, marginBottom: 4 }]}>
+                                <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
+                              </View>
+                              <Text style={styles.pmBillAmt}>PKR {(b.finalAmount || b.amount || 0).toLocaleString()}</Text>
+                              {bOut > 0 && <Text style={styles.pmBillOut}>Due: PKR {bOut.toLocaleString()}</Text>}
+                            </View>
+                            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginLeft: 8 }} />
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
     </View>
   );
 }
@@ -1202,26 +1543,170 @@ const styles = StyleSheet.create({
   draftBtn: { flex: 1.4, height: 40, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#0052FF', borderRadius: 8, backgroundColor: '#EFF6FF' },
   draftBtnText: { color: '#0052FF', fontSize: 12.5, fontWeight: 'bold' },
 
-  /* Print / Share Receipt */
-  printNowBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 46, backgroundColor: '#0052FF', borderRadius: 10 },
-  printNowText: { color: '#FFF', fontSize: 13.5, fontWeight: 'bold' },
-  printNowBtnGhost: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 44, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' },
-  printNowTextGhost: { color: '#0052FF', fontSize: 13, fontWeight: '700' },
-  printerHint: { fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 14, maxWidth: 340, lineHeight: 16 },
-  printerLabel: { fontSize: 13, fontWeight: '700', color: '#0A1551', marginTop: 8, marginBottom: 8 },
-  printerTypeRow: { flexDirection: isWide ? 'row' : 'column', gap: 10, marginBottom: 8 },
-  printerTypeBtn: { flex: isWide ? 1 : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#FFF' },
-  printerTypeBtnActive: { borderColor: '#0052FF', backgroundColor: '#F5F9FF' },
-  printerTypeTitle: { fontSize: 13.5, fontWeight: '700', color: '#0F172A' },
-  printerTypeSub: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  /* Print Preview header */
+  printHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  printHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  printHeaderIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+  printHeaderTitle: { fontSize: 20, fontWeight: 'bold', color: '#0A1551' },
+  printHeaderSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  invBadge: { backgroundColor: '#0052FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  invBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
 
-  receiptPaper: { width: 320, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
-  receiptInner: { padding: 20, backgroundColor: '#FFF', borderRadius: 12 },
-  rTitle: { fontSize: 14, fontWeight: '900', color: '#0A1551', textAlign: 'center', marginTop: 10 },
-  rSub: { fontSize: 11, color: '#475569', textAlign: 'center', marginTop: 2 },
-  rDivider: { fontSize: 11, color: '#94A3B8', textAlign: 'center', marginVertical: 8, letterSpacing: 2 },
-  rHeading: { fontSize: 13, fontWeight: '900', color: '#0A1551', textAlign: 'center', marginBottom: 8 },
-  rRow: { flexDirection: 'row', marginBottom: 4 },
-  rLabel: { fontSize: 11, color: '#475569', width: 80 },
-  rVal: { fontSize: 11, color: '#000', flex: 1 }
+  /* Receipt paper */
+  receiptPaper: {
+    width: 300, backgroundColor: '#FFF',
+    borderRadius: 16, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
+    borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  receiptBanner: {
+    backgroundColor: '#0052FF', paddingVertical: 20, paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  receiptBannerIcon: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
+  receiptClinic: { fontSize: 14, fontWeight: '900', color: '#FFF', textAlign: 'center', letterSpacing: 0.5 },
+  receiptDocName: { fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2, textAlign: 'center' },
+  receiptSpec: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 1, textAlign: 'center' },
+  receiptBody: { padding: 16 },
+
+  rMetaGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 14, backgroundColor: '#F8FAFC', borderRadius: 10, overflow: 'hidden' },
+  rMetaCell: { width: '50%', padding: 10, borderBottomWidth: 1, borderRightWidth: 1, borderColor: '#F1F5F9' },
+  rMetaLabel: { fontSize: 9, color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', marginBottom: 2 },
+  rMetaVal: { fontSize: 11, fontWeight: '700', color: '#0A1551' },
+
+  rTreatSection: { marginBottom: 12 },
+  rTreatHeader: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', marginBottom: 4 },
+  rTreatTh: { fontSize: 9, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' },
+  rTreatRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  rTreatTd: { fontSize: 11, color: '#0A1551' },
+
+  rTotals: { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, marginBottom: 12 },
+  rTotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  rTotalLabel: { fontSize: 11, color: '#475569' },
+  rTotalVal: { fontSize: 11, fontWeight: '600', color: '#0A1551' },
+  rTotalRowFinal: { borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 8, marginTop: 4, marginBottom: 0 },
+  rTotalLabelFinal: { fontSize: 12, fontWeight: '700', color: '#0A1551' },
+  rTotalValFinal: { fontSize: 13, fontWeight: '800' },
+  rThankYou: { fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 4, lineHeight: 14 },
+
+  /* Printer type selector */
+  optSectionTitle: { fontSize: 13, fontWeight: '700', color: '#0A1551', marginBottom: 10, marginTop: 4 },
+  printerTypeRow: { gap: 8, marginBottom: 20 },
+  printerTypeBtn: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: '#FFF', gap: 10 },
+  printerTypeBtnActive: { borderColor: '#0052FF', backgroundColor: '#F5F9FF' },
+  ptIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
+  printerTypeTitle: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
+  printerTypeSub: { fontSize: 11, color: '#94A3B8', marginTop: 1 },
+  ptRadio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
+  ptRadioActive: { borderColor: '#0052FF' },
+  ptRadioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0052FF' },
+
+  /* Action buttons */
+  actionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#FFF', borderWidth: 1, borderColor: '#F1F5F9',
+    borderRadius: 14, padding: 14, marginBottom: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+  },
+  actionBtnIcon: { width: 40, height: 40, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  actionBtnLabel: { fontSize: 13.5, fontWeight: '700', color: '#0A1551' },
+  actionBtnSub: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+
+  /* Treatment view/edit mode */
+  tmViewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  tmBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  tmBadgeText: { fontSize: 11, fontWeight: '700', color: '#0052FF' },
+  tmEditBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#0052FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#FFF' },
+  tmEditBtnText: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+  tmCard: {
+    backgroundColor: '#FFF', borderRadius: 12,
+    borderWidth: 1, borderColor: '#E2E8F0',
+    padding: 14, marginBottom: 10,
+  },
+  tmCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tmCardIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+  tmTreatName: { fontSize: 14, fontWeight: '700', color: '#0A1551', marginBottom: 4 },
+  tmPtsBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tmPtsText: { fontSize: 10, color: '#D97706', fontWeight: '600' },
+  tmPriceWrap: { alignItems: 'flex-end' },
+  tmPriceLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '600', marginBottom: 2 },
+  tmPriceInput: {
+    width: 90, height: 36, borderWidth: 1, borderColor: '#0052FF',
+    borderRadius: 8, paddingHorizontal: 10, fontSize: 14, fontWeight: '700',
+    color: '#0052FF', backgroundColor: '#F5F9FF', textAlign: 'right',
+  },
+  tmAddMore: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderWidth: 1, borderColor: '#0052FF', borderStyle: 'dashed',
+    borderRadius: 10, paddingVertical: 10, backgroundColor: '#EFF6FF', marginTop: 4,
+  },
+  tmAddMoreText: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+
+  /* Patient name pill in table */
+  patientNamePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 4, backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start',
+  },
+  patientNamePillText: { fontSize: 10, fontWeight: '700', color: '#0052FF', maxWidth: 110 },
+
+  /* Patient bills modal */
+  pmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pmSheet: {
+    backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: '88%', minHeight: '60%',
+  },
+  pmHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+  },
+  pmAvatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center',
+  },
+  pmName: { fontSize: 17, fontWeight: '800', color: '#0A1551' },
+  pmSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  pmChipsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  pmChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  pmChipText: { fontSize: 12, fontWeight: '700' },
+  pmBillRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFF', borderRadius: 12,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    padding: 14, marginBottom: 10,
+  },
+  pmBillLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pmBillIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+  pmBillInv: { fontSize: 13, fontWeight: '700', color: '#0A1551' },
+  pmBillTreat: { fontSize: 11, color: '#475569', marginTop: 2 },
+  pmBillDate: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
+  pmBillAmt: { fontSize: 12, fontWeight: '700', color: '#0A1551' },
+  pmBillOut: { fontSize: 10, color: '#DC2626', fontWeight: '600', marginTop: 2 },
+
+  /* Bill detail view (inside patient modal) */
+  bdBackRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 14 },
+  bdBackText: { fontSize: 13, fontWeight: '700', color: '#0052FF' },
+  bdCard: { backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0', padding: 18, marginBottom: 16 },
+  bdCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  bdInvNo: { fontSize: 16, fontWeight: '800', color: '#0A1551' },
+  bdDate: { fontSize: 12, color: '#64748B', marginTop: 3 },
+  bdDivider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
+  bdSectionLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4 },
+  bdTreatment: { fontSize: 14, fontWeight: '600', color: '#0A1551' },
+  bdRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  bdLabel: { fontSize: 13, color: '#64748B' },
+  bdVal: { fontSize: 13, fontWeight: '600', color: '#0A1551' },
+  bdRowFinal: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 10, marginTop: 4 },
+  bdLabelFinal: { fontSize: 14, fontWeight: '700', color: '#0A1551' },
+  bdValFinal: { fontSize: 15, fontWeight: '800' },
+  bdViewBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 14,
+  },
+  bdViewBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
 });

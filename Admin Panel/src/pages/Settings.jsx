@@ -209,11 +209,19 @@ function AppTab({ isSuper }) {
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Payment Accounts</h4>
         <div className="field-row">
           <Field label="EasyPaisa Number" value={s.payments?.easypaisaNumber || ''} onChange={setPay('easypaisaNumber')} />
-          <Field label="JazzCash Number" value={s.payments?.jazzcashNumber || ''} onChange={setPay('jazzcashNumber')} />
+          <Field label="EasyPaisa Title of Account" value={s.payments?.easypaisaTitle || ''} onChange={setPay('easypaisaTitle')} />
         </div>
         <div className="field-row">
-          <Field label="Bank Name" value={s.payments?.bankName || ''} onChange={setPay('bankName')} />
+          <Field label="JazzCash Number" value={s.payments?.jazzcashNumber || ''} onChange={setPay('jazzcashNumber')} />
+          <div />
+        </div>
+        <div className="field-row">
+          <Field label="Bank Name (HBL, etc.)" value={s.payments?.bankName || ''} onChange={setPay('bankName')} />
           <Field label="Bank Account / IBAN" value={s.payments?.bankAccount || ''} onChange={setPay('bankAccount')} />
+        </div>
+        <div className="field-row">
+          <Field label="Bank Title of Account" value={s.payments?.bankTitle || ''} onChange={setPay('bankTitle')} />
+          <div />
         </div>
         {isSuper && <button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save Settings'}</button>}
       </fieldset>

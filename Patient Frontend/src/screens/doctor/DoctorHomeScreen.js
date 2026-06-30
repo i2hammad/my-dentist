@@ -25,6 +25,7 @@ import FacilitiesTab from './tabs/FacilitiesTab';
 import AppointmentsTab from './tabs/AppointmentsTab';
 import BillsTab from './tabs/BillsTab';
 import RewardsTab from './tabs/RewardsTab';
+import PlatformFeeTab from './tabs/PlatformFeeTab';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -36,7 +37,8 @@ const TABS = [
   { id: 'facilities', label: 'Facilities' },
   { id: 'reviews', label: 'Reviews' },
   { id: 'appointments', label: 'Appointments' },
-  { id: 'rewards', label: 'Rewards & Payments' }
+  { id: 'rewards', label: 'Rewards & Payments' },
+  { id: 'platformfee', label: 'Platform Fee' },
 ];
 
 const getMissingProfileFields = (p) => {
@@ -328,7 +330,8 @@ export default function DoctorHomeScreen({ route, navigation }) {
           {activeTab === 'facilities' && <FacilitiesTab profile={profile} />}
           {activeTab === 'reviews' && <ReviewsTab profile={profile} />}
           {activeTab === 'appointments' && <AppointmentsTab appointments={appointments} onRefresh={fetchData} navigation={navigation} setActiveTab={setActiveTab} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
-          {activeTab === 'rewards' && <RewardsTab profile={profile} bills={bills} setActiveTab={setActiveTab} />}
+          {activeTab === 'rewards' && <RewardsTab profile={profile} bills={bills} setActiveTab={setActiveTab} navigation={navigation} />}
+          {activeTab === 'platformfee' && <PlatformFeeTab profile={profile} bills={bills} />}
         </View>
       </ScrollView>
     </SafeAreaView>

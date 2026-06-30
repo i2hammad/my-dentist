@@ -168,12 +168,33 @@ export default function CosmeticScreen({ navigation }) {
     }
   }, []);
 
+  const loadFavorites = useCallback(async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      const res = await axios.get(`${API_BASE_URL}/api/favorites`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data?.success) {
+        const map = {};
+        (res.data.data || []).forEach(f => { if (f.doctorId) map[String(f.doctorId._id || f.doctorId)] = true; });
+        setFavorites(map);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    if (isFocused) fetchDoctors();
+    if (isFocused) { fetchDoctors(); loadFavorites(); }
   }, [isFocused]);
 
-  const toggleFavorite = (id) => {
-    setFavorites(prev => ({ ...prev, [id]: !prev[id] }));
+  // Favorites persist on the backend (same /api/favorites as Home & Search).
+  const toggleFavorite = async (id) => {
+    const isFav = !!favorites[String(id)];
+    setFavorites(prev => { const n = { ...prev }; if (isFav) delete n[String(id)]; else n[String(id)] = true; return n; });
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      if (isFav) await axios.delete(`${API_BASE_URL}/api/favorites/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      else await axios.post(`${API_BASE_URL}/api/favorites/${id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+    } catch {}
   };
 
   return (

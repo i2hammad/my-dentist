@@ -408,133 +408,74 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
           </View>
         </View>
 
-        {/* Bank / IBAN card */}
+        {/* Bank / IBAN */}
         {(platformPayments.bankAccount || platformPayments.bankName) ? (
-          <View style={styles.acctCard}>
-            <View style={[styles.acctCardHeader, {backgroundColor: '#1A3FAA'}]}>
-              <View style={[styles.acctDecCircle, {width: 160, height: 160, top: -70, right: -30, backgroundColor: 'rgba(255,255,255,0.06)'}]} />
-              <View style={[styles.acctDecCircle, {width: 90, height: 90, bottom: -20, right: 80, backgroundColor: 'rgba(255,255,255,0.07)'}]} />
-              <View style={styles.acctCardHeaderLeft}>
-                <View style={styles.acctCardIconWrap}>
-                  <Ionicons name="card" size={26} color="#FFFFFF" />
-                </View>
-                <View>
-                  <Text style={styles.acctCardBankName}>{platformPayments.bankName || 'Bank'}</Text>
-                  <View style={styles.acctVerifiedRow}>
-                    <Ionicons name="checkmark-circle" size={12} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.acctCardBadge}>VERIFIED · BANK TRANSFER</Text>
-                  </View>
-                </View>
-              </View>
+          <View style={styles.acctRow}>
+            <View style={[styles.acctIcon, {backgroundColor: '#EEF3FF'}]}>
+              <Ionicons name="card-outline" size={20} color="#1A3FAA" />
             </View>
-            <View style={[styles.acctCardBody, {borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -22}]}>
-              {platformPayments.bankTitle ? (
-                <View style={styles.acctHolderRow}>
-                  <Text style={styles.acctHolderLabel}>ACCOUNT TITLE</Text>
-                  <Text style={styles.acctHolderName}>{platformPayments.bankTitle}</Text>
-                </View>
-              ) : null}
-              <Text style={styles.acctNumLabel}>ACCOUNT / IBAN NUMBER</Text>
-              <View style={[styles.acctNumBox, {borderColor: '#C7D7FF', backgroundColor: '#EEF3FF'}]}>
-                <Text style={[styles.acctNumMono, {color: '#1A3FAA'}]}>{platformPayments.bankAccount}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.acctCopyFullBtn, {backgroundColor: '#1A3FAA'}]}
-                onPress={() => {
-                  Clipboard.setString(platformPayments.bankAccount);
-                  Alert.alert('Copied', 'Bank account / IBAN copied to clipboard!');
-                }}
-              >
-                <Ionicons name="copy" size={16} color="#FFF" />
-                <Text style={styles.acctCopyFullText}>Copy Account Number</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
+            <View style={{flex: 1}}>
+              <Text style={styles.acctName}>{platformPayments.bankName || 'Bank'}</Text>
+              {platformPayments.bankTitle ? <Text style={styles.acctHolder}>{platformPayments.bankTitle}</Text> : null}
+              <Text style={styles.acctNumber}>{platformPayments.bankAccount}</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.acctCopyBtn, {backgroundColor: '#EEF3FF'}]}
+              onPress={() => { Clipboard.setString(platformPayments.bankAccount); Alert.alert('Copied', 'IBAN copied!'); }}
+            >
+              <Ionicons name="copy-outline" size={14} color="#1A3FAA" />
+              <Text style={[styles.acctCopyTxt, {color: '#1A3FAA'}]}>Copy</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
-        {/* EasyPaisa card */}
+        {/* Divider */}
+        {(platformPayments.bankAccount || platformPayments.bankName) && platformPayments.easypaisaNumber ? (
+          <View style={styles.acctDivider} />
+        ) : null}
+
+        {/* EasyPaisa */}
         {platformPayments.easypaisaNumber ? (
-          <View style={styles.acctCard}>
-            <View style={[styles.acctCardHeader, {backgroundColor: '#166534'}]}>
-              <View style={[styles.acctDecCircle, {width: 160, height: 160, top: -70, right: -30, backgroundColor: 'rgba(255,255,255,0.06)'}]} />
-              <View style={[styles.acctDecCircle, {width: 90, height: 90, bottom: -20, right: 80, backgroundColor: 'rgba(255,255,255,0.07)'}]} />
-              <View style={styles.acctCardHeaderLeft}>
-                <View style={styles.acctCardIconWrap}>
-                  <Ionicons name="phone-portrait" size={26} color="#FFFFFF" />
-                </View>
-                <View>
-                  <Text style={styles.acctCardBankName}>EasyPaisa</Text>
-                  <View style={styles.acctVerifiedRow}>
-                    <Ionicons name="checkmark-circle" size={12} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.acctCardBadge}>VERIFIED · MOBILE ACCOUNT</Text>
-                  </View>
-                </View>
-              </View>
+          <View style={styles.acctRow}>
+            <View style={[styles.acctIcon, {backgroundColor: '#F0FDF4'}]}>
+              <Ionicons name="phone-portrait-outline" size={20} color="#166534" />
             </View>
-            <View style={[styles.acctCardBody, {borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -22}]}>
-              {platformPayments.easypaisaTitle ? (
-                <View style={styles.acctHolderRow}>
-                  <Text style={styles.acctHolderLabel}>ACCOUNT TITLE</Text>
-                  <Text style={styles.acctHolderName}>{platformPayments.easypaisaTitle}</Text>
-                </View>
-              ) : null}
-              <Text style={styles.acctNumLabel}>MOBILE ACCOUNT NUMBER</Text>
-              <View style={[styles.acctNumBox, {borderColor: '#A7F3D0', backgroundColor: '#F0FDF4'}]}>
-                <Text style={[styles.acctNumMono, {color: '#166534'}]}>{platformPayments.easypaisaNumber}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.acctCopyFullBtn, {backgroundColor: '#166534'}]}
-                onPress={() => {
-                  Clipboard.setString(platformPayments.easypaisaNumber);
-                  Alert.alert('Copied', 'EasyPaisa number copied to clipboard!');
-                }}
-              >
-                <Ionicons name="copy" size={16} color="#FFF" />
-                <Text style={styles.acctCopyFullText}>Copy Account Number</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
+            <View style={{flex: 1}}>
+              <Text style={styles.acctName}>EasyPaisa</Text>
+              {platformPayments.easypaisaTitle ? <Text style={styles.acctHolder}>{platformPayments.easypaisaTitle}</Text> : null}
+              <Text style={styles.acctNumber}>{platformPayments.easypaisaNumber}</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.acctCopyBtn, {backgroundColor: '#F0FDF4'}]}
+              onPress={() => { Clipboard.setString(platformPayments.easypaisaNumber); Alert.alert('Copied', 'EasyPaisa number copied!'); }}
+            >
+              <Ionicons name="copy-outline" size={14} color="#166534" />
+              <Text style={[styles.acctCopyTxt, {color: '#166534'}]}>Copy</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
-        {/* JazzCash card */}
+        {/* JazzCash */}
         {platformPayments.jazzcashNumber ? (
-          <View style={styles.acctCard}>
-            <View style={[styles.acctCardHeader, {backgroundColor: '#92400E'}]}>
-              <View style={[styles.acctDecCircle, {width: 160, height: 160, top: -70, right: -30, backgroundColor: 'rgba(255,255,255,0.06)'}]} />
-              <View style={[styles.acctDecCircle, {width: 90, height: 90, bottom: -20, right: 80, backgroundColor: 'rgba(255,255,255,0.07)'}]} />
-              <View style={styles.acctCardHeaderLeft}>
-                <View style={styles.acctCardIconWrap}>
-                  <Ionicons name="phone-portrait" size={26} color="#FFFFFF" />
-                </View>
-                <View>
-                  <Text style={styles.acctCardBankName}>JazzCash</Text>
-                  <View style={styles.acctVerifiedRow}>
-                    <Ionicons name="checkmark-circle" size={12} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.acctCardBadge}>VERIFIED · MOBILE ACCOUNT</Text>
-                  </View>
-                </View>
+          <>
+            {platformPayments.easypaisaNumber ? <View style={styles.acctDivider} /> : null}
+            <View style={styles.acctRow}>
+              <View style={[styles.acctIcon, {backgroundColor: '#FFFBEB'}]}>
+                <Ionicons name="phone-portrait-outline" size={20} color="#92400E" />
               </View>
-            </View>
-            <View style={[styles.acctCardBody, {borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -22}]}>
-              <Text style={styles.acctNumLabel}>MOBILE ACCOUNT NUMBER</Text>
-              <View style={[styles.acctNumBox, {borderColor: '#FDE68A', backgroundColor: '#FFFBEB'}]}>
-                <Text style={[styles.acctNumMono, {color: '#92400E'}]}>{platformPayments.jazzcashNumber}</Text>
+              <View style={{flex: 1}}>
+                <Text style={styles.acctName}>JazzCash</Text>
+                <Text style={styles.acctNumber}>{platformPayments.jazzcashNumber}</Text>
               </View>
               <TouchableOpacity
-                style={[styles.acctCopyFullBtn, {backgroundColor: '#92400E'}]}
-                onPress={() => {
-                  Clipboard.setString(platformPayments.jazzcashNumber);
-                  Alert.alert('Copied', 'JazzCash number copied to clipboard!');
-                }}
+                style={[styles.acctCopyBtn, {backgroundColor: '#FFFBEB'}]}
+                onPress={() => { Clipboard.setString(platformPayments.jazzcashNumber); Alert.alert('Copied', 'JazzCash number copied!'); }}
               >
-                <Ionicons name="copy" size={16} color="#FFF" />
-                <Text style={styles.acctCopyFullText}>Copy Account Number</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="copy-outline" size={14} color="#92400E" />
+                <Text style={[styles.acctCopyTxt, {color: '#92400E'}]}>Copy</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </>
         ) : null}
 
         {/* Nothing configured yet */}
@@ -680,24 +621,14 @@ const styles = StyleSheet.create({
   commissionTitle: { fontSize: 14, fontWeight: '800', color: '#0052FF', marginBottom: 2 },
   commissionDesc: { fontSize: 11, color: '#64748B', lineHeight: 15 },
 
-  acctCard: { borderRadius: 22, marginBottom: 16, overflow: 'hidden', backgroundColor: '#FFF',
-    shadowColor: '#0A1551', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.09, shadowRadius: 20, elevation: 8 },
-  acctCardHeader: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 40, overflow: 'hidden', position: 'relative' },
-  acctDecCircle: { position: 'absolute', borderRadius: 999 },
-  acctCardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  acctCardIconWrap: { width: 50, height: 50, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
-  acctCardBankName: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 },
-  acctVerifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-  acctCardBadge: { fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: '700', letterSpacing: 0.8 },
-  acctCardBody: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20, backgroundColor: '#FFFFFF' },
-  acctHolderRow: { marginBottom: 16 },
-  acctHolderLabel: { fontSize: 9, color: '#94A3B8', fontWeight: '700', letterSpacing: 1.2, marginBottom: 5 },
-  acctHolderName: { fontSize: 20, fontWeight: '800', color: '#0A1551' },
-  acctNumLabel: { fontSize: 9, color: '#94A3B8', fontWeight: '700', letterSpacing: 1.2, marginBottom: 8 },
-  acctNumBox: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16 },
-  acctNumMono: { fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
-  acctCopyFullBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 15, paddingHorizontal: 18, borderRadius: 14 },
-  acctCopyFullText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF', flex: 1 },
+  acctRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  acctIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  acctName: { fontSize: 14, fontWeight: '700', color: '#0A1551' },
+  acctHolder: { fontSize: 13, color: '#475569', fontWeight: '500', marginTop: 1 },
+  acctNumber: { fontSize: 13, color: '#64748B', marginTop: 3 },
+  acctCopyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  acctCopyTxt: { fontSize: 12, fontWeight: '700' },
+  acctDivider: { height: 1, backgroundColor: '#F1F5F9', marginHorizontal: 0 },
 
   footerBanner: { backgroundColor: '#020617', borderRadius: 16, padding: 24, marginTop: 30, overflow: 'hidden' },
   footerBannerContent: { flexDirection: isWide ? 'row' : 'column', alignItems: isWide ? 'center' : 'flex-start', position: 'relative', zIndex: 2 },

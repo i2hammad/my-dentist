@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
@@ -19,6 +20,7 @@ const labelOf = (m) => `${String(m.type).toUpperCase()}${m.lastFourDigits ? ` â€
 // onConfirm receives { paymentMethodId|null, paymentType, paymentMethodLabel }.
 export default function PaymentSheet({ visible, bill, onClose, onConfirm }) {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [methods, setMethods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null); // method _id, or 'cash'
@@ -64,9 +66,9 @@ export default function PaymentSheet({ visible, bill, onClose, onConfirm }) {
   };
 
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+    <Modal transparent statusBarTranslucent animationType="slide" visible onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>Choose Payment Method</Text>
           {!!bill && (

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
@@ -22,9 +22,10 @@ const getMissingProfileFields = (p) => {
 
 // Standalone bottom-tab screen that hosts the BillsTab (moved out of the
 // doctor profile tabs). Fetches the profile + appointments BillsTab needs.
-export default function DoctorBillsScreen() {
+export default function DoctorBillsScreen({ route }) {
   const [profile, setProfile] = useState(null);
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
+  const editBillId = route?.params?.editBillId || null;
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -51,20 +52,26 @@ export default function DoctorBillsScreen() {
   return (
     <SafeAreaView edges={[]} style={styles.safeArea}>
       <DoctorHeader title="Bills" />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, isWeb && styles.webBlock]}>
+      {/* No outer ScrollView — BillsTab manages its own scroll so its sub-tab bar
+          (Previous Bills / Current Bill / Print Preview) stays pinned at the top
+          while only the content below it scrolls. */}
+      <View style={[styles.content, isWeb && styles.webBlock]}>
         <BillsTab
           profile={profile}
           appointments={appointments}
           isProfileComplete={isProfileComplete}
           missingFields={missingFields}
+          editBillId={editBillId}
         />
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { paddingBottom: 90 },
+  // flex:1 so BillsTab gets a bounded height → its inner content ScrollView
+  // scrolls while the sub-tab bar above it stays pinned.
+  content: { flex: 1 },
   webBlock: { width: '100%', maxWidth: 1000, alignSelf: 'center' },
 });

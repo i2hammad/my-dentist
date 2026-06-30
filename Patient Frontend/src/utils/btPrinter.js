@@ -9,14 +9,18 @@ const PAPER_WIDTH_MM = 58;
 const COLS = 32; // ~chars per line on a 58mm roll (font A)
 
 // Lazily require the native lib so web / Expo Go never try to load it.
+// The printer functions live on the `ThermalPrinter` namespace export, not at
+// the top level — calling them top-level was the "undefined is not a function".
 function lib() {
   if (isWeb) return null;
-  try { return require('@finan-me/react-native-thermal-printer'); }
-  catch { return null; }
+  try {
+    const mod = require('@finan-me/react-native-thermal-printer');
+    return mod?.ThermalPrinter || mod;
+  } catch { return null; }
 }
 
 export function isThermalSupported() {
-  return !isWeb && !!lib();
+  return !isWeb && !!(lib()?.scanDevices);
 }
 
 // Android 12+ needs BLUETOOTH_CONNECT/SCAN granted at runtime before scanning.

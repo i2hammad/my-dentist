@@ -26,6 +26,13 @@ const billSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Treatment name is required'],
     },
+    // Per-treatment line items so editing a bill restores exact prices.
+    treatments: [
+      {
+        name: { type: String, default: '' },
+        price: { type: Number, default: 0 },
+      },
+    ],
     amount: {
       type: Number,
       required: [true, 'Amount is required'],

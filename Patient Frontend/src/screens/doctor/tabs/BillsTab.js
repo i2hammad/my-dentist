@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import storage from '../../../config/storage';
+import imgUrl from '../../../config/imgUrl';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../../utils/support';
 import { drName } from '../../../utils/doctorName';
 import BtPrinterPicker from '../../../components/BtPrinterPicker';
@@ -98,7 +99,7 @@ export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'therm
     </html>`;
 }
 
-export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [] }) {
+export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [], editBillId = null }) {
   const [subTab, setSubTab] = useState('previous'); // previous, current, print
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -137,17 +138,27 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   // Load a draft bill back into the Current Bill form for editing.
   const editDraft = (bill) => {
     setEditingBillId(bill._id);
-    const names = (bill.treatmentName || '').split(',').map(s => s.trim()).filter(Boolean);
-    setItems(names.length ? names.map(n => ({ name: n, price: '' })) : [{ name: '', price: '' }]);
+    const amount = Number(bill.amount) || 0;
+    let restored;
+    if (Array.isArray(bill.treatments) && bill.treatments.length) {
+      // Saved line items → restore exact name + price.
+      restored = bill.treatments.map(t => ({ name: t.name || '', price: t.price ? String(t.price) : '' }));
+    } else {
+      // Legacy bills (no saved split) → single = full amount; multiple = total on first.
+      const names = (bill.treatmentName || '').split(',').map(s => s.trim()).filter(Boolean);
+      restored = names.length
+        ? names.map((n, i) => ({ name: n, price: i === 0 ? String(amount) : '' }))
+        : [{ name: '', price: amount ? String(amount) : '' }];
+    }
+    setItems(restored);
     setDiscount(String(bill.discountFromRewards || 0));
     setPaidAmount(String(bill.paidAmount || 0));
     const p = bill.patientId;
     if (p && (p._id || p)) {
       setSelectedPatient({ id: p._id || p, name: p.fullName || 'Patient', phone: p.mobileNumber || '' });
     }
-    setTreatmentMode('edit');
     setSubTab('current');
-    Alert.alert('Editing Draft', 'This draft is loaded for editing. Save it as a final bill or update the draft.');
+    Alert.alert('Editing Bill', 'This bill is loaded for editing. Update it and save.');
   };
 
   // Doctor confirms a pending (cash) payment.
@@ -170,6 +181,28 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       { text: 'Confirm', onPress: run },
     ]);
   };
+
+  // Build the print-preview invoice object from a saved bill row.
+  const billToInvoice = (inv) => {
+    const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+    const billOut = Math.max((inv.finalAmount || inv.amount) - (inv.paidAmount || 0), 0);
+    return {
+      invoiceNumber: inv.invoiceNumber,
+      date: billDate,
+      time: new Date(inv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      patientName: inv.patientId?.fullName || 'Patient',
+      patientPhone: 'Provided',
+      treatments: [{ name: inv.treatmentName, price: String(inv.amount) }],
+      total: inv.amount,
+      discount: inv.discountFromRewards || 0,
+      paid: inv.paidAmount || 0,
+      payable: inv.finalAmount,
+      outstanding: billOut,
+      status: inv.status,
+    };
+  };
+  const previewBillRow = (inv) => { setCurrentInvoice(billToInvoice(inv)); setSubTab('print'); };
+  const downloadBillRow = (inv) => { setCurrentInvoice(billToInvoice(inv)); setTimeout(handleDownloadReceipt, 100); };
 
   useEffect(() => {
     fetchBills();
@@ -204,7 +237,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
     const pts = Object.values(patientMap);
     setPatients(pts);
-    if (pts.length > 0) {
+    if (pts.length > 0 && !editBillId) {
       const first = pts[0];
       setSelectedPatient(first);
       // Pre-load treatments from the first patient's appointments
@@ -214,6 +247,19 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       }
     }
   }, [appointments]);
+
+  // Edit redirect from Patient Details: load the bill into the form and open Current Bill.
+  useEffect(() => {
+    if (!editBillId) return;
+    (async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.get(`${API_BASE_URL}/api/bills/${editBillId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const bill = res.data?.data;
+        if (bill) editDraft(bill);
+      } catch { /* ignore */ }
+    })();
+  }, [editBillId]);
 
   const fetchBills = async () => {
     try {
@@ -311,6 +357,10 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       const payload = {
         patientId: selectedPatient.id,
         treatmentName,
+        // Persist per-treatment line items so editing later restores exact prices.
+        treatments: items
+          .filter(it => it.name || it.price)
+          .map(it => ({ name: it.name || '', price: Number(it.price) || 0 })),
         amount: totalAmount || 0,
         discountFromRewards: discountVal,
         paidAmount: paidVal,
@@ -438,12 +488,20 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     }
 
     try {
-      // Generate PDF first, then open native print dialog.
-      // printAsync alone sometimes fails on Android; generating the PDF first
-      // and passing it is more reliable across devices.
-      const { uri } = await generatePdf(invoice);
-      const Print   = require('expo-print');
-      await Print.printAsync({ uri });
+      const Print = require('expo-print');
+      const docName = drName(profile?.fullName, 'Dentist');
+      const clinic  = profile?.clinicName || 'Dentist Clinic';
+      const spec    = profile?.specialization || 'General Doctor';
+      const html    = buildReceiptHtml(invoice, { docName, clinic, spec, type: printerType, autoPrint: false });
+
+      // The Android print framework defaults its paper to Letter and ignores the
+      // HTML @page size, so pass explicit page dimensions (in points @72dpi):
+      //   thermal ≈ 58mm wide, content-fit height;  normal = A4 (595 x 842).
+      if (printerType === 'thermal') {
+        await Print.printAsync({ html, ...thermalPdfSize(invoice) });
+      } else {
+        await Print.printAsync({ html, width: 595, height: 842 });
+      }
     } catch (e) {
       // Offer to save as PDF if printing fails
       Alert.alert(
@@ -567,7 +625,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         </TouchableOpacity>
       </ScrollView>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.contentScroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         
         {/* --- PREVIOUS BILLS --- */}
         {subTab === 'previous' && (
@@ -631,8 +689,81 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
             {loading ? (
               <ActivityIndicator size="small" color="#0052FF" style={{ marginVertical: 30 }} />
-            ) : filteredBills.length > 0 ? (
-              <ScrollView horizontal={!isWide} showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+            ) : filteredBills.length === 0 ? (
+              <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
+                {billQ || billStatusFilter !== 'all' ? 'No bills match your search.' : "No bills found. Create a bill in the 'Current Bill' tab."}
+              </Text>
+            ) : !isWide ? (
+              // ── Phone: stacked cards (no horizontal scroll) ──
+              <View style={{ marginBottom: 24 }}>
+                {visibleBills.map((inv, idx) => {
+                  const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                  const billOut = Math.max((inv.finalAmount || inv.amount) - (inv.paidAmount || 0), 0);
+                  const patientName = inv.patientId?.fullName || 'Patient';
+                  const patientId = inv.patientId?._id || inv.patientId;
+                  const sm = {
+                    paid:            { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
+                    draft:           { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
+                    payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
+                    unpaid:          { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
+                  }[inv.status] || { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' };
+                  return (
+                    <View key={inv._id || idx} style={styles.billCard}>
+                      <View style={styles.billCardTop}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.billCardInv}>{inv.invoiceNumber}</Text>
+                          <TouchableOpacity onPress={() => setPatientModal({ _id: patientId, name: patientName })} hitSlop={6}>
+                            <View style={styles.patientNamePill}>
+                              <Ionicons name="person-circle-outline" size={12} color="#0052FF" />
+                              <Text style={styles.patientNamePillText} numberOfLines={1}>{patientName}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
+                          <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.billCardTreat} numberOfLines={2}>{inv.treatmentName}</Text>
+
+                      <View style={styles.billCardMetaRow}>
+                        <Text style={styles.billCardDate}>{billDate}</Text>
+                        <Text style={styles.billCardAmount}>PKR {Number(inv.amount).toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.billCardSubRow}>
+                        <Text style={styles.billCardSub}>Paid PKR {Number(inv.paidAmount || 0).toLocaleString()}</Text>
+                        {billOut > 0 && <Text style={[styles.billCardSub, { color: '#DC2626', fontWeight: '700' }]}>Due PKR {Number(billOut).toLocaleString()}</Text>}
+                        {(inv.discountFromRewards || 0) > 0 && <Text style={[styles.billCardSub, { color: '#16A34A' }]}>−PKR {Number(inv.discountFromRewards).toLocaleString()}</Text>}
+                      </View>
+
+                      <View style={styles.billCardActions}>
+                        <TouchableOpacity style={styles.billCardBtn} onPress={() => previewBillRow(inv)}>
+                          <Ionicons name="eye-outline" size={15} color="#0052FF" />
+                          <Text style={styles.billCardBtnText}>View</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.billCardBtn} onPress={() => downloadBillRow(inv)}>
+                          <Ionicons name="download-outline" size={15} color="#0052FF" />
+                          <Text style={styles.billCardBtnText}>Receipt</Text>
+                        </TouchableOpacity>
+                        {inv.status === 'draft' && (
+                          <TouchableOpacity style={styles.billCardBtn} onPress={() => editDraft(inv)}>
+                            <Ionicons name="create-outline" size={15} color="#0052FF" />
+                            <Text style={styles.billCardBtnText}>Edit</Text>
+                          </TouchableOpacity>
+                        )}
+                        {inv.status === 'payment_pending' && (
+                          <TouchableOpacity style={[styles.billCardBtn, { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }]} onPress={() => confirmPayment(inv)}>
+                            <Ionicons name="checkmark-circle-outline" size={15} color="#16A34A" />
+                            <Text style={[styles.billCardBtnText, { color: '#16A34A' }]}>Confirm</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <ScrollView horizontal={false} showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
                 <View style={styles.tableContainer}>
                   <View style={styles.tableHeader}>
                     <Text style={[styles.th, {width: 140}]}>Invoice / Patient</Text>
@@ -748,10 +879,6 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   })}
                 </View>
               </ScrollView>
-            ) : (
-              <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
-                {billQ || billStatusFilter !== 'all' ? 'No bills match your search.' : "No bills found. Create a bill in the 'Current Bill' tab."}
-              </Text>
             )}
 
             {/* Pagination: showing count + Load More */}
@@ -846,92 +973,49 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               {/* Left Col */}
               <View style={{flex: 1.5, paddingRight: isWide ? 20 : 0}}>
                 <Text style={styles.sectionHeading}>Treatments / Items</Text>
-                
-                {/* VIEW MODE — treatments from appointment, price editable inline */}
-                {treatmentMode === 'view' ? (
-                  <View>
-                    <View style={styles.tmViewHeader}>
-                      <View style={styles.tmBadge}>
-                        <Ionicons name="calendar-outline" size={13} color="#0052FF" />
-                        <Text style={styles.tmBadgeText}>From Appointment</Text>
+
+                {/* Unified editable cards — one consistent UI (name + price editable, delete) */}
+                {items.map((it, i) => (
+                  <View key={i} style={styles.tmCard}>
+                    <View style={styles.tmCardTop}>
+                      <View style={styles.tmCardIcon}>
+                        <Ionicons name="medical-outline" size={18} color="#0052FF" />
                       </View>
-                      <TouchableOpacity style={styles.tmEditBtn} onPress={() => setTreatmentMode('edit')}>
-                        <Ionicons name="create-outline" size={14} color="#0052FF" />
-                        <Text style={styles.tmEditBtnText}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {items.map((it, i) => (
-                      <View key={i} style={styles.tmCard}>
-                        <View style={styles.tmCardTop}>
-                          <View style={styles.tmCardIcon}>
-                            <Ionicons name="medical-outline" size={18} color="#0052FF" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.tmTreatName}>{it.name || 'Treatment'}</Text>
-                            <View style={styles.tmPtsBadge}>
-                              <Ionicons name="star" size={11} color="#D97706" />
-                              <Text style={styles.tmPtsText}>50 reward pts on payment</Text>
-                            </View>
-                          </View>
-                          <View style={styles.tmPriceWrap}>
-                            <Text style={styles.tmPriceLabel}>PKR</Text>
-                            <TextInput
-                              style={styles.tmPriceInput}
-                              value={it.price}
-                              keyboardType="numeric"
-                              placeholder="0"
-                              placeholderTextColor="#CBD5E1"
-                              onChangeText={(txt) => handleItemChange(i, 'price', txt)}
-                            />
-                          </View>
-                        </View>
-                      </View>
-                    ))}
-
-                    <TouchableOpacity style={styles.tmAddMore} onPress={() => setTreatmentMode('edit')}>
-                      <Ionicons name="add-circle-outline" size={16} color="#0052FF" />
-                      <Text style={styles.tmAddMoreText}>Add / modify treatments</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  /* EDIT MODE — full editable table */
-                  <View style={styles.itemsTable}>
-                    <View style={styles.itemsHeader}>
-                      <Text style={[styles.th, {width: 40, textAlign: 'center'}]}>#</Text>
-                      <Text style={[styles.th, {flex: 1}]}>Treatment Name</Text>
-                      <Text style={[styles.th, {width: 120}]}>Price (PKR)</Text>
-                      <Text style={[styles.th, {width: 60, textAlign: 'center'}]}>Action</Text>
-                    </View>
-
-                    {items.map((it, i) => (
-                      <View key={i} style={styles.itemRow}>
-                        <Text style={[styles.td, {width: 40, textAlign: 'center', fontWeight: 'bold'}]}>{i + 1}</Text>
+                      <View style={{ flex: 1 }}>
                         <TextInput
-                          style={[styles.inputBox, {flex: 1, marginRight: 8}]}
+                          style={styles.tmNameInput}
                           value={it.name}
-                          placeholder="e.g. Scaling"
+                          placeholder="Treatment name"
+                          placeholderTextColor="#94A3B8"
                           onChangeText={(txt) => handleItemChange(i, 'name', txt)}
                         />
-                        <TextInput
-                          style={[styles.inputBox, {width: 120}]}
-                          value={it.price}
-                          keyboardType="numeric"
-                          placeholder="Price"
-                          onChangeText={(txt) => handleItemChange(i, 'price', txt)}
-                        />
-                        <TouchableOpacity style={{width: 60, alignItems: 'center'}} onPress={() => handleItemDelete(i)}>
-                          <Ionicons name="trash-outline" size={20} color="#DC2626" />
-                        </TouchableOpacity>
+                        <View style={styles.tmPtsBadge}>
+                          <Ionicons name="star" size={11} color="#D97706" />
+                          <Text style={styles.tmPtsText}>50 reward pts on payment</Text>
+                        </View>
                       </View>
-                    ))}
-
-                    <TouchableOpacity style={styles.addAnotherBtn} onPress={handleAddTreatment}>
-                      <Ionicons name="add" size={16} color="#0052FF" />
-                      <Text style={styles.addAnotherText}>Add Another Treatment</Text>
-                    </TouchableOpacity>
+                      <TouchableOpacity style={styles.tmDeleteBtn} hitSlop={6} onPress={() => handleItemDelete(i)}>
+                        <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.tmPriceRow}>
+                      <Text style={styles.tmPriceLabel}>Price (PKR)</Text>
+                      <TextInput
+                        style={styles.tmPriceInput}
+                        value={it.price}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#CBD5E1"
+                        onChangeText={(txt) => handleItemChange(i, 'price', txt)}
+                      />
+                    </View>
                   </View>
-                )}
+                ))}
+
+                <TouchableOpacity style={styles.tmAddMore} onPress={handleAddTreatment}>
+                  <Ionicons name="add-circle-outline" size={16} color="#0052FF" />
+                  <Text style={styles.tmAddMoreText}>Add Treatment</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Right Col */}
@@ -1047,34 +1131,53 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 <View style={styles.printHeaderIcon}>
                   <Ionicons name="print-outline" size={22} color="#0052FF" />
                 </View>
-                <View>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.printHeaderTitle}>Receipt Preview</Text>
-                  <Text style={styles.printHeaderSub}>Preview, print or download the receipt</Text>
+                  <Text style={styles.printHeaderSub} numberOfLines={1}>Preview, print or download the receipt</Text>
+                  {/* Invoice number on its own line below the title */}
+                  {currentInvoice ? (
+                    <View style={styles.invBadge}>
+                      <Ionicons name="document-text-outline" size={12} color="#0052FF" style={{ marginRight: 4 }} />
+                      <Text style={styles.invBadgeText} numberOfLines={1}>{currentInvoice.invoiceNumber}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
-              {currentInvoice && (
-                <View style={styles.invBadge}>
-                  <Text style={styles.invBadgeText}>{currentInvoice.invoiceNumber}</Text>
-                </View>
-              )}
             </View>
 
             <View style={[styles.splitLayout, { alignItems: 'flex-start', gap: isWide ? 24 : 20 }]}>
 
-              {/* ── Left: receipt paper ── */}
-              <View style={{ flex: isWide ? 1 : undefined, alignItems: 'center' }}>
-                <View style={styles.receiptPaper}>
-                  {/* Clinic banner */}
-                  <View style={styles.receiptBanner}>
-                    <View style={styles.receiptBannerIcon}>
-                      <Ionicons name="medical" size={28} color="#FFF" />
+              {/* ── Left: receipt paper (width + style reflects the printer type) ── */}
+              <View style={{ flex: isWide ? 1 : undefined, alignSelf: isWide ? 'auto' : 'stretch', alignItems: 'center' }}>
+                {/* Paper-size hint label */}
+                <Text style={styles.paperHint}>
+                  {printerType === 'thermal' ? '🧾 58mm Thermal Roll' : '📄 A4 Sheet'}
+                </Text>
+                <View style={[styles.receiptPaper, printerType === 'thermal' ? styles.receiptPaperThermal : styles.receiptPaperA4]}>
+                  {/* Clinic banner — blue card for A4, plain centered text for thermal */}
+                  {printerType === 'thermal' ? (
+                    <View style={styles.receiptBannerThermal}>
+                      <Text style={styles.receiptClinicThermal}>{(profile?.clinicName || 'MY DENTIST CLINIC').toUpperCase()}</Text>
+                      <Text style={styles.receiptDocNameThermal}>{drName(profile?.fullName)}</Text>
+                      <Text style={styles.receiptSpecThermal}>{profile?.specialization || 'Dental Specialist'}</Text>
+                      <View style={styles.thermalDash} />
                     </View>
-                    <Text style={styles.receiptClinic}>{profile?.clinicName?.toUpperCase() || 'MY DENTIST CLINIC'}</Text>
-                    <Text style={styles.receiptDocName}>{drName(profile?.fullName)}</Text>
-                    <Text style={styles.receiptSpec}>{profile?.specialization || 'Dental Specialist'}</Text>
-                  </View>
+                  ) : (
+                    <View style={styles.receiptBanner}>
+                      <View style={styles.receiptBannerIcon}>
+                        {profile?.photo ? (
+                          <Image source={{ uri: imgUrl(profile.photo) }} style={styles.receiptLogo} resizeMode="cover" />
+                        ) : (
+                          <Image source={require('../../../../assets/logo-mark.png')} style={styles.receiptLogo} resizeMode="contain" />
+                        )}
+                      </View>
+                      <Text style={styles.receiptClinic}>{profile?.clinicName?.toUpperCase() || 'MY DENTIST CLINIC'}</Text>
+                      <Text style={styles.receiptDocName}>{drName(profile?.fullName)}</Text>
+                      <Text style={styles.receiptSpec}>{profile?.specialization || 'Dental Specialist'}</Text>
+                    </View>
+                  )}
 
-                  <View style={styles.receiptBody}>
+                  <View style={[styles.receiptBody, printerType === 'thermal' && { padding: 10, paddingTop: 4 }]}>
                     {/* Invoice meta */}
                     <View style={styles.rMetaGrid}>
                       <View style={styles.rMetaCell}>
@@ -1401,11 +1504,18 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { padding: 24, paddingBottom: 60 },
+  // The single vertical scroller; flex:1 so it fills the height under the pinned
+  // sub-tab bar. paddingBottom clears the bottom tab bar (the outer ScrollView's
+  // padding that used to do this is gone).
+  contentScroll: { flex: 1 },
+  scrollContent: { padding: 24, paddingBottom: 110 },
   
   /* Top Tabs */
-  tabBar: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  tabBarContent: { flexDirection: 'row', paddingHorizontal: 12 },
+  // Fixed height — a horizontal ScrollView in a flex:1 column otherwise expands
+  // to fill all vertical space (huge gap above the content). flexGrow:0 keeps it
+  // from growing; the height pins it to the tab row.
+  tabBar: { height: 50, flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  tabBarContent: { flexDirection: 'row', paddingHorizontal: 12, alignItems: 'stretch' },
   tabBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 2, borderBottomColor: 'transparent', gap: 6 },
   tabBtnActive: { borderBottomColor: '#0052FF' },
   tabText: { fontSize: 13, fontWeight: '600', color: '#94A3B8' },
@@ -1438,6 +1548,19 @@ const styles = StyleSheet.create({
 
   /* Table */
   tableContainer: { backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden' },
+  // Phone bill cards
+  billCard: { backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#EEF2F7', padding: 14, marginBottom: 10 },
+  billCardTop: { flexDirection: 'row', alignItems: 'flex-start' },
+  billCardInv: { fontSize: 14.5, fontWeight: '800', color: '#0A1551' },
+  billCardTreat: { fontSize: 13, color: '#475569', marginTop: 8 },
+  billCardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  billCardDate: { fontSize: 12, color: '#94A3B8' },
+  billCardAmount: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+  billCardSubRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
+  billCardSub: { fontSize: 11.5, color: '#64748B' },
+  billCardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F4F6FA' },
+  billCardBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  billCardBtnText: { fontSize: 12.5, fontWeight: '700', color: '#0052FF' },
   tableHeader: { flexDirection: 'row', backgroundColor: '#F8FAFC', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   th: { fontSize: 11, fontWeight: 'bold', color: '#64748B' },
   tableRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC', alignItems: 'center' },
@@ -1544,31 +1667,41 @@ const styles = StyleSheet.create({
   draftBtnText: { color: '#0052FF', fontSize: 12.5, fontWeight: 'bold' },
 
   /* Print Preview header */
-  printHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  printHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  printHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 },
+  printHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
   printHeaderIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
   printHeaderTitle: { fontSize: 20, fontWeight: 'bold', color: '#0A1551' },
   printHeaderSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  invBadge: { backgroundColor: '#0052FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  invBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  invBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#EFF4FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, marginTop: 8 },
+  invBadgeText: { color: '#0052FF', fontSize: 12, fontWeight: '800' },
 
   /* Receipt paper */
   receiptPaper: {
-    width: 300, backgroundColor: '#FFF',
-    borderRadius: 16, overflow: 'hidden',
+    backgroundColor: '#FFF',
+    overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
     borderWidth: 1, borderColor: '#E2E8F0',
   },
+  // A4: wider rounded sheet.    Thermal: narrow roll, square corners.
+  receiptPaperA4: { width: 300, borderRadius: 16 },
+  receiptPaperThermal: { width: 230, borderRadius: 4 },
+  paperHint: { fontSize: 12, fontWeight: '700', color: '#64748B', marginBottom: 10 },
+  receiptBannerThermal: { paddingTop: 14, paddingHorizontal: 12, alignItems: 'center' },
+  receiptClinicThermal: { fontSize: 13, fontWeight: '900', color: '#0A1551', textAlign: 'center', letterSpacing: 0.3 },
+  receiptDocNameThermal: { fontSize: 10, color: '#475569', marginTop: 2, textAlign: 'center' },
+  receiptSpecThermal: { fontSize: 9, color: '#94A3B8', marginTop: 1, textAlign: 'center' },
+  thermalDash: { alignSelf: 'stretch', marginTop: 8, marginBottom: 2, borderTopWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed' },
   receiptBanner: {
     backgroundColor: '#0052FF', paddingVertical: 20, paddingHorizontal: 16,
     alignItems: 'center',
   },
   receiptBannerIcon: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 48, height: 48, borderRadius: 24, overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center', alignItems: 'center', marginBottom: 8,
   },
+  receiptLogo: { width: 40, height: 40, borderRadius: 20 },
   receiptClinic: { fontSize: 14, fontWeight: '900', color: '#FFF', textAlign: 'center', letterSpacing: 0.5 },
   receiptDocName: { fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2, textAlign: 'center' },
   receiptSpec: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 1, textAlign: 'center' },
@@ -1631,14 +1764,21 @@ const styles = StyleSheet.create({
   tmCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tmCardIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
   tmTreatName: { fontSize: 14, fontWeight: '700', color: '#0A1551', marginBottom: 4 },
+  tmNameInput: {
+    fontSize: 14, fontWeight: '700', color: '#0A1551',
+    borderBottomWidth: 1, borderBottomColor: '#E2E8F0', paddingVertical: Platform.OS === 'ios' ? 4 : 0,
+    includeFontPadding: false, marginBottom: 4,
+  },
+  tmDeleteBtn: { width: 34, height: 34, borderRadius: 9, backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center' },
   tmPtsBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tmPtsText: { fontSize: 10, color: '#D97706', fontWeight: '600' },
-  tmPriceWrap: { alignItems: 'flex-end' },
-  tmPriceLabel: { fontSize: 10, color: '#94A3B8', fontWeight: '600', marginBottom: 2 },
+  tmPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F4F6FA' },
+  tmPriceLabel: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   tmPriceInput: {
-    width: 90, height: 36, borderWidth: 1, borderColor: '#0052FF',
-    borderRadius: 8, paddingHorizontal: 10, fontSize: 14, fontWeight: '700',
-    color: '#0052FF', backgroundColor: '#F5F9FF', textAlign: 'right',
+    width: 130, minHeight: 40, borderWidth: 1, borderColor: '#0052FF',
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    fontSize: 15, fontWeight: '700', color: '#0052FF', backgroundColor: '#F5F9FF',
+    textAlign: 'right', textAlignVertical: 'center', includeFontPadding: false,
   },
   tmAddMore: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,

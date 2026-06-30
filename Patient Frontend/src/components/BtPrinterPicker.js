@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { scanPrinters, printReceiptBT, isThermalSupported } from '../utils/btPrinter';
 
@@ -7,6 +8,7 @@ import { scanPrinters, printReceiptBT, isThermalSupported } from '../utils/btPri
 // prints the given receipt over ESC/POS. Props:
 //   visible, onClose, invoice, meta ({docName, clinic, spec})
 export default function BtPrinterPicker({ visible, onClose, invoice, meta }) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState([]);
   const [error, setError] = useState(null);
@@ -49,9 +51,9 @@ export default function BtPrinterPicker({ visible, onClose, invoice, meta }) {
   if (!visible) return null;
 
   return (
-    <Modal transparent animationType="slide" visible onRequestClose={() => onClose?.()}>
+    <Modal transparent statusBarTranslucent animationType="slide" visible onRequestClose={() => onClose?.()}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
           <View style={styles.handle} />
           <View style={styles.titleRow}>
             <Text style={styles.title}>Bluetooth Printers</Text>

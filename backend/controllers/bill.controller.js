@@ -176,7 +176,7 @@ const getBill = async (req, res) => {
 // @access  Private (Doctor only)
 const createBill = async (req, res) => {
   try {
-    const { appointmentId, patientId, treatmentName, amount, dueDate, discountFromRewards, paidAmount, status: reqStatus } = req.body;
+    const { appointmentId, patientId, treatmentName, treatments, amount, dueDate, discountFromRewards, paidAmount, status: reqStatus } = req.body;
 
     // Verify doctor profile
     const doctorProfile = await DoctorProfile.findOne({ userId: req.user._id });
@@ -223,6 +223,9 @@ const createBill = async (req, res) => {
       doctorId: doctorProfile._id,
       patientId,
       treatmentName,
+      treatments: Array.isArray(treatments)
+        ? treatments.map(t => ({ name: t.name || '', price: Number(t.price) || 0 }))
+        : [],
       amount,
       finalAmount,
       discountFromRewards: discount,
@@ -547,13 +550,16 @@ const updateBill = async (req, res) => {
     }
 
     // Allowed update fields
-    const allowedFields = ['treatmentName', 'amount', 'discountFromRewards', 'paidAmount', 'dueDate', 'status'];
+    const allowedFields = ['treatmentName', 'treatments', 'amount', 'discountFromRewards', 'paidAmount', 'dueDate', 'status'];
     const updates = {};
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
+    }
+    if (Array.isArray(updates.treatments)) {
+      updates.treatments = updates.treatments.map(t => ({ name: t.name || '', price: Number(t.price) || 0 }));
     }
 
     if (updates.dueDate) {

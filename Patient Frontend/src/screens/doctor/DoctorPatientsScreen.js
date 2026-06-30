@@ -7,7 +7,7 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
 import imgUrl from '../../config/imgUrl';
-import PromoBanner from '../../components/PromoBanner';
+import DoctorPromoCard from '../../components/DoctorPromoCard';
 import DoctorHeader from '../../components/DoctorHeader';
 
 const isWeb = Platform.OS === 'web';
@@ -147,7 +147,8 @@ export default function DoctorPatientsScreen({ navigation }) {
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
-        <PromoBanner />
+        {/* Full-bleed: cancel the container's 20px padding. */}
+        <DoctorPromoCard style={{ marginHorizontal: -20 }} />
 
         {/* Stats strip */}
         <View style={styles.statsStrip}>

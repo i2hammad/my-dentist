@@ -269,7 +269,9 @@ export default function DoctorAppointmentsScreen({ navigation }) {
       </ScrollView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, isWeb && styles.webBlock]}>
-        <DoctorPromoCard />
+        {/* Full-bleed: cancel the container's 20px padding so the card (width-32,
+            self-padded 16) doesn't overflow on the right. */}
+        <DoctorPromoCard style={{ marginHorizontal: -20 }} />
         {displayList.length > 0 ? (
           displayList.map(item => renderAppointmentCard(item, activeTab === 'past'))
         ) : (

@@ -39,7 +39,8 @@ export default function BtPrinterPicker({ visible, onClose, invoice, meta }) {
     setPrintingAddr(device.address);
     setError(null);
     try {
-      await printReceiptBT(device.address, invoice, meta || {});
+      // Pass the whole device so the helper can pick the bt:/ble: prefix.
+      await printReceiptBT(device, invoice, meta || {});
       onClose?.({ ok: true, device });
     } catch (e) {
       setError(`Print failed: ${e.message || 'try again'}`);

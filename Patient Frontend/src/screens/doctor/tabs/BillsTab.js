@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Image, ActivityIndicator, Alert, Share, Platform, Modal } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Image, ActivityIndicator, Alert, Share, Platform, Modal, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -11,6 +11,22 @@ import BtPrinterPicker from '../../../components/BtPrinterPicker';
 
 const { width } = Dimensions.get('window');
 const isWide = width >= 768;
+
+// ── Bill helpers (module scope) ──
+const rsFmt = (n) => `PKR ${Number(n || 0).toLocaleString()}`;
+const outstandingOf = (b) => Math.max((b.finalAmount || b.amount || 0) - (b.paidAmount || 0), 0);
+const startOfToday = () => new Date(new Date().toDateString());
+const isOverdue = (b) =>
+  ['unpaid', 'payment_pending'].includes(b.status) &&
+  b.dueDate && new Date(b.dueDate) < startOfToday() && outstandingOf(b) > 0;
+const overdueDays = (b) => (b.dueDate ? Math.max(0, Math.floor((Date.now() - new Date(b.dueDate)) / 864e5)) : 0);
+const STATUS_META = {
+  paid:            { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
+  draft:           { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
+  payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
+  unpaid:          { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
+};
+const statusMeta = (s) => STATUS_META[s] || STATUS_META.unpaid;
 
 // Build the printable receipt HTML for either a thermal (57mm roll) or a
 // normal (A4/Letter) printer. `autoPrint` injects a window.print() for web.
@@ -106,18 +122,22 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const [billSearch, setBillSearch] = useState('');
   const [billStatusFilter, setBillStatusFilter] = useState('all');
   const [billVisible, setBillVisible] = useState(20); // infinite-scroll window
+  const [dateRange, setDateRange] = useState('all');  // all | today | 7d | 30d | month | lastMonth
+  const [sort, setSort] = useState('newest');         // newest | oldest | amount | due
+  const [busyId, setBusyId] = useState(null);         // bill _id with an in-flight row action
+  const [exporting, setExporting] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
-  // Current Bill State
-  const [items, setItems] = useState([
-    { name: 'Teeth Cleaning', price: '1500' },
-    { name: 'Consultation', price: '1500' }
-  ]);
+  // Current Bill State — start with one empty row (no demo seed; appointment
+  // treatments auto-load below when a patient is selected).
+  const [items, setItems] = useState([{ name: '', price: '' }]);
   const [discount, setDiscount] = useState('0');
   const [paidAmount, setPaidAmount] = useState('0');
+  const [dueChoice, setDueChoice] = useState('7d');   // today | 7d | 15d | 30d — bill due date
   const [pointsCode, setPointsCode] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -182,6 +202,118 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     ]);
   };
 
+  // Doctor marks an UNPAID bill as paid (cash collected in person).
+  // Uses the existing updateBill endpoint — sending paidAmount>=finalAmount flips
+  // the bill to 'paid'. Backend rejects this on already-paid bills, so we only
+  // surface the action for status==='unpaid'.
+  const markPaid = (bill) => {
+    const due = outstandingOf(bill);
+    const run = async () => {
+      try {
+        setBusyId(bill._id);
+        const token = await storage.getItem('userToken');
+        const res = await axios.put(`${API_BASE_URL}/api/bills/${bill._id}`,
+          { status: 'paid', paidAmount: (bill.finalAmount || bill.amount || 0) },
+          { headers: { Authorization: `Bearer ${token}` } });
+        if (res.data?.success && res.data.data) {
+          // Splice the populated bill back in (keeps patientId.fullName).
+          setBills((prev) => prev.map((b) => (b._id === bill._id ? res.data.data : b)));
+        } else { Alert.alert('Error', res.data?.message || 'Could not update bill.'); fetchBills(); }
+      } catch (e) {
+        Alert.alert('Error', e.response?.data?.message || 'Could not update bill.');
+        fetchBills();
+      } finally { setBusyId(null); }
+    };
+    const name = bill.patientId?.fullName || 'this patient';
+    if (Platform.OS === 'web') { run(); return; }
+    Alert.alert('Mark as Paid', `Collected ${rsFmt(due)} cash from ${name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Mark Paid', onPress: run },
+    ]);
+  };
+
+  // Share a plain-text receipt — to the patient on WhatsApp if we know their
+  // number (from the appointments-derived patients map), else the OS share sheet.
+  const shareBill = async (bill) => {
+    const lines = [
+      `*${profile?.clinicName || 'My Dentist'}*`,
+      `Invoice ${bill.invoiceNumber}`,
+      ...(Array.isArray(bill.treatments) && bill.treatments.length
+        ? bill.treatments.map((t) => `• ${t.name || 'Treatment'} — ${rsFmt(t.price)}`)
+        : [`• ${bill.treatmentName || 'Treatment'}`]),
+      `Total: ${rsFmt(bill.finalAmount || bill.amount)}`,
+      `Paid: ${rsFmt(bill.paidAmount || 0)}`,
+      outstandingOf(bill) > 0 ? `Outstanding: ${rsFmt(outstandingOf(bill))}` : 'Status: Fully paid ✓',
+      '',
+      'Powered by My Dentist',
+    ];
+    const msg = lines.join('\n');
+    const pid = bill.patientId?._id || bill.patientId;
+    const known = patients.find((p) => p.id === pid);
+    const phone = (bill.patientId?.mobileNumber || known?.phone || '').replace(/\D/g, '').replace(/^0/, '92');
+    try {
+      if (phone) {
+        await Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`);
+      } else {
+        await Share.share({ message: msg });
+      }
+    } catch { /* user dismissed */ }
+  };
+
+  // Reuse a past bill as a starting point for a NEW bill (no editingBillId so it POSTs).
+  const duplicateBill = (bill) => {
+    const restored = Array.isArray(bill.treatments) && bill.treatments.length
+      ? bill.treatments.map((t) => ({ name: t.name || '', price: t.price ? String(t.price) : '' }))
+      : [{ name: bill.treatmentName || '', price: '' }];
+    setEditingBillId(null);
+    setItems(restored);
+    setDiscount('0');
+    setPaidAmount('0');
+    const p = bill.patientId;
+    if (p && (p._id || p)) setSelectedPatient({ id: p._id || p, name: p.fullName || 'Patient', phone: p.mobileNumber || '' });
+    setTreatmentMode('edit');
+    setSubTab('current');
+  };
+
+  // Export the currently filtered bills to a CSV and share/download it.
+  const exportCsv = async (rows) => {
+    if (!rows || !rows.length) { Alert.alert('Nothing to export', 'No bills match the current filters.'); return; }
+    const q = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const header = ['Invoice', 'Date', 'Patient', 'Treatment', 'Total', 'Discount', 'Paid', 'Outstanding', 'Status', 'DueDate'];
+    const body = rows.map((b) => [
+      b.invoiceNumber,
+      new Date(b.createdAt).toLocaleDateString('en-CA'),
+      b.patientId?.fullName || '',
+      b.treatmentName || '',
+      b.finalAmount || b.amount || 0,
+      b.discountFromRewards || 0,
+      b.paidAmount || 0,
+      outstandingOf(b),
+      statusMeta(b.status).label,
+      b.dueDate ? new Date(b.dueDate).toLocaleDateString('en-CA') : '',
+    ].map(q).join(','));
+    const csv = [header.map(q).join(','), ...body].join('\n');
+    setExporting(true);
+    try {
+      if (Platform.OS === 'web') {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `bills_${Date.now()}.csv`; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const FileSystem = require('expo-file-system');
+        const Sharing = require('expo-sharing');
+        const uri = FileSystem.documentDirectory + `bills_${Date.now()}.csv`;
+        await FileSystem.writeAsStringAsync(uri, csv);
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Export bills' });
+        else Alert.alert('Saved', `CSV saved to ${uri}`);
+      }
+    } catch (e) {
+      Alert.alert('Export failed', e.message || 'Could not export CSV.');
+    } finally { setExporting(false); }
+  };
+
   // Build the print-preview invoice object from a saved bill row.
   const billToInvoice = (inv) => {
     const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -203,6 +335,40 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   };
   const previewBillRow = (inv) => { setCurrentInvoice(billToInvoice(inv)); setSubTab('print'); };
   const downloadBillRow = (inv) => { setCurrentInvoice(billToInvoice(inv)); setTimeout(handleDownloadReceipt, 100); };
+
+  // Per-bill action descriptors — rendered as labeled buttons (phone) and icon
+  // buttons (web table) so the two views never drift.
+  const billActionList = (inv) => {
+    const acts = [
+      { key: 'view', icon: 'eye-outline', label: 'View', onPress: () => previewBillRow(inv) },
+      { key: 'receipt', icon: 'download-outline', label: 'Receipt', onPress: () => downloadBillRow(inv) },
+    ];
+    if (inv.status === 'unpaid') acts.push({ key: 'paid', icon: 'checkmark-circle-outline', label: 'Mark Paid', color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', busy: busyId === inv._id, onPress: () => markPaid(inv) });
+    if (inv.status === 'payment_pending') acts.push({ key: 'confirm', icon: 'checkmark-circle-outline', label: 'Confirm', color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', onPress: () => confirmPayment(inv) });
+    if (inv.status === 'draft') acts.push({ key: 'edit', icon: 'create-outline', label: 'Edit', onPress: () => editDraft(inv) });
+    acts.push({ key: 'share', icon: 'share-social-outline', label: 'Share', onPress: () => shareBill(inv) });
+    if (inv.status !== 'draft') acts.push({ key: 'dup', icon: 'copy-outline', label: 'Duplicate', onPress: () => duplicateBill(inv) });
+    return acts;
+  };
+  const renderBillActions = (inv, { compact = false } = {}) => (
+    billActionList(inv).map((a) => (
+      <TouchableOpacity
+        key={a.key}
+        style={[
+          compact ? styles.iconActionBtn : styles.billCardBtn,
+          a.border ? { borderColor: a.border, backgroundColor: a.bg } : null,
+        ]}
+        onPress={a.onPress}
+        disabled={a.busy}
+        hitSlop={compact ? 6 : undefined}
+      >
+        {a.busy
+          ? <ActivityIndicator size="small" color={a.color || '#0052FF'} />
+          : <Ionicons name={a.icon} size={15} color={a.color || '#0052FF'} />}
+        {!compact && <Text style={[styles.billCardBtnText, a.color ? { color: a.color } : null]}>{a.label}</Text>}
+      </TouchableOpacity>
+    ))
+  );
 
   useEffect(() => {
     fetchBills();
@@ -365,7 +531,12 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         discountFromRewards: discountVal,
         paidAmount: paidVal,
         paymentMethod: paymentMethod,
-        dueDate: new Date().toISOString(),
+        dueDate: (() => {
+          const d = new Date();
+          const add = { today: 0, '7d': 7, '15d': 15, '30d': 30 }[dueChoice] ?? 7;
+          d.setDate(d.getDate() + add);
+          return d.toISOString();
+        })(),
         ...(asDraft ? { status: 'draft' } : {}),
       };
 
@@ -381,7 +552,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
         // Drafts: just refresh the list and stay; don't go to print.
         if (asDraft) {
-          setItems([{ name: 'Teeth Cleaning', price: '1500' }, { name: 'Consultation', price: '1500' }]);
+          setItems([{ name: '', price: '' }]);
           setPaidAmount('0'); setDiscount('0'); setPointsCode('');
           fetchBills();
           setSubTab('previous');
@@ -407,10 +578,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         });
 
         // Reset inputs
-        setItems([
-          { name: 'Teeth Cleaning', price: '1500' },
-          { name: 'Consultation', price: '1500' }
-        ]);
+        setItems([{ name: '', price: '' }]);
         setPaidAmount('0');
         setDiscount('0');
         setPointsCode('');
@@ -577,29 +745,95 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     );
   };
 
-  // Stats calculation from real bills list
-  const totalPaid = bills.filter(b => b.status === 'paid').reduce((sum, b) => sum + (b.paidAmount || b.amount), 0);
-  const totalDiscount = bills.reduce((sum, b) => sum + (b.discountFromRewards || 0), 0);
-  const totalOutstanding = bills.filter(b => b.status === 'unpaid').reduce((sum, b) => sum + Math.max(b.finalAmount - (b.paidAmount || 0), 0), 0);
-
-  // Search + status filter + infinite-scroll window for Previous Bills.
-  const billQ = billSearch.trim().toLowerCase();
-  const filteredBills = bills.filter((b) => {
-    if (billStatusFilter !== 'all' && (b.status || 'unpaid') !== billStatusFilter) return false;
-    if (!billQ) return true;
-    const hay = `${b.invoiceNumber || ''} ${b.treatmentName || ''} ${b.patientId?.fullName || ''}`.toLowerCase();
-    return hay.includes(billQ);
-  });
-  const visibleBills = filteredBills.slice(0, billVisible);
-  const hasMoreBills = visibleBills.length < filteredBills.length;
   const BILL_FILTERS = [
     { key: 'all', label: 'All' },
-    { key: 'paid', label: 'Paid' },
-    { key: 'payment_pending', label: 'Pending' },
     { key: 'unpaid', label: 'Unpaid' },
+    { key: 'payment_pending', label: 'Pending' },
+    { key: 'paid', label: 'Paid' },
     { key: 'draft', label: 'Draft' },
   ];
-  React.useEffect(() => { setBillVisible(20); }, [billSearch, billStatusFilter]);
+  const DATE_PRESETS = [
+    { key: 'all', label: 'All' },
+    { key: 'today', label: 'Today' },
+    { key: '7d', label: '7d' },
+    { key: '30d', label: '30d' },
+    { key: 'month', label: 'This month' },
+    { key: 'lastMonth', label: 'Last month' },
+  ];
+  const SORTS = { newest: 'Newest', oldest: 'Oldest', amount: 'Amount', due: 'Due' };
+
+  // All derived stats + the filtered/sorted list in one memo over the bills.
+  const derived = useMemo(() => {
+    const now = new Date();
+    const tStart = startOfToday().getTime();
+    const inDateRange = (b) => {
+      if (dateRange === 'all') return true;
+      const t = new Date(b.createdAt).getTime();
+      if (dateRange === 'today') return t >= tStart;
+      if (dateRange === '7d') return t >= tStart - 6 * 864e5;
+      if (dateRange === '30d') return t >= tStart - 29 * 864e5;
+      if (dateRange === 'month') return new Date(b.createdAt).getMonth() === now.getMonth() && new Date(b.createdAt).getFullYear() === now.getFullYear();
+      if (dateRange === 'lastMonth') {
+        const d = new Date(b.createdAt);
+        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+      }
+      return true;
+    };
+
+    // Headline revenue figures (across ALL bills, status paid).
+    const paidBills = bills.filter((b) => b.status === 'paid');
+    const revOf = (b) => b.paidAmount || b.finalAmount || b.amount || 0;
+    const allTimeRevenue = paidBills.reduce((s, b) => s + revOf(b), 0);
+    const sameMonth = (d, ref) => d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+    const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthRevenue = paidBills.filter((b) => sameMonth(new Date(b.paidAt || b.createdAt), now)).reduce((s, b) => s + revOf(b), 0);
+    const lastMonthRevenue = paidBills.filter((b) => sameMonth(new Date(b.paidAt || b.createdAt), lm)).reduce((s, b) => s + revOf(b), 0);
+
+    const totalPaid = allTimeRevenue;
+    const totalDiscount = bills.reduce((s, b) => s + (b.discountFromRewards || 0), 0);
+    const totalOutstanding = bills.filter((b) => ['unpaid', 'payment_pending'].includes(b.status)).reduce((s, b) => s + outstandingOf(b), 0);
+    const overdueBills = bills.filter(isOverdue);
+    const overdueSum = overdueBills.reduce((s, b) => s + outstandingOf(b), 0);
+    const trendPct = lastMonthRevenue > 0 ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : null;
+    const collectionRate = (totalPaid + totalOutstanding) > 0 ? Math.round((totalPaid / (totalPaid + totalOutstanding)) * 100) : 100;
+
+    // Date+search scope (drives the status-chip counts so they reflect what's visible).
+    const q = billSearch.trim().toLowerCase();
+    const scoped = bills.filter((b) => {
+      if (!inDateRange(b)) return false;
+      if (!q) return true;
+      const hay = `${b.invoiceNumber || ''} ${b.treatmentName || ''} ${b.patientId?.fullName || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+    const counts = { all: scoped.length, paid: 0, unpaid: 0, payment_pending: 0, draft: 0, outstanding: 0, overdue: 0 };
+    scoped.forEach((b) => {
+      counts[b.status] = (counts[b.status] || 0) + 1;
+      if (['unpaid', 'payment_pending'].includes(b.status)) counts.outstanding += 1;
+      if (isOverdue(b)) counts.overdue += 1;
+    });
+
+    // Apply the status filter (real statuses + meta keys), then sort a copy.
+    let list = scoped.filter((b) => {
+      if (billStatusFilter === 'all') return true;
+      if (billStatusFilter === 'outstanding') return ['unpaid', 'payment_pending'].includes(b.status);
+      if (billStatusFilter === 'overdue') return isOverdue(b);
+      return (b.status || 'unpaid') === billStatusFilter;
+    });
+    list = [...list].sort((a, b) => {
+      if (sort === 'oldest') return new Date(a.createdAt) - new Date(b.createdAt);
+      if (sort === 'amount') return (b.finalAmount || b.amount || 0) - (a.finalAmount || a.amount || 0);
+      if (sort === 'due') return outstandingOf(b) - outstandingOf(a);
+      return new Date(b.createdAt) - new Date(a.createdAt); // newest
+    });
+
+    return { totalPaid, totalDiscount, totalOutstanding, monthRevenue, lastMonthRevenue, allTimeRevenue, overdueBills, overdueSum, trendPct, collectionRate, counts, filteredBills: list };
+  }, [bills, billSearch, billStatusFilter, dateRange, sort]);
+
+  const { totalPaid, totalDiscount, totalOutstanding, monthRevenue, allTimeRevenue, overdueBills, overdueSum, trendPct, collectionRate, counts, filteredBills } = derived;
+  const visibleBills = filteredBills.slice(0, billVisible);
+  const hasMoreBills = visibleBills.length < filteredBills.length;
+  React.useEffect(() => { setBillVisible(20); }, [billSearch, billStatusFilter, dateRange, sort]);
 
   return (
     <View style={styles.container}>
@@ -632,66 +866,139 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
           <View>
             <Text style={styles.pageTitle}>Previous Bills</Text>
             <Text style={styles.pageSubtitle}>View, create and download the bills generated for this clinic</Text>
-            
+
+            {/* TIER 1 — revenue hero */}
+            <View style={styles.revHero}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.revLabel}>Collected this month</Text>
+                <Text style={styles.revValue}>{rsFmt(monthRevenue)}</Text>
+                <Text style={styles.revSub}>
+                  {rsFmt(allTimeRevenue)} all-time · {bills.length} bills{bills.length === 100 ? ' (last 100)' : ''}
+                </Text>
+              </View>
+              {trendPct !== null && (
+                <View style={styles.trendPill}>
+                  <Ionicons name={trendPct >= 0 ? 'arrow-up' : 'arrow-down'} size={12} color={trendPct >= 0 ? '#BBF7D0' : '#FCD34D'} />
+                  <Text style={[styles.trendText, { color: trendPct >= 0 ? '#BBF7D0' : '#FCD34D' }]}>{Math.abs(trendPct)}%</Text>
+                </View>
+              )}
+            </View>
+
+            {/* TIER 2 — secondary stat chips */}
             <View style={styles.statsRow}>
-              <View style={[styles.statCard, {backgroundColor: '#EFF6FF'}]}>
-                <View style={styles.statIconWrap}><Ionicons name="document-text" size={20} color="#0052FF" /></View>
-                <View>
-                  <Text style={styles.statLabel}>Total Paid</Text>
-                  <Text style={styles.statValue}>PKR {totalPaid.toLocaleString()}</Text>
-                </View>
+              <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('outstanding')}>
+                <Text style={styles.miniStatLabel}>Outstanding</Text>
+                <Text style={[styles.miniStatValue, { color: '#D97706' }]}>{rsFmt(totalOutstanding)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('overdue')}>
+                <Text style={styles.miniStatLabel}>Overdue ({overdueBills.length})</Text>
+                <Text style={[styles.miniStatValue, { color: '#DC2626' }]}>{rsFmt(overdueSum)}</Text>
+              </TouchableOpacity>
+              <View style={styles.miniStat}>
+                <Text style={styles.miniStatLabel}>Discount given</Text>
+                <Text style={[styles.miniStatValue, { color: '#16A34A' }]}>{rsFmt(totalDiscount)}</Text>
               </View>
-              <View style={[styles.statCard, {backgroundColor: '#F0FDF4'}]}>
-                <View style={styles.statIconWrap}><Ionicons name="wallet" size={20} color="#16A34A" /></View>
-                <View>
-                  <Text style={styles.statLabel}>Total Discount</Text>
-                  <Text style={[styles.statValue, {color: '#16A34A'}]}>PKR {totalDiscount.toLocaleString()}</Text>
-                </View>
-              </View>
-              <View style={[styles.statCard, {backgroundColor: '#FFFBEB'}]}>
-                <View style={styles.statIconWrap}><Ionicons name="pricetag" size={20} color="#D97706" /></View>
-                <View>
-                  <Text style={styles.statLabel}>Outstanding</Text>
-                  <Text style={[styles.statValue, {color: '#D97706'}]}>PKR {totalOutstanding.toLocaleString()}</Text>
-                </View>
+              <View style={styles.miniStat}>
+                <Text style={styles.miniStatLabel}>Collection rate</Text>
+                <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{collectionRate}%</Text>
               </View>
             </View>
 
-            {/* Search + status filter */}
-            <View style={styles.billSearchWrap}>
-              <Ionicons name="search-outline" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.billSearchInput}
-                placeholder="Search invoice, treatment or patient..."
-                placeholderTextColor="#94A3B8"
-                value={billSearch}
-                onChangeText={setBillSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-              />
-              {billSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setBillSearch('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            {/* Overdue collections banner */}
+            {overdueBills.length > 0 && !bannerDismissed && billStatusFilter !== 'overdue' && (
+              <TouchableOpacity activeOpacity={0.85} style={styles.overdueBanner} onPress={() => setBillStatusFilter('overdue')}>
+                <Ionicons name="alert-circle" size={18} color="#DC2626" />
+                <Text style={styles.overdueBannerText}>
+                  {overdueBills.length} {overdueBills.length === 1 ? 'bill' : 'bills'} overdue · {rsFmt(overdueSum)}. Tap to filter.
+                </Text>
+                <TouchableOpacity onPress={() => setBannerDismissed(true)} hitSlop={8}>
+                  <Ionicons name="close" size={16} color="#DC2626" />
                 </TouchableOpacity>
-              )}
+              </TouchableOpacity>
+            )}
+
+            {/* Search + Export */}
+            <View style={styles.searchRow}>
+              <View style={[styles.billSearchWrap, { flex: 1, marginBottom: 0 }]}>
+                <Ionicons name="search-outline" size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.billSearchInput}
+                  placeholder="Search invoice, treatment or patient..."
+                  placeholderTextColor="#94A3B8"
+                  value={billSearch}
+                  onChangeText={setBillSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                />
+                {billSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setBillSearch('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity style={styles.exportBtn} onPress={() => exportCsv(filteredBills)} disabled={exporting}>
+                {exporting ? <ActivityIndicator size="small" color="#0052FF" /> : <Ionicons name="download-outline" size={18} color="#0052FF" />}
+                <Text style={styles.exportBtnText}>Export</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.billFilterRow}>
-              {BILL_FILTERS.map((f) => {
-                const active = billStatusFilter === f.key;
+
+            {/* Date presets */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateRow} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+              {DATE_PRESETS.map((d) => {
+                const on = dateRange === d.key;
                 return (
-                  <TouchableOpacity key={f.key} style={[styles.billChip, active && styles.billChipActive]} onPress={() => setBillStatusFilter(f.key)}>
-                    <Text style={[styles.billChipText, active && styles.billChipTextActive]}>{f.label}</Text>
+                  <TouchableOpacity key={d.key} style={[styles.dateChip, on && styles.dateChipActive]} onPress={() => setDateRange(d.key)}>
+                    <Text style={[styles.dateChipText, on && styles.dateChipTextActive]}>{d.label}</Text>
                   </TouchableOpacity>
                 );
               })}
+            </ScrollView>
+
+            {/* Status chips (with counts) + sort */}
+            <View style={styles.filterSortRow}>
+              <View style={styles.billFilterRow}>
+                {BILL_FILTERS.map((f) => {
+                  const active = billStatusFilter === f.key;
+                  const c = counts[f.key] || 0;
+                  return (
+                    <TouchableOpacity key={f.key} style={[styles.billChip, active && styles.billChipActive]} onPress={() => setBillStatusFilter(f.key)}>
+                      <Text style={[styles.billChipText, active && styles.billChipTextActive]}>{f.label}</Text>
+                      {c > 0 && (
+                        <View style={[styles.chipCount, active && styles.chipCountActive]}>
+                          <Text style={[styles.chipCountText, active && styles.chipCountTextActive]}>{c}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+            <View style={styles.sortRow}>
+              {(billStatusFilter === 'outstanding' || billStatusFilter === 'overdue') && (
+                <TouchableOpacity style={styles.clearFilterBtn} onPress={() => setBillStatusFilter('all')}>
+                  <Ionicons name="close" size={13} color="#0052FF" />
+                  <Text style={styles.clearFilterText}>{billStatusFilter === 'overdue' ? 'Overdue' : 'Outstanding'}</Text>
+                </TouchableOpacity>
+              )}
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                style={styles.sortBtn}
+                onPress={() => {
+                  const order = ['newest', 'oldest', 'amount', 'due'];
+                  setSort(order[(order.indexOf(sort) + 1) % order.length]);
+                }}
+              >
+                <Ionicons name="swap-vertical" size={14} color="#475569" />
+                <Text style={styles.sortBtnText}>Sort: {SORTS[sort]}</Text>
+              </TouchableOpacity>
             </View>
 
             {loading ? (
               <ActivityIndicator size="small" color="#0052FF" style={{ marginVertical: 30 }} />
             ) : filteredBills.length === 0 ? (
               <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
-                {billQ || billStatusFilter !== 'all' ? 'No bills match your search.' : "No bills found. Create a bill in the 'Current Bill' tab."}
+                {billSearch || billStatusFilter !== 'all' || dateRange !== 'all' ? 'No bills match your filters.' : "No bills found. Create a bill in the 'Current Bill' tab."}
               </Text>
             ) : !isWide ? (
               // ── Phone: stacked cards (no horizontal scroll) ──
@@ -701,17 +1008,16 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   const billOut = Math.max((inv.finalAmount || inv.amount) - (inv.paidAmount || 0), 0);
                   const patientName = inv.patientId?.fullName || 'Patient';
                   const patientId = inv.patientId?._id || inv.patientId;
-                  const sm = {
-                    paid:            { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
-                    draft:           { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
-                    payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
-                    unpaid:          { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
-                  }[inv.status] || { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' };
+                  const sm = statusMeta(inv.status);
+                  const overdue = isOverdue(inv);
                   return (
-                    <View key={inv._id || idx} style={styles.billCard}>
+                    <View key={inv._id || idx} style={[styles.billCard, overdue && styles.billCardOverdue]}>
                       <View style={styles.billCardTop}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.billCardInv}>{inv.invoiceNumber}</Text>
+                          <View style={styles.invRow}>
+                            <View style={[styles.statusDot, { backgroundColor: sm.color }]} />
+                            <Text style={styles.billCardInv}>{inv.invoiceNumber}</Text>
+                          </View>
                           <TouchableOpacity onPress={() => setPatientModal({ _id: patientId, name: patientName })} hitSlop={6}>
                             <View style={styles.patientNamePill}>
                               <Ionicons name="person-circle-outline" size={12} color="#0052FF" />
@@ -719,8 +1025,16 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                             </View>
                           </TouchableOpacity>
                         </View>
-                        <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
-                          <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                          <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
+                            <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
+                          </View>
+                          {overdue && (
+                            <View style={styles.overduePill}>
+                              <Ionicons name="alert-circle" size={11} color="#DC2626" />
+                              <Text style={styles.overduePillText}>Overdue {overdueDays(inv)}d</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
 
@@ -728,7 +1042,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
                       <View style={styles.billCardMetaRow}>
                         <Text style={styles.billCardDate}>{billDate}</Text>
-                        <Text style={styles.billCardAmount}>PKR {Number(inv.amount).toLocaleString()}</Text>
+                        <Text style={styles.billCardAmount}>PKR {Number(inv.finalAmount || inv.amount).toLocaleString()}</Text>
                       </View>
                       <View style={styles.billCardSubRow}>
                         <Text style={styles.billCardSub}>Paid PKR {Number(inv.paidAmount || 0).toLocaleString()}</Text>
@@ -737,26 +1051,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                       </View>
 
                       <View style={styles.billCardActions}>
-                        <TouchableOpacity style={styles.billCardBtn} onPress={() => previewBillRow(inv)}>
-                          <Ionicons name="eye-outline" size={15} color="#0052FF" />
-                          <Text style={styles.billCardBtnText}>View</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.billCardBtn} onPress={() => downloadBillRow(inv)}>
-                          <Ionicons name="download-outline" size={15} color="#0052FF" />
-                          <Text style={styles.billCardBtnText}>Receipt</Text>
-                        </TouchableOpacity>
-                        {inv.status === 'draft' && (
-                          <TouchableOpacity style={styles.billCardBtn} onPress={() => editDraft(inv)}>
-                            <Ionicons name="create-outline" size={15} color="#0052FF" />
-                            <Text style={styles.billCardBtnText}>Edit</Text>
-                          </TouchableOpacity>
-                        )}
-                        {inv.status === 'payment_pending' && (
-                          <TouchableOpacity style={[styles.billCardBtn, { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }]} onPress={() => confirmPayment(inv)}>
-                            <Ionicons name="checkmark-circle-outline" size={15} color="#16A34A" />
-                            <Text style={[styles.billCardBtnText, { color: '#16A34A' }]}>Confirm</Text>
-                          </TouchableOpacity>
-                        )}
+                        {renderBillActions(inv)}
                       </View>
                     </View>
                   );
@@ -773,18 +1068,19 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                     <Text style={[styles.th, {width: 100}]}>Paid Amount</Text>
                     <Text style={[styles.th, {width: 100}]}>Discount</Text>
                     <Text style={[styles.th, {width: 100}]}>Outstanding</Text>
-                    <Text style={[styles.th, {width: 80, textAlign: 'center'}]}>Status</Text>
-                    <Text style={[styles.th, {width: 50, textAlign: 'center'}]}>View</Text>
-                    <Text style={[styles.th, {width: 80, textAlign: 'center'}]}>Download</Text>
+                    <Text style={[styles.th, {width: 90, textAlign: 'center'}]}>Status</Text>
+                    <Text style={[styles.th, {width: 200, textAlign: 'center'}]}>Actions</Text>
                   </View>
 
                   {visibleBills.map((inv, idx) => {
                     const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-                    const billOut = Math.max(inv.finalAmount - (inv.paidAmount || 0), 0);
+                    const billOut = Math.max((inv.finalAmount || inv.amount) - (inv.paidAmount || 0), 0);
                     const patientName = inv.patientId?.fullName || 'Patient';
                     const patientId   = inv.patientId?._id || inv.patientId;
+                    const sm = statusMeta(inv.status);
+                    const overdue = isOverdue(inv);
                     return (
-                      <View key={inv._id || idx} style={styles.tableRow}>
+                      <View key={inv._id || idx} style={[styles.tableRow, overdue && styles.billCardOverdue]}>
                         <View style={{width: 140}}>
                           <Text style={[styles.td, {color: '#0A1551', fontWeight: 'bold'}]}>{inv.invoiceNumber}</Text>
                           <TouchableOpacity
@@ -799,81 +1095,24 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                         </View>
                         <Text style={[styles.td, {width: 100}]}>{billDate}</Text>
                         <Text style={[styles.td, {width: 150}]}>{inv.treatmentName}</Text>
-                        <Text style={[styles.td, {width: 100, fontWeight: 'bold'}]}>PKR {inv.amount}</Text>
+                        <Text style={[styles.td, {width: 100, fontWeight: 'bold'}]}>PKR {inv.finalAmount || inv.amount}</Text>
                         <Text style={[styles.td, {width: 100}]}>PKR {inv.paidAmount || 0}</Text>
                         <Text style={[styles.td, {width: 100}]}>PKR {inv.discountFromRewards || 0}</Text>
                         <Text style={[styles.td, {width: 100}]}>PKR {billOut}</Text>
-                        <View style={{width: 80, alignItems: 'center'}}>
-                          {(() => {
-                            const sm = {
-                              paid:            { bg: '#DCFCE7', color: '#16A34A', label: 'Paid' },
-                              draft:           { bg: '#FEF3C7', color: '#D97706', label: 'Draft' },
-                              payment_pending: { bg: '#EDE9FE', color: '#7C3AED', label: 'Pending' },
-                              unpaid:          { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' },
-                            }[inv.status] || { bg: '#FEE2E2', color: '#DC2626', label: 'Unpaid' };
-                            return (
-                              <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
-                                <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
-                              </View>
-                            );
-                          })()}
-                          {inv.status === 'draft' && (
-                            <TouchableOpacity onPress={() => editDraft(inv)} style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
-                              <Ionicons name="create-outline" size={13} color="#0052FF" />
-                              <Text style={{ color: '#0052FF', fontSize: 11, fontWeight: '700', marginLeft: 2 }}>Edit</Text>
-                            </TouchableOpacity>
-                          )}
-                          {inv.status === 'payment_pending' && (
-                            <TouchableOpacity onPress={() => confirmPayment(inv)} style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center' }}>
-                              <Ionicons name="checkmark-circle-outline" size={13} color="#16A34A" />
-                              <Text style={{ color: '#16A34A', fontSize: 11, fontWeight: '700', marginLeft: 2 }}>Confirm</Text>
-                            </TouchableOpacity>
+                        <View style={{width: 90, alignItems: 'center'}}>
+                          <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
+                            <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
+                          </View>
+                          {overdue && (
+                            <View style={[styles.overduePill, { marginTop: 4 }]}>
+                              <Ionicons name="alert-circle" size={11} color="#DC2626" />
+                              <Text style={styles.overduePillText}>{overdueDays(inv)}d</Text>
+                            </View>
                           )}
                         </View>
-                        <TouchableOpacity 
-                          style={{width: 50, alignItems: 'center'}}
-                          onPress={() => {
-                            setCurrentInvoice({
-                              invoiceNumber: inv.invoiceNumber,
-                              date: billDate,
-                              time: new Date(inv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                              patientName: inv.patientId?.fullName || 'Patient',
-                              patientPhone: 'Provided',
-                              treatments: [{ name: inv.treatmentName, price: inv.amount.toString() }],
-                              total: inv.amount,
-                              discount: inv.discountFromRewards || 0,
-                              paid: inv.paidAmount || 0,
-                              payable: inv.finalAmount,
-                              outstanding: billOut,
-                              status: inv.status
-                            });
-                            setSubTab('print');
-                          }}
-                        >
-                          <Ionicons name="eye-outline" size={18} color="#0052FF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={{width: 80, alignItems: 'center'}}
-                          onPress={() => {
-                            setCurrentInvoice({
-                              invoiceNumber: inv.invoiceNumber,
-                              date: billDate,
-                              time: new Date(inv.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                              patientName: inv.patientId?.fullName || 'Patient',
-                              patientPhone: 'Provided',
-                              treatments: [{ name: inv.treatmentName, price: inv.amount.toString() }],
-                              total: inv.amount,
-                              discount: inv.discountFromRewards || 0,
-                              paid: inv.paidAmount || 0,
-                              payable: inv.finalAmount,
-                              outstanding: billOut,
-                              status: inv.status
-                            });
-                            setTimeout(handleDownloadReceipt, 100);
-                          }}
-                        >
-                          <Ionicons name="download-outline" size={18} color="#0052FF" />
-                        </TouchableOpacity>
+                        <View style={{ width: 200, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }}>
+                          {renderBillActions(inv, { compact: true })}
+                        </View>
                       </View>
                     );
                   })}
@@ -991,7 +1230,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                         />
                         <View style={styles.tmPtsBadge}>
                           <Ionicons name="star" size={11} color="#D97706" />
-                          <Text style={styles.tmPtsText}>50 reward pts on payment</Text>
+                          <Text style={styles.tmPtsText}>{Math.floor((parseFloat(String(it.price).replace(/,/g, '')) || 0) * 0.02)} reward pts on payment</Text>
                         </View>
                       </View>
                       <TouchableOpacity style={styles.tmDeleteBtn} hitSlop={6} onPress={() => handleItemDelete(i)}>
@@ -1045,14 +1284,34 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
                   {/* CUSTOM PAID AMOUNT INPUT */}
                   <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.sumLabelText}>Amount Paid (PKR)</Text>
-                    <TextInput 
-                      style={[styles.redeemInput, { marginTop: 6, width: '100%' }]} 
-                      value={paidAmount} 
+                    <View style={styles.paidLabelRow}>
+                      <Text style={styles.sumLabelText}>Amount Paid (PKR)</Text>
+                      <TouchableOpacity onPress={() => setPaidAmount(String(finalAmount))} hitSlop={6}>
+                        <Text style={styles.paidInFullLink}>Paid in full</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TextInput
+                      style={[styles.redeemInput, { marginTop: 6, width: '100%' }]}
+                      value={paidAmount}
                       keyboardType="numeric"
                       onChangeText={setPaidAmount}
                       placeholder="e.g. 300"
                     />
+                  </View>
+
+                  {/* DUE DATE */}
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.sumLabelText}>Payment due</Text>
+                    <View style={styles.dueRow}>
+                      {[{ k: 'today', l: 'Today' }, { k: '7d', l: '+7 days' }, { k: '15d', l: '+15 days' }, { k: '30d', l: '+30 days' }].map((d) => {
+                        const on = dueChoice === d.k;
+                        return (
+                          <TouchableOpacity key={d.k} style={[styles.dueChip, on && styles.dueChipActive]} onPress={() => setDueChoice(d.k)}>
+                            <Text style={[styles.dueChipText, on && styles.dueChipTextActive]}>{d.l}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
 
                   {/* PAYMENT METHOD SELECTOR */}
@@ -1097,8 +1356,15 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
                   <View style={styles.sumRow}>
                     <Text style={[styles.sumLabelText, {fontWeight: 'bold', color: '#64748B'}]}>Outstanding Balance</Text>
-                    <Text style={[styles.sumValText, {color: outstandingVal > 0 ? '#DC2626' : '#16A34A', fontSize: 16}]}>PKR {outstandingVal.toLocaleString()}</Text>
+                    {paidVal > finalAmount ? (
+                      <Text style={[styles.sumValText, { color: '#D97706', fontSize: 15 }]}>Overpaid PKR {(paidVal - finalAmount).toLocaleString()}</Text>
+                    ) : outstandingVal === 0 && paidVal > 0 ? (
+                      <Text style={[styles.sumValText, { color: '#16A34A', fontSize: 15 }]}>Fully paid ✓</Text>
+                    ) : (
+                      <Text style={[styles.sumValText, {color: outstandingVal > 0 ? '#DC2626' : '#16A34A', fontSize: 16}]}>PKR {outstandingVal.toLocaleString()}</Text>
+                    )}
                   </View>
+                  <Text style={styles.rewardHint}>Patient earns ~{Math.floor(finalAmount * 0.02)} pts on payment</Text>
                 </View>
 
                 {/* Action Buttons */}
@@ -1112,7 +1378,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   </TouchableOpacity>
                 </View>
                 {editingBillId && (
-                  <TouchableOpacity onPress={() => { setEditingBillId(null); setItems([{ name: 'Teeth Cleaning', price: '1500' }]); setSelectedPatient(null); }} style={{ marginTop: 10, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => { setEditingBillId(null); setItems([{ name: '', price: '' }]); setSelectedPatient(null); }} style={{ marginTop: 10, alignItems: 'center' }}>
                     <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancel editing draft</Text>
                   </TouchableOpacity>
                 )}
@@ -1525,20 +1791,55 @@ const styles = StyleSheet.create({
   pageSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 20 },
   billSearchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginBottom: 10 },
   billSearchInput: { flex: 1, fontSize: 14, color: '#0F172A', paddingVertical: 6 },
-  billFilterRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
-  billChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
+  billFilterRow: { flexDirection: 'row', gap: 8, marginBottom: 4, flexWrap: 'wrap' },
+  billChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
   billChipActive: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
   billChipText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
   billChipTextActive: { color: '#FFFFFF' },
+  chipCount: { minWidth: 18, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 9, backgroundColor: '#EFF4FF', alignItems: 'center' },
+  chipCountActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  chipCountText: { fontSize: 10.5, fontWeight: '800', color: '#0052FF' },
+  chipCountTextActive: { color: '#FFFFFF' },
   loadMoreBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22 },
   loadMoreText: { color: '#0052FF', fontWeight: '700', fontSize: 13 },
 
-  /* Previous Bills Stats */
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20, flexWrap: 'wrap' },
-  statCard: { flex: 1, minWidth: isWide ? '30%' : '45%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9' },
-  statIconWrap: { width: 36, height: 36, backgroundColor: '#FFF', borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  statLabel: { fontSize: 11, color: '#64748B' },
-  statValue: { fontSize: 14, fontWeight: 'bold', color: '#0052FF', marginTop: 2 },
+  /* Revenue hero + secondary stats */
+  revHero: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#0052FF', borderRadius: 16, padding: 18, marginBottom: 12, shadowColor: '#0052FF', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  revLabel: { fontSize: 12, color: 'rgba(255,255,255,0.82)', fontWeight: '600' },
+  revValue: { fontSize: 30, fontWeight: '800', color: '#FFFFFF', marginTop: 2 },
+  revSub: { fontSize: 11.5, color: 'rgba(255,255,255,0.78)', marginTop: 4 },
+  trendPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  trendText: { fontSize: 12, fontWeight: '800' },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 14, flexWrap: 'wrap' },
+  miniStat: { flexGrow: 1, minWidth: isWide ? '22%' : '46%', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#EEF2F7', paddingVertical: 12, paddingHorizontal: 14 },
+  miniStatLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  miniStatValue: { fontSize: 15, fontWeight: '800', marginTop: 3 },
+
+  /* Overdue banner + pills */
+  overdueBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEE2E2', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 14 },
+  overdueBannerText: { flex: 1, fontSize: 12.5, fontWeight: '700', color: '#DC2626' },
+  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  overduePillText: { fontSize: 10, fontWeight: '800', color: '#DC2626' },
+
+  /* Search row + export */
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EFF4FF', borderWidth: 1, borderColor: '#D6E2FB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 11 : 10 },
+  exportBtnText: { fontSize: 13, fontWeight: '700', color: '#0052FF' },
+
+  /* Date presets */
+  dateRow: { marginBottom: 10 },
+  dateChip: { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 18, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F7' },
+  dateChipActive: { backgroundColor: '#EFF4FF', borderColor: '#D6E2FB' },
+  dateChipText: { fontSize: 12.5, fontWeight: '600', color: '#64748B' },
+  dateChipTextActive: { color: '#0052FF' },
+
+  /* Status filter + sort */
+  filterSortRow: { },
+  sortRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, marginTop: 2 },
+  clearFilterBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#EFF4FF', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
+  clearFilterText: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6 },
+  sortBtnText: { fontSize: 12, fontWeight: '700', color: '#475569' },
 
   /* Patient Info Banner */
   patientInfoRow: { flexDirection: 'row', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 20, gap: 12 },
@@ -1550,8 +1851,12 @@ const styles = StyleSheet.create({
   tableContainer: { backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden' },
   // Phone bill cards
   billCard: { backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#EEF2F7', padding: 14, marginBottom: 10 },
+  billCardOverdue: { borderLeftWidth: 3, borderLeftColor: '#DC2626' },
   billCardTop: { flexDirection: 'row', alignItems: 'flex-start' },
+  invRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
   billCardInv: { fontSize: 14.5, fontWeight: '800', color: '#0A1551' },
+  iconActionBtn: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
   billCardTreat: { fontSize: 13, color: '#475569', marginTop: 8 },
   billCardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   billCardDate: { fontSize: 12, color: '#94A3B8' },
@@ -1565,8 +1870,18 @@ const styles = StyleSheet.create({
   th: { fontSize: 11, fontWeight: 'bold', color: '#64748B' },
   tableRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC', alignItems: 'center' },
   td: { fontSize: 12, color: '#475569' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  statusBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
   statusBadgeText: { fontSize: 10, fontWeight: 'bold' },
+
+  /* Current Bill — paid-in-full, due date, reward hint */
+  paidLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  paidInFullLink: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+  dueRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  dueChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F7' },
+  dueChipActive: { backgroundColor: '#EFF4FF', borderColor: '#D6E2FB' },
+  dueChipText: { fontSize: 12.5, fontWeight: '600', color: '#64748B' },
+  dueChipTextActive: { color: '#0052FF' },
+  rewardHint: { fontSize: 11.5, color: '#16A34A', fontWeight: '600', marginTop: 8, textAlign: 'right' },
 
   supportCard: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, marginTop: 20 },
   supportCardTitle: { fontSize: 15, fontWeight: '700', color: '#0A1551', marginBottom: 6 },

@@ -16,6 +16,9 @@ router.get('/scheduled-broadcasts', admin.listScheduledBroadcasts);
 router.post('/scheduled-broadcasts/process', admin.processScheduledBroadcasts);
 router.delete('/scheduled-broadcasts/:id', admin.cancelScheduledBroadcast);
 
+// Impersonation / "view as" (super admin only — gated in the controller)
+router.post('/impersonate/:userId', admin.impersonateUser);
+
 // Admin activity / audit log
 router.get('/audit-logs', admin.listAuditLogs);
 

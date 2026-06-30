@@ -354,6 +354,16 @@ exports.listAppointments = async (req, res) => {
         { path: 'doctorId', select: 'fullName photo' },
       ],
     });
+    // Attach each appointment's bill (if any) so the admin can see whether it
+    // was billed and paid — one query for the whole page, not N.
+    const apptIds = result.data.map((a) => a._id);
+    if (apptIds.length) {
+      const bills = await Bill.find({ appointmentId: { $in: apptIds } })
+        .select('appointmentId invoiceNumber status amount finalAmount paidAmount').lean();
+      const byAppt = {};
+      bills.forEach((b) => { byAppt[String(b.appointmentId)] = b; });
+      result.data.forEach((a) => { a.bill = byAppt[String(a._id)] || null; });
+    }
     const counts = {
       total: await Appointment.countDocuments(),
       completed: await Appointment.countDocuments({ status: 'completed' }),
@@ -628,7 +638,7 @@ exports.updateSettings = async (req, res) => {
     const me = await AdminProfile.findOne({ userId: req.user._id });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can change app settings');
     const s = await getOrCreateSettings();
-    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'commissionRate'];
+    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'commissionRate', 'campaignRotationInterval', 'doctorCampaignRotationInterval'];
     for (const k of allowed) if (k in req.body) s[k] = req.body[k];
     await s.save();
     ok(res, s);
@@ -828,13 +838,23 @@ exports.unblockDentist = async (req, res) => {
 // Richer time-series + breakdowns for the analytics dashboard.
 exports.getAnalytics = async (req, res) => {
   try {
-    const months = Math.min(24, Math.max(3, parseInt(req.query.months, 10) || 6));
-    const since = new Date();
-    since.setMonth(since.getMonth() - (months - 1));
-    since.setDate(1); since.setHours(0, 0, 0, 0);
+    // Custom date range (from/to) overrides the months preset.
+    const { from, to } = req.query;
+    let since, until = null, months = null;
+    if (from) {
+      since = new Date(from);
+      until = new Date(to || Date.now());
+      until.setHours(23, 59, 59, 999);
+    } else {
+      months = Math.min(24, Math.max(3, parseInt(req.query.months, 10) || 6));
+      since = new Date();
+      since.setMonth(since.getMonth() - (months - 1));
+      since.setDate(1); since.setHours(0, 0, 0, 0);
+    }
+    const dateMatch = until ? { $gte: since, $lte: until } : { $gte: since };
 
     const monthGroup = (extra = {}) => ([
-      { $match: { createdAt: { $gte: since }, ...extra } },
+      { $match: { createdAt: dateMatch, ...extra } },
       { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]);
@@ -845,7 +865,7 @@ exports.getAnalytics = async (req, res) => {
       DoctorProfile.aggregate(monthGroup()),
       // Revenue per month from paid bills.
       Bill.aggregate([
-        { $match: { status: 'paid', createdAt: { $gte: since } } },
+        { $match: { status: 'paid', createdAt: dateMatch } },
         { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, total: { $sum: { $ifNull: ['$paidAmount', '$finalAmount'] } } } },
         { $sort: { _id: 1 } },
       ]),
@@ -892,6 +912,7 @@ exports.getAnalytics = async (req, res) => {
 
     ok(res, {
       months,
+      range: { since, until: until || null },
       topEarningDentists: topEarnersAgg,
       retention: { withVisit: ret.withVisit, repeat: ret.repeat, rate: ret.withVisit ? Math.round((ret.repeat / ret.withVisit) * 100) : 0 },
       commissionTotals: { earned: comm.due + comm.paid, collected: comm.paid, outstanding: comm.due },
@@ -1117,5 +1138,35 @@ exports.replyReview = async (req, res) => {
     if (!r) return fail(res, 404, 'Review not found');
     await logAudit(req, { action: 'update', entity: 'review', entityId: r._id, description: text ? `Replied to a review on behalf of ${r.doctorId?.fullName || 'doctor'}` : `Cleared reply on a review` });
     ok(res, r);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Impersonation / "View as" ──────────────────────────────
+// @route POST /api/admin/impersonate/:userId  (super admin only)
+// Mints a SHORT-LIVED user token so a super admin can view the app as that
+// user for support. Audit-logged; the minted token carries imp/impBy claims.
+const jwt = require('jsonwebtoken');
+exports.impersonateUser = async (req, res) => {
+  try {
+    const me = await AdminProfile.findOne({ userId: req.user._id });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can impersonate users');
+
+    const user = await User.findById(req.params.userId).select('role');
+    if (!user) return fail(res, 404, 'User not found');
+    if (!['patient', 'doctor'].includes(user.role)) return fail(res, 400, 'Only patient or doctor accounts can be viewed');
+
+    const token = jwt.sign(
+      { id: user._id, imp: true, impBy: req.user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    // Friendly label for the audit log + admin UI.
+    let name = '';
+    if (user.role === 'doctor') name = (await DoctorProfile.findOne({ userId: user._id }).select('fullName').lean())?.fullName || '';
+    else name = (await PatientProfile.findOne({ userId: user._id }).select('fullName').lean())?.fullName || '';
+
+    await logAudit(req, { action: 'impersonate', entity: user.role, entityId: user._id, description: `Impersonated ${user.role} "${name || user._id}" (30-min session)` });
+    ok(res, { token, role: user.role, name });
   } catch (e) { fail(res, 500, e.message); }
 };

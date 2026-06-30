@@ -124,7 +124,8 @@ exports.getActiveAllForDoctor = async (req, res) => {
     }).sort({ createdAt: -1 }).limit(10);
 
     const settings = await AppSettings.findOne({ key: 'global' }).lean();
-    const rotationInterval = settings?.campaignRotationInterval ?? 10;
+    // Doctor promos use their own interval (falls back to the shared one).
+    const rotationInterval = settings?.doctorCampaignRotationInterval ?? settings?.campaignRotationInterval ?? 10;
     if (!campaigns.length) return ok(res, { campaigns: [], rotationInterval });
     const ids = campaigns.map(c => c._id);
     Campaign.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(() => {});

@@ -23,7 +23,8 @@ const appSettingsSchema = new mongoose.Schema(
     popularPaidAmountPkr: { type: Number, default: 100000 },   // paid (blue) badge fee
     // Platform commission: percent of each doctor's collected billings owed to the platform.
     commissionRate: { type: Number, default: 10 }, // %
-    campaignRotationInterval: { type: Number, default: 10 }, // seconds
+    campaignRotationInterval: { type: Number, default: 10 }, // patient promos, seconds
+    doctorCampaignRotationInterval: { type: Number, default: 10 }, // doctor promos, seconds
   },
   { timestamps: true }
 );

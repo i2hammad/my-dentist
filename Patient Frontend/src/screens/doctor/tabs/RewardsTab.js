@@ -28,6 +28,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
     easypaisaNumber: '',
     easypaisaTitle: '',
     jazzcashNumber: '',
+    jazzcashTitle: '',
   });
 
   useEffect(() => {
@@ -465,6 +466,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
               </View>
               <View style={{flex: 1}}>
                 <Text style={styles.acctName}>JazzCash</Text>
+                {platformPayments.jazzcashTitle ? <Text style={styles.acctHolder}>{platformPayments.jazzcashTitle}</Text> : null}
                 <Text style={styles.acctNumber}>{platformPayments.jazzcashNumber}</Text>
               </View>
               <TouchableOpacity

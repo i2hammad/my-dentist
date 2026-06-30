@@ -213,7 +213,7 @@ function AppTab({ isSuper }) {
         </div>
         <div className="field-row">
           <Field label="JazzCash Number" value={s.payments?.jazzcashNumber || ''} onChange={setPay('jazzcashNumber')} />
-          <div />
+          <Field label="JazzCash Title of Account" value={s.payments?.jazzcashTitle || ''} onChange={setPay('jazzcashTitle')} />
         </div>
         <div className="field-row">
           <Field label="Bank Name (HBL, etc.)" value={s.payments?.bankName || ''} onChange={setPay('bankName')} />

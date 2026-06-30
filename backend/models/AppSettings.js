@@ -11,6 +11,7 @@ const appSettingsSchema = new mongoose.Schema(
       easypaisaNumber: { type: String, default: '' },
       easypaisaTitle:  { type: String, default: '' },
       jazzcashNumber:  { type: String, default: '' },
+      jazzcashTitle:   { type: String, default: '' },
       bankAccount:     { type: String, default: '' },
       bankName:        { type: String, default: '' },
       bankTitle:       { type: String, default: '' },

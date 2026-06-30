@@ -43,9 +43,9 @@ export default function PaymentMethods() {
 
   const save = async () => {
     const num = number.replace(/\s+/g, '');
+    if (!holder.trim()) return Alert.alert('Required', isCard ? "Enter the cardholder's name." : 'Enter the account title.');
     if (!num) return Alert.alert('Required', isCard ? 'Enter the card number.' : 'Enter the account number.');
     if (isCard) {
-      if (!holder.trim()) return Alert.alert('Required', "Enter the cardholder's name.");
       if (num.length < 12) return Alert.alert('Invalid', 'Enter a valid card number.');
       if (!/^\d{2}\/\d{2}$/.test(expiry.trim())) return Alert.alert('Invalid', 'Enter expiry as MM/YY.');
     }
@@ -55,8 +55,8 @@ export default function PaymentMethods() {
       const payload = {
         type,
         accountNumber: num,
+        cardHolderName: holder.trim(),
         ...(isCard ? {
-          cardHolderName: holder.trim(),
           lastFourDigits: num.slice(-4),
           expiryDate: expiry.trim(),
         } : {}),
@@ -152,12 +152,15 @@ export default function PaymentMethods() {
                 ))}
               </View>
 
-              {isCard && (
-                <>
-                  <Text style={styles.fieldLabel}>Cardholder Name</Text>
-                  <TextInput style={styles.input} placeholder="Name on card" placeholderTextColor="#94A3B8" value={holder} onChangeText={setHolder} autoCapitalize="words" />
-                </>
-              )}
+              <Text style={styles.fieldLabel}>{isCard ? 'Cardholder Name' : 'Account Title'}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={isCard ? 'Name on card' : 'Account holder name'}
+                placeholderTextColor="#94A3B8"
+                value={holder}
+                onChangeText={setHolder}
+                autoCapitalize="words"
+              />
 
               <Text style={styles.fieldLabel}>{isCard ? 'Card Number' : 'Mobile Account Number'}</Text>
               <TextInput

@@ -40,17 +40,16 @@ export default function ImpersonationBanner() {
   return (
     <View
       style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 9999,
+        // In normal layout flow (NOT absolute) so it pushes the app down
+        // instead of overlapping the header.
+        width: '100%',
         backgroundColor: '#7C3AED',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 8,
         paddingHorizontal: 12,
+        zIndex: 9999,
       }}
     >
       <Text style={{ color: '#fff', fontWeight: '600', marginRight: 12 }}>

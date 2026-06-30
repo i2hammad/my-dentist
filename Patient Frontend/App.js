@@ -55,9 +55,13 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <NotificationProvider>
-          <AppNavigator />
+          {/* Banner sits above the navigator in flow so it pushes the app down
+              (was absolute → overlapped the header). Renders null when inactive. */}
+          <View style={{ flex: 1 }}>
+            <ImpersonationBanner />
+            <AppNavigator />
+          </View>
           <AppDialog />
-          <ImpersonationBanner />
           <StatusBar style="dark" translucent backgroundColor="transparent" />
         </NotificationProvider>
       </SafeAreaProvider>

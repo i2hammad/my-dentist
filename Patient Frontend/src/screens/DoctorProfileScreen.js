@@ -12,6 +12,7 @@ import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import { SkeletonDoctorDetail, ShimmerImage } from '../components/Skeleton';
 import { drName } from '../utils/doctorName';
+import { buildReceiptHtml } from './doctor/tabs/BillsTab';
 import PromoCard from '../components/PromoCard';
 import { openWhatsApp, openSupportEmail } from '../utils/support';
 
@@ -548,115 +549,44 @@ export default function DoctorProfileScreen({ route, navigation }) {
     }
   };
 
-  const handleDownloadInvoice = (bill) => {
+  // Styled A4 invoice (same template as the doctor side), not plain text.
+  const handleDownloadInvoice = async (bill) => {
     if (!bill || !doctor) return;
-
+    const final = bill.finalAmount || bill.amount;
     const invoice = {
       invoiceNumber: bill.invoiceNumber,
-      date: new Date(bill.createdAt).toLocaleDateString(),
+      date: new Date(bill.paidAt || bill.createdAt).toLocaleDateString(),
+      time: '',
       patientName: patientProfile?.fullName || 'Patient',
       patientPhone: patientProfile?.mobileNumber || '',
-      treatmentName: bill.treatmentName,
+      treatments: (Array.isArray(bill.treatments) && bill.treatments.length)
+        ? bill.treatments.map((t) => ({ name: t.name || 'Treatment', price: t.price ? String(t.price) : '' }))
+        : String(bill.treatmentName || 'Treatment').split(',').map((n) => ({ name: n.trim(), price: '' })),
       total: bill.amount,
       discount: bill.discountFromRewards || 0,
       paid: bill.paidAmount || 0,
-      payable: bill.finalAmount || bill.amount,
-      outstanding: bill.status === 'paid' ? 0 : Math.max((bill.finalAmount || bill.amount) - (bill.paidAmount || 0), 0),
+      outstanding: bill.status === 'paid' ? 0 : Math.max(final - (bill.paidAmount || 0), 0),
       status: bill.status,
-      paymentMethod: bill.paymentMethod || 'cash'
     };
-
-    const docName = drName(doctor.fullName, 'Dentist');
-    const clinic = doctor.clinicName || 'Dentist Clinic';
-    const spec = doctor.specialization || 'General Doctor';
-
-    // Formatted text for native sharing on mobile
-    const receiptText = `
-=== ${clinic.toUpperCase()} ===
-Doctor: ${docName} (${spec})
-Invoice: ${invoice.invoiceNumber}
-Date: ${invoice.date}
-Payment Method: ${invoice.paymentMethod.toUpperCase()}
----------------------------------
-Patient Name: ${invoice.patientName}
-Phone Number: ${invoice.patientPhone}
----------------------------------
-TREATMENT DETAILS:
-1. ${invoice.treatmentName} - PKR ${invoice.total}
----------------------------------
-Total Bill: PKR ${invoice.total}
-Discount Given: PKR ${invoice.discount}
-Paid Amount: PKR ${invoice.paid}
-Outstanding: PKR ${invoice.outstanding}
-Payment Status: ${invoice.status.toUpperCase()}
----------------------------------
-Thank you for visiting!
-`;
-
-    if (Platform.OS === 'web') {
-      // Trigger local HTML file download
-      const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt ${invoice.invoiceNumber}</title>
-        <style>
-          body { font-family: 'Courier New', Courier, monospace; padding: 25px; max-width: 400px; margin: auto; border: 1px dashed #0052ff; border-radius: 10px; background-color: #fafafa; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .clinic { font-size: 20px; font-weight: bold; color: #0052ff; }
-          .meta { font-size: 12px; color: #555; margin-top: 4px; }
-          .divider { border-top: 1px dashed #888; margin: 15px 0; }
-          .row { display: flex; justify-content: space-between; font-size: 13px; margin: 6px 0; }
-          .bold { font-weight: bold; }
-          .footer { text-align: center; font-size: 12px; margin-top: 30px; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="clinic">${clinic.toUpperCase()}</div>
-          <div class="meta">${docName} (${spec})</div>
-          <div class="meta">Invoice: ${invoice.invoiceNumber}</div>
-          <div class="meta">Date: ${invoice.date}</div>
-        </div>
-        <div class="divider"></div>
-        <div class="row"><span class="bold">Patient:</span><span>${invoice.patientName}</span></div>
-        <div class="row"><span class="bold">Phone:</span><span>${invoice.patientPhone}</span></div>
-        <div class="row"><span class="bold">Method:</span><span>${invoice.paymentMethod.toUpperCase()}</span></div>
-        <div class="divider"></div>
-        <div class="bold" style="font-size: 13px; margin-bottom: 8px;">Treatments:</div>
-        <div class="row"><span>1. ${invoice.treatmentName}</span><span>PKR ${invoice.total}</span></div>
-        <div class="divider"></div>
-        <div class="row"><span>Total Amount:</span><span>PKR ${invoice.total}</span></div>
-        <div class="row"><span>Discount:</span><span style="color: green;">- PKR ${invoice.discount}</span></div>
-        <div class="row bold"><span>Paid Amount:</span><span>PKR ${invoice.paid}</span></div>
-        <div class="divider"></div>
-        <div class="row bold" style="color: ${invoice.outstanding > 0 ? 'red' : 'green'}">
-          <span>Outstanding:</span><span>PKR ${invoice.outstanding}</span>
-        </div>
-        <div class="row bold"><span>Status:</span><span>${invoice.status.toUpperCase()}</span></div>
-        <div class="footer">
-          Thank you for visiting!<br>Please visit again.
-        </div>
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
-      </body>
-      </html>
-      `;
-
-      const element = document.createElement("a");
-      const file = new Blob([htmlContent], { type: 'text/html' });
-      element.href = URL.createObjectURL(file);
-      element.download = `receipt-${invoice.invoiceNumber}.html`;
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    } else {
-      // Trigger native share menu
-      Share.share({
-        message: receiptText,
-        title: `Receipt ${invoice.invoiceNumber}`
-      });
+    const meta = {
+      docName: drName(doctor.fullName, 'Dentist'),
+      clinic: doctor.clinicName || 'Dentist Clinic',
+      spec: doctor.specialization || '',
+    };
+    try {
+      if (Platform.OS === 'web') {
+        const html = buildReceiptHtml(invoice, { ...meta, type: 'normal', autoPrint: true });
+        const w = window.open('', '_blank');
+        if (w) { w.document.write(html); w.document.close(); }
+        return;
+      }
+      const Print = require('expo-print');
+      const html = buildReceiptHtml(invoice, { ...meta, type: 'normal', autoPrint: false });
+      const { uri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
+      const Sharing = require('expo-sharing');
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${invoice.invoiceNumber}` });
+    } catch {
+      Alert.alert('Error', 'Could not generate the invoice.');
     }
   };
 

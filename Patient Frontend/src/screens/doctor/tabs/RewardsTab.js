@@ -45,6 +45,13 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
   const hasPayout = !!(payout.bankName || payout.accountNumber || payout.accountTitle);
   const openPayout = () => { setForm(payout); setPayoutModal(true); };
 
+  // Bills is now its own bottom-tab screen (no longer a tab inside this screen),
+  // so the old setActiveTab('bills') matched nothing and showed a blank view.
+  const goToBills = () => {
+    if (navigation?.navigate) navigation.navigate('DoctorTabs', { screen: 'DoctorBills' });
+    else if (setActiveTab) setActiveTab('bills');
+  };
+
   const savePayout = async () => {
     if (!form.accountTitle.trim()) return Alert.alert('Required', 'Enter the account title.');
     if (!form.accountNumber.trim()) return Alert.alert('Required', 'Enter the account number / IBAN.');
@@ -399,41 +406,43 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
       {/* Recent Transactions */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
-        <TouchableOpacity onPress={() => setActiveTab && setActiveTab('bills')}>
+        <TouchableOpacity onPress={goToBills}>
           <Text style={styles.viewAllText}>View All</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView horizontal={!isWide} showsHorizontalScrollIndicator={false} style={{ marginBottom: 30 }}>
-        <View style={styles.transactionsList}>
-          {bills.length > 0 ? (
-            bills.slice(0, 4).map((tx, idx) => {
-              const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-              const txTime = new Date(tx.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-              const pts = tx.status === 'paid' ? 50 : 0;
-              return (
-                <View key={tx._id || idx} style={styles.txRow}>
-                  <View style={[styles.txIconWrap, {borderColor: '#0052FF'}]}><Ionicons name="medical-outline" size={16} color="#0052FF" /></View>
-                  <View style={{flex: 1, paddingHorizontal: 12, minWidth: 120}}>
-                    <Text style={styles.txName}>{tx.patientId?.fullName || 'Patient'}</Text>
-                    <Text style={styles.txTreatment}>{tx.treatmentName || 'Treatment'}</Text>
-                  </View>
-                  <View style={{flex: 1, minWidth: 100}}>
-                    <Text style={styles.txDate}>{txDate}</Text>
-                    <Text style={styles.txTime}>{txTime}</Text>
-                  </View>
-                  <Text style={styles.txAmount}>PKR {tx.amount?.toLocaleString()}</Text>
-                  <Text style={styles.txPoints}>+{pts} pts</Text>
-                  <View style={[styles.txBadge, { backgroundColor: tx.status === 'paid' ? '#DCFCE7' : '#FEE2E2' }]}><Text style={[styles.txBadgeText, { color: tx.status === 'paid' ? '#16A34A' : '#EF4444' }]}>{tx.status === 'paid' ? 'Paid' : 'Unpaid'}</Text></View>
-                  <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+      <View style={[styles.transactionsList, { marginBottom: 30 }]}>
+        {bills.length > 0 ? (
+          bills.slice(0, 4).map((tx, idx) => {
+            const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+            const txTime = new Date(tx.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const paid = tx.status === 'paid';
+            const pts = paid ? 50 : 0;
+            const last = idx === Math.min(bills.length, 4) - 1;
+            return (
+              <TouchableOpacity key={tx._id || idx} style={[styles.txRow, last && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={goToBills}>
+                <View style={[styles.txIconWrap, { borderColor: paid ? '#16A34A' : '#0052FF', backgroundColor: paid ? '#F0FDF4' : '#EFF4FF' }]}>
+                  <Ionicons name="medical-outline" size={16} color={paid ? '#16A34A' : '#0052FF'} />
                 </View>
-              );
-            })
-          ) : (
-            <Text style={{ padding: 20, textAlign: 'center', color: '#64748B' }}>No transactions recorded yet.</Text>
-          )}
-        </View>
-      </ScrollView>
+                <View style={styles.txMid}>
+                  <Text style={styles.txName} numberOfLines={1}>{tx.patientId?.fullName || 'Patient'}</Text>
+                  <Text style={styles.txTreatment} numberOfLines={1}>{tx.treatmentName || 'Treatment'}</Text>
+                  <Text style={styles.txMeta}>{txDate} · {txTime}</Text>
+                </View>
+                <View style={styles.txRight}>
+                  <Text style={styles.txAmount}>PKR {tx.amount?.toLocaleString()}</Text>
+                  <View style={[styles.txBadge, { backgroundColor: paid ? '#DCFCE7' : '#FEE2E2' }]}>
+                    <Text style={[styles.txBadgeText, { color: paid ? '#16A34A' : '#EF4444' }]}>{paid ? 'Paid' : 'Unpaid'}</Text>
+                  </View>
+                  {pts > 0 && <Text style={styles.txPoints}>+{pts} pts</Text>}
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        ) : (
+          <Text style={{ padding: 20, textAlign: 'center', color: '#64748B' }}>No transactions recorded yet.</Text>
+        )}
+      </View>
 
       {/* Payment Accounts — My Dentist company accounts (set by admin) */}
       <View style={styles.commissionBox}>
@@ -696,17 +705,18 @@ const styles = StyleSheet.create({
   paymentSplitLabel: { fontSize: 11, color: '#475569' },
   paymentSplitVal: { fontSize: 11, fontWeight: 'bold', color: '#16A34A' },
 
-  transactionsList: { backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', minWidth: isWide ? '100%' : 700 },
-  txRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
-  txIconWrap: { width: 40, height: 40, borderRadius: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  txName: { fontSize: 13, fontWeight: 'bold', color: '#0A1551' },
-  txTreatment: { fontSize: 11, color: '#64748B', marginTop: 2 },
-  txDate: { fontSize: 12, color: '#0A1551', fontWeight: '500' },
-  txTime: { fontSize: 11, color: '#64748B', marginTop: 2 },
-  txAmount: { fontSize: 13, fontWeight: 'bold', color: '#0A1551', width: 90, textAlign: 'right' },
-  txPoints: { fontSize: 13, fontWeight: 'bold', color: '#16A34A', width: 70, textAlign: 'right', marginRight: 12 },
-  txBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginRight: 12 },
-  txBadgeText: { fontSize: 10, color: '#16A34A', fontWeight: 'bold' },
+  transactionsList: { backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#EEF2F7', overflow: 'hidden' },
+  txRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  txIconWrap: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  txMid: { flex: 1, minWidth: 0 },
+  txName: { fontSize: 14, fontWeight: '700', color: '#0A1551' },
+  txTreatment: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  txMeta: { fontSize: 11, color: '#94A3B8', marginTop: 3 },
+  txRight: { alignItems: 'flex-end', gap: 4 },
+  txAmount: { fontSize: 14, fontWeight: '800', color: '#0F172A' },
+  txPoints: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
+  txBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
+  txBadgeText: { fontSize: 10, fontWeight: 'bold' },
 
   paymentBox: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   paymentBoxContent: { flexDirection: isWide ? 'row' : 'column', alignItems: 'flex-start', width: '100%' },

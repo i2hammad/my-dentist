@@ -173,8 +173,10 @@ function buildReceiptDocument(invoice, { docName, clinic, spec }) {
 }
 
 // Print one receipt to the chosen Bluetooth printer. `device` may be a device
-// object (from scanPrinters) or a raw/typed address string.
-export async function printReceiptBT(device, invoice, meta) {
+// object (from scanPrinters) or a raw/typed address string. `paperWidthMm`
+// (58 or 80) controls how wide the content is laid out — set marginMm:0 so the
+// content uses the full printable width of the head.
+export async function printReceiptBT(device, invoice, meta, paperWidthMm = PAPER_WIDTH_MM) {
   const L = lib();
   if (!L) throw new Error('Bluetooth printing needs the installed app.');
   const ok = await ensureBtPermissions();
@@ -183,7 +185,7 @@ export async function printReceiptBT(device, invoice, meta) {
   const address = normalizeAddress(device);
   const document = buildReceiptDocument(invoice, meta);
   const result = await L.printReceipt({
-    printers: [{ address, options: { paperWidthMm: PAPER_WIDTH_MM, encoding: 'UTF8' } }],
+    printers: [{ address, options: { paperWidthMm: Number(paperWidthMm) || PAPER_WIDTH_MM, marginMm: 0, encoding: 'UTF8' } }],
     documents: [document],
     options: { continueOnError: false },
   });

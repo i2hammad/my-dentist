@@ -3,16 +3,35 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Scr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { scanPrinters, printReceiptBT, isThermalSupported } from '../utils/btPrinter';
+import storage from '../config/storage';
+
+const PAPER_WIDTHS = [58, 80]; // mm
+const WIDTH_KEY = 'btPaperWidthMm';
 
 // Modal that scans for paired Bluetooth printers, lets the user pick one, and
 // prints the given receipt over ESC/POS. Props:
 //   visible, onClose, invoice, meta ({docName, clinic, spec})
-export default function BtPrinterPicker({ visible, onClose, invoice, meta }) {
+export default function BtPrinterPicker({ visible, onClose, invoice, meta, paperWidthMm, onWidthChange }) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState([]);
   const [error, setError] = useState(null);
   const [printingAddr, setPrintingAddr] = useState(null);
+  // Controlled by the parent (Print Preview) when given; else self-manages via storage.
+  const [localWidth, setLocalWidth] = useState(58);
+  const widthMm = paperWidthMm != null ? paperWidthMm : localWidth;
+
+  // When uncontrolled, restore the last-used paper width.
+  useEffect(() => {
+    if (paperWidthMm != null) return;
+    (async () => {
+      try { const v = await storage.getItem(WIDTH_KEY); if (v) setLocalWidth(Number(v)); } catch {}
+    })();
+  }, [paperWidthMm]);
+  const chooseWidth = (mm) => {
+    if (onWidthChange) onWidthChange(mm);
+    else { setLocalWidth(mm); storage.setItem(WIDTH_KEY, String(mm)).catch(() => {}); }
+  };
 
   const doScan = useCallback(async () => {
     setError(null); setLoading(true); setDevices([]);
@@ -40,7 +59,7 @@ export default function BtPrinterPicker({ visible, onClose, invoice, meta }) {
     setError(null);
     try {
       // Pass the whole device so the helper can pick the bt:/ble: prefix.
-      await printReceiptBT(device, invoice, meta || {});
+      await printReceiptBT(device, invoice, meta || {}, widthMm);
       onClose?.({ ok: true, device });
     } catch (e) {
       setError(`Print failed: ${e.message || 'try again'}`);
@@ -66,6 +85,21 @@ export default function BtPrinterPicker({ visible, onClose, invoice, meta }) {
           {!isThermalSupported() && (
             <Text style={styles.note}>Bluetooth printing only works in the installed app build.</Text>
           )}
+
+          {/* Paper width — pick to match your printer's roll */}
+          <View style={styles.widthRow}>
+            <Text style={styles.widthLabel}>Paper width</Text>
+            <View style={styles.segmented}>
+              {PAPER_WIDTHS.map((mm) => {
+                const on = widthMm === mm;
+                return (
+                  <TouchableOpacity key={mm} style={[styles.segBtn, on && styles.segBtnOn]} onPress={() => chooseWidth(mm)}>
+                    <Text style={[styles.segText, on && styles.segTextOn]}>{mm} mm</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
 
           {loading ? (
             <View style={styles.center}><ActivityIndicator color="#0052FF" /><Text style={styles.loadingText}>Scanning…</Text></View>
@@ -106,6 +140,13 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   title: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
   note: { fontSize: 13, color: '#94A3B8', marginVertical: 10, textAlign: 'center' },
+  widthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 2 },
+  widthLabel: { fontSize: 13, fontWeight: '700', color: '#334155' },
+  segmented: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 10, padding: 3, gap: 3 },
+  segBtn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
+  segBtnOn: { backgroundColor: '#0052FF' },
+  segText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  segTextOn: { color: '#FFFFFF' },
   center: { alignItems: 'center', paddingVertical: 24 },
   loadingText: { marginTop: 8, color: '#64748B', fontSize: 13 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1.5, borderColor: '#EEF2F7', marginBottom: 10 },

@@ -144,8 +144,14 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
   // Active / Specimen Invoice for Printing
   const [currentInvoice, setCurrentInvoice] = useState(null);
-  // Printer type for the receipt layout: 'thermal' (57mm roll) or 'normal' (A4/Letter).
+  // Printer type for the receipt layout: 'thermal' (roll) or 'normal' (A4/Letter).
   const [printerType, setPrinterType] = useState('thermal');
+  // Thermal roll width (mm) — shared with the Bluetooth picker, remembered.
+  const [thermalWidthMm, setThermalWidthMm] = useState(58);
+  useEffect(() => {
+    (async () => { try { const v = await storage.getItem('btPaperWidthMm'); if (v) setThermalWidthMm(Number(v)); } catch {} })();
+  }, []);
+  const chooseThermalWidth = (mm) => { setThermalWidthMm(mm); storage.setItem('btPaperWidthMm', String(mm)).catch(() => {}); };
   const [btInvoice, setBtInvoice] = useState(null); // invoice passed to the BT printer picker
   // Draft being edited (id) — null when creating fresh.
   const [editingBillId, setEditingBillId] = useState(null);
@@ -1417,9 +1423,9 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               <View style={{ flex: isWide ? 1 : undefined, alignSelf: isWide ? 'auto' : 'stretch', alignItems: 'center' }}>
                 {/* Paper-size hint label */}
                 <Text style={styles.paperHint}>
-                  {printerType === 'thermal' ? '🧾 58mm Thermal Roll' : '📄 A4 Sheet'}
+                  {printerType === 'thermal' ? `🧾 ${thermalWidthMm}mm Thermal Roll` : '📄 A4 Sheet'}
                 </Text>
-                <View style={[styles.receiptPaper, printerType === 'thermal' ? styles.receiptPaperThermal : styles.receiptPaperA4]}>
+                <View style={[styles.receiptPaper, printerType === 'thermal' ? [styles.receiptPaperThermal, { width: Math.round(230 * (thermalWidthMm / 58)) }] : styles.receiptPaperA4]}>
                   {/* Clinic banner — blue card for A4, plain centered text for thermal */}
                   {printerType === 'thermal' ? (
                     <View style={styles.receiptBannerThermal}>
@@ -1514,7 +1520,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 <Text style={styles.optSectionTitle}>Printer Type</Text>
                 <View style={styles.printerTypeRow}>
                   {[
-                    { key: 'thermal', icon: 'receipt-outline', label: 'Thermal (57mm)', sub: 'Roll / POS receipt' },
+                    { key: 'thermal', icon: 'receipt-outline', label: `Thermal (${thermalWidthMm}mm)`, sub: 'Roll / POS receipt' },
                     { key: 'normal',  icon: 'print-outline',   label: 'Normal (A4)',    sub: 'Inkjet / laser printer' },
                   ].map(pt => (
                     <TouchableOpacity
@@ -1537,32 +1543,55 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   ))}
                 </View>
 
+                {/* Thermal roll width — shared with the Bluetooth printer */}
+                {printerType === 'thermal' && (
+                  <View style={styles.widthSelectRow}>
+                    <Text style={styles.widthSelectLabel}>Roll width</Text>
+                    <View style={styles.widthSeg}>
+                      {[58, 80].map((mm) => {
+                        const on = thermalWidthMm === mm;
+                        return (
+                          <TouchableOpacity key={mm} style={[styles.widthSegBtn, on && styles.widthSegBtnOn]} onPress={() => chooseThermalWidth(mm)}>
+                            <Text style={[styles.widthSegText, on && styles.widthSegTextOn]}>{mm} mm</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
                 {/* Action buttons */}
                 <Text style={styles.optSectionTitle}>Actions</Text>
 
-                {Platform.OS !== 'web' && (
+                {/* Thermal mode: Bluetooth ESC/POS print (the system dialog can't
+                    reach a BT thermal printer, so we hide Print Receipt below). */}
+                {printerType === 'thermal' && Platform.OS !== 'web' && (
                   <TouchableOpacity style={styles.actionBtn} onPress={openBtPrinter} activeOpacity={0.85}>
                     <View style={[styles.actionBtnIcon, { backgroundColor: '#1D4ED8' }]}>
                       <Ionicons name="bluetooth-outline" size={18} color="#FFF" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.actionBtnLabel}>Bluetooth Thermal Print</Text>
-                      <Text style={styles.actionBtnSub}>Send directly to paired 58mm printer</Text>
+                      <Text style={styles.actionBtnSub}>Send directly to paired {thermalWidthMm}mm printer</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity style={styles.actionBtn} onPress={handlePrint} activeOpacity={0.85}>
-                  <View style={[styles.actionBtnIcon, { backgroundColor: '#0052FF' }]}>
-                    <Ionicons name="print-outline" size={18} color="#FFF" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.actionBtnLabel}>Print Receipt</Text>
-                    <Text style={styles.actionBtnSub}>{Platform.OS === 'web' ? 'Opens browser print dialog' : 'Opens system print dialog'}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-                </TouchableOpacity>
+                {/* System/browser print dialog — only for A4 (or on web). It can't
+                    drive a Bluetooth thermal printer, so it's hidden in thermal mode. */}
+                {(printerType === 'normal' || Platform.OS === 'web') && (
+                  <TouchableOpacity style={styles.actionBtn} onPress={handlePrint} activeOpacity={0.85}>
+                    <View style={[styles.actionBtnIcon, { backgroundColor: '#0052FF' }]}>
+                      <Ionicons name="print-outline" size={18} color="#FFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.actionBtnLabel}>Print Receipt</Text>
+                      <Text style={styles.actionBtnSub}>{Platform.OS === 'web' ? 'Opens browser print dialog' : 'Opens system print dialog'}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity style={styles.actionBtn} onPress={handleDownloadReceipt} activeOpacity={0.85}>
                   <View style={[styles.actionBtnIcon, { backgroundColor: '#16A34A' }]}>
@@ -1586,6 +1615,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         visible={!!btInvoice}
         invoice={btInvoice}
         meta={{ docName: drName(profile?.fullName, 'Dentist'), clinic: profile?.clinicName || 'Dentist Clinic', spec: profile?.specialization || '' }}
+        paperWidthMm={thermalWidthMm}
+        onWidthChange={chooseThermalWidth}
         onClose={(res) => {
           setBtInvoice(null);
           if (res?.ok) Alert.alert('Printed', 'Receipt sent to the printer.');
@@ -2050,6 +2081,13 @@ const styles = StyleSheet.create({
   ptIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
   printerTypeTitle: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
   printerTypeSub: { fontSize: 11, color: '#94A3B8', marginTop: 1 },
+  widthSelectRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, marginTop: -8 },
+  widthSelectLabel: { fontSize: 13, fontWeight: '700', color: '#334155' },
+  widthSeg: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 10, padding: 3, gap: 3 },
+  widthSegBtn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
+  widthSegBtnOn: { backgroundColor: '#0052FF' },
+  widthSegText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  widthSegTextOn: { color: '#FFFFFF' },
   ptRadio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
   ptRadioActive: { borderColor: '#0052FF' },
   ptRadioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0052FF' },

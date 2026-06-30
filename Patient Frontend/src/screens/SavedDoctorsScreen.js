@@ -18,48 +18,17 @@ export default function SavedDoctorsScreen({ navigation }) {
     }, [])
   );
 
+  // Favorites are the single source of truth on the backend (same as the heart
+  // on the Home / Search cards). No local storage.
   const loadSaved = async () => {
     setLoading(true);
     try {
       const token = await storage.getItem('userToken');
-      const [favsRaw, savedRaw] = await Promise.all([
-        storage.getItem('patient_favorites'),
-        storage.getItem('patient_saved'),
-      ]);
-
-      const favObj = favsRaw ? JSON.parse(favsRaw) : {};
-      const savedObj = savedRaw ? JSON.parse(savedRaw) : {};
-
-      // Collect all saved doctor IDs (only truthy values)
-      const allIds = [
-        ...Object.keys(favObj).filter(k => favObj[k]),
-        ...Object.keys(savedObj).filter(k => savedObj[k]),
-      ];
-      const uniqueIds = [...new Set(allIds)];
-
-      if (uniqueIds.length === 0) {
-        setSavedDoctors([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch doctor list with auth token for better results
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=500`, { headers });
-
-      if (!res.data?.success) {
-        setSavedDoctors([]);
-        return;
-      }
-
-      const all = res.data.data || [];
-      const filtered = all.filter(d => {
-        const id1 = String(d._id || '');
-        const id2 = String(d.userId || '');
-        return uniqueIds.some(uid => uid === id1 || uid === id2);
-      });
-
-      setSavedDoctors(filtered);
+      if (!token) { setSavedDoctors([]); return; }
+      const res = await axios.get(`${API_BASE_URL}/api/favorites`, { headers: { Authorization: `Bearer ${token}` } });
+      const list = res.data?.success ? (res.data.data || []) : [];
+      // Each favorite has a populated DoctorProfile under doctorId.
+      setSavedDoctors(list.map(f => f.doctorId).filter(Boolean));
     } catch (e) {
       console.log('SavedDoctors error:', e?.message);
       setSavedDoctors([]);
@@ -69,20 +38,14 @@ export default function SavedDoctorsScreen({ navigation }) {
   };
 
   const removeSaved = async (doctor) => {
-    const id = String(doctor._id || doctor.userId || '');
-    const [favsRaw, savedRaw] = await Promise.all([
-      storage.getItem('patient_favorites'),
-      storage.getItem('patient_saved'),
-    ]);
-    const favObj = favsRaw ? JSON.parse(favsRaw) : {};
-    const savedObj = savedRaw ? JSON.parse(savedRaw) : {};
-    delete favObj[id];
-    delete savedObj[id];
-    await Promise.all([
-      storage.setItem('patient_favorites', JSON.stringify(favObj)),
-      storage.setItem('patient_saved', JSON.stringify(savedObj)),
-    ]);
-    setSavedDoctors(prev => prev.filter(d => String(d._id) !== id && String(d.userId) !== id));
+    const id = String(doctor._id || '');
+    setSavedDoctors(prev => prev.filter(d => String(d._id) !== id)); // optimistic
+    try {
+      const token = await storage.getItem('userToken');
+      await axios.delete(`${API_BASE_URL}/api/favorites/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (e) {
+      loadSaved(); // resync on failure
+    }
   };
 
   const renderDoctor = ({ item, index }) => {

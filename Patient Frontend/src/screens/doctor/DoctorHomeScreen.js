@@ -8,7 +8,7 @@ import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import storage from '../../config/storage';
 import confirmAlert from '../../utils/confirmAlert';
-import PromoBanner from '../../components/PromoBanner';
+import DoctorPromoCard from '../../components/DoctorPromoCard';
 import DoctorHeader from '../../components/DoctorHeader';
 import { openWhatsApp } from '../../utils/support';
 import { drName } from '../../utils/doctorName';
@@ -225,7 +225,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
         contentContainerStyle={[{ paddingBottom: 100 }, isWeb && styles.webContent]}
         showsVerticalScrollIndicator={false}
       >
-        <PromoBanner />
+        <DoctorPromoCard />
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarLargeContainer}>

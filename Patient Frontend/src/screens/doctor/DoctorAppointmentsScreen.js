@@ -6,7 +6,7 @@ import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
-import PromoBanner from '../../components/PromoBanner';
+import DoctorPromoCard from '../../components/DoctorPromoCard';
 import DoctorHeader from '../../components/DoctorHeader';
 
 const isWeb = Platform.OS === 'web';
@@ -269,7 +269,7 @@ export default function DoctorAppointmentsScreen({ navigation }) {
       </ScrollView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, isWeb && styles.webBlock]}>
-        <PromoBanner />
+        <DoctorPromoCard />
         {displayList.length > 0 ? (
           displayList.map(item => renderAppointmentCard(item, activeTab === 'past'))
         ) : (

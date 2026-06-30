@@ -83,7 +83,7 @@ const getDoctors = async (req, res) => {
 
         if (Review) {
           const ratingAgg = await Review.aggregate([
-            { $match: { doctorId: doctor._id } },
+            { $match: { doctorId: doctor._id, hidden: { $ne: true } } },
             {
               $group: {
                 _id: null,
@@ -387,7 +387,7 @@ const getDoctorStats = async (req, res) => {
 
     // Aggregate review statistics
     const statsAgg = await Review.aggregate([
-      { $match: { doctorId } },
+      { $match: { doctorId, hidden: { $ne: true } } },
       {
         $group: {
           _id: null,
@@ -404,7 +404,7 @@ const getDoctorStats = async (req, res) => {
 
     // Rating distribution
     const distAgg = await Review.aggregate([
-      { $match: { doctorId } },
+      { $match: { doctorId, hidden: { $ne: true } } },
       {
         $group: {
           _id: '$rating',

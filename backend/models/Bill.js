@@ -56,7 +56,7 @@ const billSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ['paid', 'unpaid', 'draft', 'payment_pending'],
+        values: ['paid', 'unpaid', 'draft', 'payment_pending', 'refunded'],
         message: '{VALUE} is not a valid bill status',
       },
       default: 'unpaid',
@@ -81,6 +81,9 @@ const billSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Refund (admin-issued) bookkeeping.
+    refundReason: { type: String, default: '' },
+    refundedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

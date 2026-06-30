@@ -70,8 +70,9 @@ exports.getDashboard = async (req, res) => {
       .populate('doctorId', 'fullName photo')
       .lean();
 
-    // Top dentists by review count + rating
+    // Top dentists by review count + rating (exclude moderated/hidden reviews)
     const topAgg = await Review.aggregate([
+      { $match: { hidden: { $ne: true } } },
       { $group: { _id: '$doctorId', count: { $sum: 1 }, avg: { $avg: '$rating' } } },
       { $sort: { count: -1 } },
       { $limit: 5 },
@@ -315,7 +316,11 @@ exports.listReviews = async (req, res) => {
         { path: 'doctorId', select: 'fullName photo' },
       ],
     });
-    const ratingAgg = await Review.aggregate([{ $group: { _id: null, avg: { $avg: '$rating' } } }]);
+    // Avg rating reflects the PUBLIC rating — hidden (moderated) reviews don't count.
+    const ratingAgg = await Review.aggregate([
+      { $match: { hidden: { $ne: true } } },
+      { $group: { _id: null, avg: { $avg: '$rating' } } },
+    ]);
     const counts = {
       total: await Review.countDocuments(),
       verified: await Review.countDocuments({ isVerifiedPatient: true }),
@@ -514,7 +519,7 @@ exports.getDentist = async (req, res) => {
       CommissionLog.find({ doctorId: doctor._id }).sort({ createdAt: -1 }).limit(20).lean(),
     ]);
     const ratingAgg = await Review.aggregate([
-      { $match: { doctorId: doctor._id } },
+      { $match: { doctorId: doctor._id, hidden: { $ne: true } } },
       { $group: { _id: null, avg: { $avg: '$rating' }, n: { $sum: 1 } } },
     ]);
 
@@ -860,8 +865,36 @@ exports.getAnalytics = async (req, res) => {
       ]),
     ]);
 
+    // ── Tier C insights ──
+    const [topEarnersAgg, retentionAgg, commissionAgg] = await Promise.all([
+      // Top-earning dentists by collected revenue.
+      Bill.aggregate([
+        { $match: { status: 'paid' } },
+        { $group: { _id: '$doctorId', revenue: { $sum: { $ifNull: ['$paidAmount', '$finalAmount'] } }, bills: { $sum: 1 } } },
+        { $sort: { revenue: -1 } }, { $limit: 8 },
+        { $lookup: { from: 'doctorprofiles', localField: '_id', foreignField: '_id', as: 'doc' } },
+        { $unwind: { path: '$doc', preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, revenue: 1, bills: 1, fullName: '$doc.fullName', photo: '$doc.photo', city: '$doc.city' } },
+      ]),
+      // Retention: patients with >=2 completed appointments vs >=1.
+      Appointment.aggregate([
+        { $match: { status: 'completed' } },
+        { $group: { _id: '$patientId', visits: { $sum: 1 } } },
+        { $group: { _id: null, withVisit: { $sum: 1 }, repeat: { $sum: { $cond: [{ $gte: ['$visits', 2] }, 1, 0] } } } },
+      ]),
+      // Platform commission totals (admin-managed dues/paid across dentists).
+      DoctorProfile.aggregate([
+        { $group: { _id: null, due: { $sum: { $ifNull: ['$commissionDue', 0] } }, paid: { $sum: { $ifNull: ['$commissionPaid', 0] } } } },
+      ]),
+    ]);
+    const ret = retentionAgg[0] || { withVisit: 0, repeat: 0 };
+    const comm = commissionAgg[0] || { due: 0, paid: 0 };
+
     ok(res, {
       months,
+      topEarningDentists: topEarnersAgg,
+      retention: { withVisit: ret.withVisit, repeat: ret.repeat, rate: ret.withVisit ? Math.round((ret.repeat / ret.withVisit) * 100) : 0 },
+      commissionTotals: { earned: comm.due + comm.paid, collected: comm.paid, outstanding: comm.due },
       appointmentSeries: apptSeries,
       patientSeries,
       dentistSeries,
@@ -877,35 +910,109 @@ exports.getAnalytics = async (req, res) => {
 // @route POST /api/admin/broadcast
 // Body: { title, message, audience: 'all'|'patient'|'doctor' }
 // Creates one Notification per targeted user (shows in their in-app inbox).
+// Core sender — used by send-now and the scheduled processor. Returns count.
+async function deliverBroadcast({ title, message, audience = 'all', city }) {
+  const userQuery = audience === 'all' ? { role: { $in: ['patient', 'doctor'] } } : { role: audience };
+  if (city && city.trim()) {
+    const rx = { $regex: `^${city.trim()}$`, $options: 'i' };
+    const [pp, dp] = await Promise.all([
+      PatientProfile.find({ city: rx }).select('userId').lean(),
+      DoctorProfile.find({ city: rx }).select('userId').lean(),
+    ]);
+    const ids = [...pp, ...dp].map((d) => d.userId).filter(Boolean);
+    userQuery._id = { $in: ids };
+  }
+  const users = await User.find(userQuery).select('_id').lean();
+  if (!users.length) return 0;
+  await Notification.insertMany(users.map((u) => ({ userId: u._id, title, message, type: 'system' })));
+  return users.length;
+}
+
+const ScheduledBroadcast = require('../models/ScheduledBroadcast');
+
 exports.broadcast = async (req, res) => {
   try {
-    const { title, message, audience = 'all' } = req.body;
+    const { title, message, audience = 'all', city, sendAt } = req.body;
     if (!title || !message) return fail(res, 400, 'Title and message are required');
     if (!['all', 'patient', 'doctor'].includes(audience)) return fail(res, 400, 'Invalid audience');
 
-    const userQuery = audience === 'all' ? { role: { $in: ['patient', 'doctor'] } } : { role: audience };
-    const users = await User.find(userQuery).select('_id').lean();
-    if (!users.length) return fail(res, 404, 'No users found for this audience');
+    // Schedule for later when a future sendAt is given.
+    if (sendAt) {
+      const when = new Date(sendAt);
+      if (isNaN(when.getTime())) return fail(res, 400, 'Invalid schedule time');
+      if (when.getTime() > Date.now() + 30000) {
+        const sb = await ScheduledBroadcast.create({ title, message, audience, city: city || '', sendAt: when, createdBy: req.user._id });
+        await logAudit(req, { action: 'broadcast', entity: 'notification', description: `Scheduled broadcast "${title}" for ${when.toLocaleString()} (${audience}${city ? `, ${city}` : ''})` });
+        return ok(res, { scheduled: true, sendAt: when, id: sb._id });
+      }
+    }
 
-    const docs = users.map((u) => ({ userId: u._id, title, message, type: 'system' }));
-    await Notification.insertMany(docs);
-
-    await logAudit(req, {
-      action: 'broadcast', entity: 'notification',
-      description: `Broadcast "${title}" to ${docs.length} ${audience} user(s)`,
-    });
-
-    ok(res, { sent: docs.length, audience });
+    const sent = await deliverBroadcast({ title, message, audience, city });
+    if (!sent) return fail(res, 404, 'No users found for this audience');
+    await logAudit(req, { action: 'broadcast', entity: 'notification', description: `Broadcast "${title}" to ${sent} ${audience} user(s)` });
+    ok(res, { sent, audience });
   } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route GET /api/admin/scheduled-broadcasts  — list upcoming + recent
+exports.listScheduledBroadcasts = async (req, res) => {
+  try {
+    const items = await ScheduledBroadcast.find().sort({ sendAt: -1 }).limit(50).lean();
+    ok(res, items);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route DELETE /api/admin/scheduled-broadcasts/:id  — cancel a pending one
+exports.cancelScheduledBroadcast = async (req, res) => {
+  try {
+    const sb = await ScheduledBroadcast.findById(req.params.id);
+    if (!sb) return fail(res, 404, 'Scheduled broadcast not found');
+    if (sb.status !== 'scheduled') return fail(res, 400, `Cannot cancel a ${sb.status} broadcast`);
+    sb.status = 'cancelled';
+    await sb.save();
+    await logAudit(req, { action: 'update', entity: 'notification', entityId: sb._id, description: `Cancelled scheduled broadcast "${sb.title}"` });
+    ok(res, sb);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// Send all due scheduled broadcasts. Shared by the admin "run now" button and
+// the cron endpoint. Returns a summary.
+async function runDueScheduledBroadcasts() {
+  const due = await ScheduledBroadcast.find({ status: 'scheduled', sendAt: { $lte: new Date() } }).limit(50);
+  let processed = 0, totalSent = 0;
+  for (const sb of due) {
+    try {
+      const sent = await deliverBroadcast({ title: sb.title, message: sb.message, audience: sb.audience, city: sb.city });
+      sb.status = 'sent'; sb.sentCount = sent; sb.sentAt = new Date();
+      await sb.save();
+      processed += 1; totalSent += sent;
+    } catch (e) {
+      sb.status = 'failed'; sb.error = e.message; await sb.save();
+    }
+  }
+  return { processed, totalSent };
+}
+exports.runDueScheduledBroadcasts = runDueScheduledBroadcasts;
+
+// @route POST /api/admin/scheduled-broadcasts/process  (admin manual trigger)
+exports.processScheduledBroadcasts = async (req, res) => {
+  try { ok(res, await runDueScheduledBroadcasts()); }
+  catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Audit log ──────────────────────────────────────────────
 // @route GET /api/admin/audit-logs
 exports.listAuditLogs = async (req, res) => {
   try {
-    const { page, limit, action } = req.query;
+    const { page, limit, action, entity, from, to } = req.query;
     const query = {};
     if (action && action !== 'all') query.action = action;
+    if (entity && entity !== 'all') query.entity = entity;
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); query.createdAt.$lte = end; }
+    }
     const result = await paginate(AuditLog, { query, page, limit });
     const counts = {
       total: await AuditLog.countDocuments(),
@@ -913,5 +1020,102 @@ exports.listAuditLogs = async (req, res) => {
       broadcasts: await AuditLog.countDocuments({ action: 'broadcast' }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Patient suspend / ban ──────────────────────────────────
+// @route PATCH /api/admin/patients/:id/block   body: { reason }
+exports.blockPatient = async (req, res) => {
+  try {
+    const p = await PatientProfile.findByIdAndUpdate(
+      req.params.id,
+      { isBlocked: true, blockReason: req.body.reason || '' },
+      { new: true }
+    );
+    if (!p) return fail(res, 404, 'Patient not found');
+    await logAudit(req, { action: 'block', entity: 'patient', entityId: p._id, description: `Suspended patient "${p.fullName}"${req.body.reason ? ` — ${req.body.reason}` : ''}` });
+    ok(res, p);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route PATCH /api/admin/patients/:id/unblock
+exports.unblockPatient = async (req, res) => {
+  try {
+    const p = await PatientProfile.findByIdAndUpdate(
+      req.params.id,
+      { isBlocked: false, blockReason: '' },
+      { new: true }
+    );
+    if (!p) return fail(res, 404, 'Patient not found');
+    await logAudit(req, { action: 'unblock', entity: 'patient', entityId: p._id, description: `Reinstated patient "${p.fullName}"` });
+    ok(res, p);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Bill refund ────────────────────────────────────────────
+// @route PATCH /api/admin/bills/:id/refund   body: { reason }
+exports.refundBill = async (req, res) => {
+  try {
+    const bill = await Bill.findById(req.params.id);
+    if (!bill) return fail(res, 404, 'Bill not found');
+    if (bill.status === 'refunded') return fail(res, 400, 'Bill is already refunded');
+    bill.status = 'refunded';
+    bill.refundReason = req.body.reason || '';
+    bill.refundedAt = new Date();
+    await bill.save();
+    await logAudit(req, { action: 'refund', entity: 'bill', entityId: bill._id, description: `Refunded bill ${bill.invoiceNumber} (PKR ${(bill.finalAmount || bill.amount || 0).toLocaleString()})${req.body.reason ? ` — ${req.body.reason}` : ''}` });
+    const populated = await Bill.findById(bill._id)
+      .populate('patientId', 'fullName profileImage')
+      .populate('doctorId', 'fullName photo');
+    ok(res, populated);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Global search (topbar) ─────────────────────────────────
+// @route GET /api/admin/search?q=...
+exports.globalSearch = async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return ok(res, { dentists: [], patients: [], bills: [] });
+    const rx = { $regex: q, $options: 'i' };
+    const [dentists, patients, bills] = await Promise.all([
+      DoctorProfile.find({ $or: [{ fullName: rx }, { clinicName: rx }] })
+        .select('fullName clinicName city photo').limit(6).lean(),
+      PatientProfile.find({ $or: [{ fullName: rx }, { mobileNumber: rx }] })
+        .select('fullName mobileNumber city profileImage').limit(6).lean(),
+      Bill.find({ $or: [{ invoiceNumber: rx }, { treatmentName: rx }] })
+        .select('invoiceNumber treatmentName finalAmount amount status').limit(6).lean(),
+    ]);
+    ok(res, { dentists, patients, bills });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Review moderation ──────────────────────────────────────
+// @route PATCH /api/admin/reviews/:id   body: { hidden }
+exports.moderateReview = async (req, res) => {
+  try {
+    const r = await Review.findByIdAndUpdate(
+      req.params.id,
+      { hidden: !!req.body.hidden },
+      { new: true }
+    ).populate('patientId', 'fullName profileImage').populate('doctorId', 'fullName photo');
+    if (!r) return fail(res, 404, 'Review not found');
+    await logAudit(req, { action: req.body.hidden ? 'hide' : 'unhide', entity: 'review', entityId: r._id, description: `${req.body.hidden ? 'Hid' : 'Unhid'} a ${r.rating}★ review` });
+    ok(res, r);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route PATCH /api/admin/reviews/:id/reply   body: { text }
+exports.replyReview = async (req, res) => {
+  try {
+    const text = (req.body.text || '').trim();
+    const r = await Review.findByIdAndUpdate(
+      req.params.id,
+      { doctorReply: { text, repliedAt: text ? new Date() : null } },
+      { new: true }
+    ).populate('patientId', 'fullName profileImage').populate('doctorId', 'fullName photo');
+    if (!r) return fail(res, 404, 'Review not found');
+    await logAudit(req, { action: 'update', entity: 'review', entityId: r._id, description: text ? `Replied to a review on behalf of ${r.doctorId?.fullName || 'doctor'}` : `Cleared reply on a review` });
+    ok(res, r);
   } catch (e) { fail(res, 500, e.message); }
 };

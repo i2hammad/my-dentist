@@ -26,7 +26,7 @@ const getDoctorReviews = async (req, res) => {
     }
 
     const [reviews, total] = await Promise.all([
-      Review.find({ doctorId })
+      Review.find({ doctorId, hidden: { $ne: true } })
         .populate({
           path: 'patientId',
           select: 'fullName profileImage'
@@ -34,7 +34,7 @@ const getDoctorReviews = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      Review.countDocuments({ doctorId })
+      Review.countDocuments({ doctorId, hidden: { $ne: true } })
     ]);
 
     res.status(200).json({
@@ -74,7 +74,7 @@ const getDoctorReviewStats = async (req, res) => {
     const doctorObjectId = new mongoose.Types.ObjectId(doctorId);
 
     const stats = await Review.aggregate([
-      { $match: { doctorId: doctorObjectId } },
+      { $match: { doctorId: doctorObjectId, hidden: { $ne: true } } },
       {
         $group: {
           _id: null,
@@ -89,7 +89,7 @@ const getDoctorReviewStats = async (req, res) => {
 
     // Get rating distribution
     const distribution = await Review.aggregate([
-      { $match: { doctorId: doctorObjectId } },
+      { $match: { doctorId: doctorObjectId, hidden: { $ne: true } } },
       {
         $group: {
           _id: '$rating',

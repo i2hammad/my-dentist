@@ -27,6 +27,11 @@ const reviewSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Admin moderation — hidden reviews are excluded from public feeds + ratings.
+    hidden: {
+      type: Boolean,
+      default: false,
+    },
     helpfulCount: {
       type: Number,
       default: 0,

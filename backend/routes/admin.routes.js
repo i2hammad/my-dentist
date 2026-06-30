@@ -10,8 +10,11 @@ router.use(protect, authorize('admin'));
 router.get('/dashboard', admin.getDashboard);
 router.get('/analytics', admin.getAnalytics);
 
-// Broadcast a notification to patients/doctors
+// Broadcast a notification to patients/doctors (immediate or scheduled via sendAt)
 router.post('/broadcast', admin.broadcast);
+router.get('/scheduled-broadcasts', admin.listScheduledBroadcasts);
+router.post('/scheduled-broadcasts/process', admin.processScheduledBroadcasts);
+router.delete('/scheduled-broadcasts/:id', admin.cancelScheduledBroadcast);
 
 // Admin activity / audit log
 router.get('/audit-logs', admin.listAuditLogs);
@@ -43,6 +46,8 @@ router.delete('/dentists/:id', admin.deleteDentist);
 router.get('/patients', admin.listPatients);
 router.post('/patients', admin.createPatient);
 router.get('/patients/:id', admin.getPatient);
+router.patch('/patients/:id/block', admin.blockPatient);
+router.patch('/patients/:id/unblock', admin.unblockPatient);
 router.delete('/patients/:id', admin.deletePatient);
 
 router.get('/treatments', admin.listTreatments);
@@ -54,12 +59,17 @@ router.get('/gallery', admin.listGallery);
 router.delete('/gallery/:id', admin.deleteGallery);
 
 router.get('/reviews', admin.listReviews);
+router.patch('/reviews/:id', admin.moderateReview);
+router.patch('/reviews/:id/reply', admin.replyReview);
 router.delete('/reviews/:id', admin.deleteReview);
 
 router.get('/appointments', admin.listAppointments);
 
 router.get('/bills', admin.listBills);
+router.patch('/bills/:id/refund', admin.refundBill);
 
 router.get('/rewards', admin.listRewards);
+
+router.get('/search', admin.globalSearch);
 
 module.exports = router;

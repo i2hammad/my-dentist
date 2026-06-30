@@ -37,6 +37,25 @@ app.use('/api/favorites', require('./routes/favorite.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/campaigns', require('./routes/campaign.routes'));
 
+// ─── Cron: process due scheduled broadcasts ────────────────
+// Called by a scheduler (e.g. Vercel Cron). Guarded by CRON_SECRET when set so
+// it isn't publicly triggerable. Add a Vercel Cron entry hitting this path.
+app.all('/api/cron/process-broadcasts', async (req, res) => {
+  try {
+    const secret = process.env.CRON_SECRET;
+    if (secret) {
+      const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+      const provided = req.headers['x-cron-secret'] || req.query.secret || bearer;
+      if (provided !== secret) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { runDueScheduledBroadcasts } = require('./controllers/admin.controller');
+    const result = await runDueScheduledBroadcasts();
+    res.json({ success: true, data: result });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // ─── Health Check ──────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({

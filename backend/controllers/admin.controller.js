@@ -1170,3 +1170,31 @@ exports.impersonateUser = async (req, res) => {
     ok(res, { token, role: user.role, name });
   } catch (e) { fail(res, 500, e.message); }
 };
+
+// ─── Reset a dentist's login password (super admin) ─────────
+const crypto = require('crypto');
+// @route PATCH /api/admin/dentists/:id/reset-password   body: { password? }
+// Sets a new password (admin-provided or auto-generated) on the dentist's User
+// account and returns it ONCE so the admin can share it. Passwords are hashed
+// (pre-save hook) — the existing password cannot be read back.
+exports.resetDentistPassword = async (req, res) => {
+  try {
+    const me = await AdminProfile.findOne({ userId: req.user._id });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can reset passwords');
+
+    const doctor = await DoctorProfile.findById(req.params.id).select('userId fullName').lean();
+    if (!doctor) return fail(res, 404, 'Dentist not found');
+    const user = await User.findById(doctor.userId).select('+password');
+    if (!user) return fail(res, 404, 'Login account not found for this dentist');
+
+    let newPassword = (req.body.password || '').trim();
+    if (!newPassword) newPassword = 'Dent' + crypto.randomBytes(4).toString('hex'); // e.g. Dent3f9a1c20
+    if (newPassword.length < 6) return fail(res, 400, 'Password must be at least 6 characters');
+
+    user.password = newPassword; // hashed by the pre-save hook
+    await user.save();
+
+    await logAudit(req, { action: 'reset-password', entity: 'dentist', entityId: doctor._id, description: `Reset login password for dentist "${doctor.fullName}"` });
+    ok(res, { password: newPassword, email: user.email });
+  } catch (e) { fail(res, 500, e.message); }
+};

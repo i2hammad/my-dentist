@@ -44,6 +44,7 @@ router.patch('/dentists/:id/commission', admin.setCommission);
 router.patch('/dentists/:id/commission/clear', admin.clearDues);
 router.patch('/dentists/:id/commission/sync', admin.syncDues);
 router.patch('/dentists/:id/unblock', admin.unblockDentist);
+router.patch('/dentists/:id/reset-password', admin.resetDentistPassword);
 router.delete('/dentists/:id', admin.deleteDentist);
 
 router.get('/patients', admin.listPatients);

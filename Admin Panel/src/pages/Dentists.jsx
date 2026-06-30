@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, Plus, MapPin, Briefcase, EnvelopeSimple } from '@phosphor-icons/react';
+import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, EyeSlash, Plus, MapPin, Briefcase, EnvelopeSimple, Key, ArrowsClockwise } from '@phosphor-icons/react';
 import api from '../lib/api';
 import { imgUrl } from '../lib/api';
 import useList from '../lib/useList';
@@ -31,11 +31,21 @@ export default function Dentists() {
   const confirm = useConfirm();
   const nav = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
+  const [resetFor, setResetFor] = useState(null);   // dentist whose password we're resetting
+  const [pwMap, setPwMap] = useState({});            // dentistId -> { value, show } (only the just-reset password)
 
   const approve = async (d) => {
     try { await L.patch(d._id, { pmdcVerified: true }); toast(`${d.fullName} approved`); }
     catch { toast('Failed to approve', 'error'); }
   };
+
+  // Passwords are hashed — we can only reveal one we just set via Reset.
+  const toggleShow = (d) => {
+    const entry = pwMap[d._id];
+    if (!entry?.value) { toast('Password is encrypted — use Reset to set a new one', 'error'); return; }
+    setPwMap((m) => ({ ...m, [d._id]: { ...entry, show: !entry.show } }));
+  };
+  const onReset = (d, password) => setPwMap((m) => ({ ...m, [d._id]: { value: password, show: true } }));
 
   const del = async (d) => {
     if (!(await confirm({ title: 'Delete Dentist', message: `Permanently delete ${d.fullName} and their account?`, confirmText: 'Delete', destructive: true }))) return;
@@ -47,6 +57,7 @@ export default function Dentists() {
     <div className="card">
       <PageHeader title="Dentists" crumb="Dentists"
         actions={<>
+          <button className="btn ghost" onClick={() => nav('/verification')}><SealCheck size={16} style={{ marginRight: 6, verticalAlign: -2 }} />Approve New Dentists</button>
           <ExportButton path="/api/admin/dentists" params={{ search, status }} columns={DENTIST_CSV_COLS} filename="dentists.csv" />
           <button className="btn primary" onClick={() => setShowAdd(true)}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Dentist</button>
         </>} />
@@ -112,24 +123,50 @@ export default function Dentists() {
         <>
           <div className="table-scroll">
           <table>
-            <thead><tr><th>Dentist</th><th>Specialization</th><th>City</th><th>Verification</th><th>Popular</th><th>Joined</th><th>Actions</th></tr></thead>
+            <thead><tr>
+              <th>#</th><th>Dentist</th><th>Gender</th><th>Phone</th><th>Login Email</th>
+              <th>Password</th><th>Location</th><th>Status</th><th>Joined On</th><th>Actions</th>
+            </tr></thead>
             <tbody>
-              {L.data.map((d) => (
+              {L.data.map((d, i) => {
+                const pw = pwMap[d._id];
+                const blocked = d.isBlocked;
+                return (
                 <tr key={d._id}>
-                  <td><UserCell name={d.fullName} sub={d.userId?.email} img={d.photo} onClick={() => nav(`/dentists/${d._id}`)} /></td>
-                  <td>{d.specialization || '—'}</td>
+                  <td className="muted">{(L.page - 1) * 10 + i + 1}</td>
+                  <td><UserCell name={d.fullName} sub={d.qualification || d.specialization || '—'} img={d.photo} onClick={() => nav(`/dentists/${d._id}`)} /></td>
+                  <td style={{ textTransform: 'capitalize' }}>{d.gender || '—'}</td>
+                  <td>{d.phone || d.clinicContact || '—'}</td>
+                  <td>{d.userId?.email || '—'}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <code style={{ fontFamily: 'monospace', fontSize: 13, letterSpacing: pw?.show && pw?.value ? 0 : 2 }}>
+                        {pw?.show && pw?.value ? pw.value : '••••••••'}
+                      </code>
+                      <button className="icon-btn" title={pw?.value ? (pw.show ? 'Hide' : 'Show') : 'Encrypted — use Reset'} onClick={() => toggleShow(d)}>
+                        {pw?.show ? <EyeSlash size={15} /> : <Eye size={15} />}
+                      </button>
+                      <button className="icon-btn" title="Reset password" onClick={() => setResetFor(d)}><Key size={15} /></button>
+                    </div>
+                  </td>
                   <td>{d.city || '—'}</td>
-                  <td><span className={`badge ${d.pmdcVerified ? 'green' : 'amber'}`}>{d.pmdcVerified ? 'Verified' : 'Pending'}</span></td>
-                  <td>{d.popularType ? <PopularBadge type={d.popularType} /> : <span className="muted">—</span>}</td>
+                  <td>
+                    <span className={`badge ${blocked ? 'red' : d.pmdcVerified ? 'green' : 'amber'}`}>
+                      {blocked ? 'Blocked' : d.pmdcVerified ? 'Active' : 'Pending'}
+                    </span>
+                  </td>
                   <td>{fmtDate(d.userId?.createdAt || d.createdAt)}</td>
                   <td className="row-actions">
-                    <button className="icon-btn" title="View" onClick={() => nav(`/dentists/${d._id}`)}><Eye size={16} /></button>
+                    <button className="btn ghost" style={{ padding: '5px 10px', fontSize: 12.5 }} onClick={() => nav(`/dentists/${d._id}`)}>
+                      <Eye size={14} style={{ marginRight: 4, verticalAlign: -2 }} />View User Details
+                    </button>
                     {!d.pmdcVerified && <button className="icon-btn" title="Approve" onClick={() => approve(d)}><Check size={16} /></button>}
                     <button className="icon-btn del" title="Delete" onClick={() => del(d)}><Trash size={16} /></button>
                   </td>
                 </tr>
-              ))}
-              {!L.data.length && <tr><td colSpan={7} className="empty">No dentists found</td></tr>}
+                );
+              })}
+              {!L.data.length && <tr><td colSpan={10} className="empty">No dentists found</td></tr>}
             </tbody>
           </table>
           </div>
@@ -138,7 +175,60 @@ export default function Dentists() {
       )}
 
       {showAdd && <AddDentist onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); L.reload(); toast('Dentist created'); }} toast={toast} />}
+      {resetFor && <ResetPasswordModal d={resetFor} onClose={() => setResetFor(null)} onReset={(pw) => onReset(resetFor, pw)} toast={toast} />}
     </div>
+  );
+}
+
+function ResetPasswordModal({ d, onClose, onReset, toast }) {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null); // the new password, shown once after reset
+
+  const generate = () => setPassword('Dent' + Math.random().toString(36).slice(2, 10));
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const body = password.trim() ? { password: password.trim() } : {};
+      const r = await api.patch(`/api/admin/dentists/${d._id}/reset-password`, body);
+      const np = r.data.data.password;
+      setResult(np);
+      onReset(np);
+      toast('Password reset');
+    } catch (e) { toast(e.response?.data?.message || 'Failed to reset', 'error'); }
+    finally { setBusy(false); }
+  };
+  const copy = () => { navigator.clipboard?.writeText(result); toast('Copied'); };
+
+  return (
+    <Modal
+      title={`Reset Password — ${d.fullName}`}
+      onClose={onClose}
+      footer={result
+        ? <button className="btn primary" onClick={onClose}>Done</button>
+        : <>
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Resetting…' : 'Reset Password'}</button>
+          </>}
+    >
+      {result ? (
+        <div>
+          <p className="muted" style={{ marginBottom: 10 }}>New password set. Share it with the dentist — it can't be shown again (passwords are encrypted).</p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <code style={{ fontFamily: 'monospace', fontSize: 16, background: '#EFF6FF', padding: '8px 12px', borderRadius: 8 }}>{result}</code>
+            <button className="btn ghost" onClick={copy}>Copy</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="muted" style={{ marginBottom: 12 }}>Set a new login password for <b>{d.userId?.email || 'this dentist'}</b>. Leave blank to auto-generate. Existing passwords are encrypted and can't be displayed.</p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}><Field label="New Password (optional)" value={password} onChange={setPassword} placeholder="Auto-generate if blank" /></div>
+            <button className="btn ghost" onClick={generate} style={{ marginBottom: 2, whiteSpace: 'nowrap' }}><ArrowsClockwise size={15} style={{ marginRight: 4, verticalAlign: -2 }} />Generate</button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

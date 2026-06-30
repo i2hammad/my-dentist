@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, EyeSlash, Plus, MapPin, Briefcase, EnvelopeSimple, Key, ArrowsClockwise } from '@phosphor-icons/react';
+import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, EyeSlash, Plus, MapPin, Briefcase, EnvelopeSimple, Key, ArrowsClockwise, GenderMale, GenderFemale, GenderIntersex } from '@phosphor-icons/react';
+
+// ♂ / ♀ gender chip.
+function GenderTag({ value }) {
+  const g = (value || '').toLowerCase();
+  const icon = g === 'male' ? <GenderMale size={15} color="#2563EB" weight="bold" />
+    : g === 'female' ? <GenderFemale size={15} color="#DB2777" weight="bold" />
+    : <GenderIntersex size={15} color="#64748B" />;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, textTransform: 'capitalize' }}>{icon}{value || '—'}</span>;
+}
 import api from '../lib/api';
 import { imgUrl } from '../lib/api';
 import useList from '../lib/useList';
@@ -135,7 +144,7 @@ export default function Dentists() {
                 <tr key={d._id}>
                   <td className="muted">{(L.page - 1) * 10 + i + 1}</td>
                   <td><UserCell name={d.fullName} sub={d.qualification || d.specialization || '—'} img={d.photo} onClick={() => nav(`/dentists/${d._id}`)} /></td>
-                  <td style={{ textTransform: 'capitalize' }}>{d.gender || '—'}</td>
+                  <td><GenderTag value={d.gender} /></td>
                   <td>{d.phone || d.clinicContact || '—'}</td>
                   <td>{d.userId?.email || '—'}</td>
                   <td>

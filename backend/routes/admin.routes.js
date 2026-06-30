@@ -52,6 +52,7 @@ router.post('/patients', admin.createPatient);
 router.get('/patients/:id', admin.getPatient);
 router.patch('/patients/:id/block', admin.blockPatient);
 router.patch('/patients/:id/unblock', admin.unblockPatient);
+router.patch('/patients/:id/reset-password', admin.resetPatientPassword);
 router.delete('/patients/:id', admin.deletePatient);
 
 router.get('/treatments', admin.listTreatments);

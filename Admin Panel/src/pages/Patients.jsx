@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Sparkle, UserCheck, ClipboardText, Trash, Eye, Plus, MapPin, Phone, EnvelopeSimple, GenderIntersex } from '@phosphor-icons/react';
+import { Users, Sparkle, UserCheck, ClipboardText, Trash, Eye, EyeSlash, Plus, MapPin, Phone, EnvelopeSimple, GenderIntersex, GenderMale, GenderFemale, Key, ArrowsClockwise } from '@phosphor-icons/react';
+
+// ♂ / ♀ gender chip used in the tables.
+function GenderTag({ value }) {
+  const g = (value || '').toLowerCase();
+  const icon = g === 'male' ? <GenderMale size={15} color="#2563EB" weight="bold" />
+    : g === 'female' ? <GenderFemale size={15} color="#DB2777" weight="bold" />
+    : <GenderIntersex size={15} color="#64748B" />;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, textTransform: 'capitalize' }}>{icon}{value || '—'}</span>;
+}
 import api from '../lib/api';
 import { imgUrl } from '../lib/api';
 import useList from '../lib/useList';
@@ -29,6 +38,15 @@ export default function Patients() {
   const confirm = useConfirm();
   const nav = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
+  const [resetFor, setResetFor] = useState(null);
+  const [pwMap, setPwMap] = useState({}); // patientId -> { value, show } (only the just-reset password)
+
+  const toggleShow = (p) => {
+    const entry = pwMap[p._id];
+    if (!entry?.value) { toast('Password is encrypted — use Reset to set a new one', 'error'); return; }
+    setPwMap((m) => ({ ...m, [p._id]: { ...entry, show: !entry.show } }));
+  };
+  const onReset = (p, password) => setPwMap((m) => ({ ...m, [p._id]: { value: password, show: true } }));
 
   const del = async (p) => {
     if (!(await confirm({ title: 'Delete Patient', message: `Permanently delete ${p.fullName}?`, confirmText: 'Delete', destructive: true }))) return;
@@ -46,9 +64,9 @@ export default function Patients() {
       {L.loading ? <SkeletonStatCards /> : (
         <StatCards items={[
           { label: 'Total Patients', value: c.total ?? '—', icon: Users, tone: 'blue' },
-          { label: 'New This Month', value: c.newThisMonth ?? '—', icon: Sparkle, tone: 'green' },
-          { label: 'Active', value: c.total ?? '—', icon: UserCheck, tone: 'amber' },
-          { label: 'Registered', value: c.total ?? '—', icon: ClipboardText, tone: 'purple' },
+          { label: 'Active Patients', value: c.active ?? '—', icon: UserCheck, tone: 'green' },
+          { label: 'Suspended', value: c.inactive ?? '—', icon: ClipboardText, tone: 'amber' },
+          { label: 'New This Month', value: c.newThisMonth ?? '—', icon: Sparkle, tone: 'purple' },
         ]} />
       )}
 
@@ -93,27 +111,44 @@ export default function Patients() {
         <>
           <div className="table-scroll">
           <table>
-            <thead><tr><th>Patient</th><th>Phone</th><th>Gender</th><th>City</th><th>Joined</th><th>Actions</th></tr></thead>
+            <thead><tr>
+              <th>#</th><th>Patient</th><th>Gender</th><th>Phone</th><th>Login Email</th>
+              <th>Password</th><th>Location</th><th>Status</th><th>Registered On</th><th>Actions</th>
+            </tr></thead>
             <tbody>
-              {L.data.map((p) => (
+              {L.data.map((p, i) => {
+                const pw = pwMap[p._id];
+                return (
                 <tr key={p._id}>
+                  <td className="muted">{(L.page - 1) * 10 + i + 1}</td>
+                  <td><UserCell name={p.fullName} sub={p.userId?.email} img={p.profileImage} onClick={() => nav(`/patients/${p._id}`)} /></td>
+                  <td><GenderTag value={p.gender} /></td>
+                  <td>{p.mobileNumber || '—'}</td>
+                  <td>{p.userId?.email || '—'}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <UserCell name={p.fullName} sub={p.userId?.email} img={p.profileImage} onClick={() => nav(`/patients/${p._id}`)} />
-                      {p.isBlocked && <span className="badge red">Suspended</span>}
+                      <code style={{ fontFamily: 'monospace', fontSize: 13, letterSpacing: pw?.show && pw?.value ? 0 : 2 }}>
+                        {pw?.show && pw?.value ? pw.value : '••••••••'}
+                      </code>
+                      <button className="icon-btn" title={pw?.value ? (pw.show ? 'Hide' : 'Show') : 'Encrypted — use Reset'} onClick={() => toggleShow(p)}>
+                        {pw?.show ? <EyeSlash size={15} /> : <Eye size={15} />}
+                      </button>
+                      <button className="icon-btn" title="Reset password" onClick={() => setResetFor(p)}><Key size={15} /></button>
                     </div>
                   </td>
-                  <td>{p.mobileNumber || '—'}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{p.gender || '—'}</td>
                   <td>{p.city || '—'}</td>
+                  <td><span className={`badge ${p.isBlocked ? 'red' : 'green'}`}>{p.isBlocked ? 'Suspended' : 'Active'}</span></td>
                   <td>{fmtDate(p.userId?.createdAt || p.createdAt)}</td>
                   <td className="row-actions">
-                    <button className="icon-btn" title="View" onClick={() => nav(`/patients/${p._id}`)}><Eye size={16} /></button>
+                    <button className="btn ghost" style={{ padding: '5px 10px', fontSize: 12.5 }} onClick={() => nav(`/patients/${p._id}`)}>
+                      <Eye size={14} style={{ marginRight: 4, verticalAlign: -2 }} />View User Details
+                    </button>
                     <button className="icon-btn del" title="Delete" onClick={() => del(p)}><Trash size={16} /></button>
                   </td>
                 </tr>
-              ))}
-              {!L.data.length && <tr><td colSpan={6} className="empty">No patients found</td></tr>}
+                );
+              })}
+              {!L.data.length && <tr><td colSpan={10} className="empty">No patients found</td></tr>}
             </tbody>
           </table>
           </div>
@@ -122,7 +157,58 @@ export default function Patients() {
       )}
 
       {showAdd && <AddPatient onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); L.reload(); toast('Patient created'); }} toast={toast} />}
+      {resetFor && <ResetPasswordModal p={resetFor} onClose={() => setResetFor(null)} onReset={(pw) => onReset(resetFor, pw)} toast={toast} />}
     </div>
+  );
+}
+
+function ResetPasswordModal({ p, onClose, onReset, toast }) {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const generate = () => setPassword('Pat' + Math.random().toString(36).slice(2, 10));
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const body = password.trim() ? { password: password.trim() } : {};
+      const r = await api.patch(`/api/admin/patients/${p._id}/reset-password`, body);
+      const np = r.data.data.password;
+      setResult(np); onReset(np); toast('Password reset');
+    } catch (e) { toast(e.response?.data?.message || 'Failed to reset', 'error'); }
+    finally { setBusy(false); }
+  };
+  const copy = () => { navigator.clipboard?.writeText(result); toast('Copied'); };
+
+  return (
+    <Modal
+      title={`Reset Password — ${p.fullName}`}
+      onClose={onClose}
+      footer={result
+        ? <button className="btn primary" onClick={onClose}>Done</button>
+        : <>
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Resetting…' : 'Reset Password'}</button>
+          </>}
+    >
+      {result ? (
+        <div>
+          <p className="muted" style={{ marginBottom: 10 }}>New password set. Share it with the patient — it can't be shown again (passwords are encrypted).</p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <code style={{ fontFamily: 'monospace', fontSize: 16, background: '#EFF6FF', padding: '8px 12px', borderRadius: 8 }}>{result}</code>
+            <button className="btn ghost" onClick={copy}>Copy</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="muted" style={{ marginBottom: 12 }}>Set a new login password for <b>{p.userId?.email || 'this patient'}</b>. Leave blank to auto-generate. Existing passwords are encrypted and can't be displayed.</p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}><Field label="New Password (optional)" value={password} onChange={setPassword} placeholder="Auto-generate if blank" /></div>
+            <button className="btn ghost" onClick={generate} style={{ marginBottom: 2, whiteSpace: 'nowrap' }}><ArrowsClockwise size={15} style={{ marginRight: 4, verticalAlign: -2 }} />Generate</button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

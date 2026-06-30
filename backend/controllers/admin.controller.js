@@ -225,6 +225,8 @@ exports.listPatients = async (req, res) => {
     });
     const counts = {
       total: await PatientProfile.countDocuments(),
+      active: await PatientProfile.countDocuments({ isBlocked: { $ne: true } }),
+      inactive: await PatientProfile.countDocuments({ isBlocked: true }),
       newThisMonth: await PatientProfile.countDocuments({ createdAt: { $gte: startOfMonth() } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
@@ -1195,6 +1197,30 @@ exports.resetDentistPassword = async (req, res) => {
     await user.save();
 
     await logAudit(req, { action: 'reset-password', entity: 'dentist', entityId: doctor._id, description: `Reset login password for dentist "${doctor.fullName}"` });
+    ok(res, { password: newPassword, email: user.email });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route PATCH /api/admin/patients/:id/reset-password   body: { password? }
+// Same as the dentist reset — super admin sets a new password (hashed), returned once.
+exports.resetPatientPassword = async (req, res) => {
+  try {
+    const me = await AdminProfile.findOne({ userId: req.user._id });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can reset passwords');
+
+    const patient = await PatientProfile.findById(req.params.id).select('userId fullName').lean();
+    if (!patient) return fail(res, 404, 'Patient not found');
+    const user = await User.findById(patient.userId).select('+password');
+    if (!user) return fail(res, 404, 'Login account not found for this patient');
+
+    let newPassword = (req.body.password || '').trim();
+    if (!newPassword) newPassword = 'Pat' + crypto.randomBytes(4).toString('hex');
+    if (newPassword.length < 6) return fail(res, 400, 'Password must be at least 6 characters');
+
+    user.password = newPassword; // hashed by the pre-save hook
+    await user.save();
+
+    await logAudit(req, { action: 'reset-password', entity: 'patient', entityId: patient._id, description: `Reset login password for patient "${patient.fullName}"` });
     ok(res, { password: newPassword, email: user.email });
   } catch (e) { fail(res, 500, e.message); }
 };

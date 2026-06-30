@@ -203,9 +203,12 @@ export default function BillsHistoryScreen({ navigation }) {
       invoiceNumber: bill.invoiceNumber,
       date: fmtDate(bill.paidAt || bill.createdAt),
       time: '',
-      patientName: 'You',
-      patientPhone: '',
-      treatments: String(bill.treatmentName || 'Treatment').split(',').map((n) => ({ name: n.trim(), price: '' })),
+      patientName: bill.patientId?.fullName || 'You',
+      patientPhone: bill.patientId?.mobileNumber || '',
+      // Prefer the saved per-treatment line items (with prices) for a proper invoice.
+      treatments: (Array.isArray(bill.treatments) && bill.treatments.length)
+        ? bill.treatments.map((t) => ({ name: t.name || 'Treatment', price: t.price ? String(t.price) : '' }))
+        : String(bill.treatmentName || 'Treatment').split(',').map((n) => ({ name: n.trim(), price: '' })),
       total: bill.amount,
       discount: bill.discountFromRewards || 0,
       paid: bill.paidAmount || 0,
@@ -224,11 +227,12 @@ export default function BillsHistoryScreen({ navigation }) {
         if (w) { w.document.write(html); w.document.close(); }
         return;
       }
+      // Patients get the styled A4 invoice (not the thermal/text receipt).
       const Print = require('expo-print');
-      const html = buildReceiptHtml(invoice, { ...meta, type: 'thermal', autoPrint: false });
-      const { uri } = await Print.printToFileAsync({ html, ...thermalPdfSize(invoice) });
+      const html = buildReceiptHtml(invoice, { ...meta, type: 'normal', autoPrint: false });
+      const { uri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
       const Sharing = require('expo-sharing');
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${invoice.invoiceNumber}` });
     } catch {
       showDialog({ title: 'Error', message: 'Could not generate the receipt.' });
     }

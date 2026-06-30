@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Image, Alert, Clipboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Image, Alert, Clipboard, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -30,6 +30,44 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
     jazzcashNumber: '',
     jazzcashTitle: '',
   });
+
+  // Doctor's payout (bank) account for receiving My Dentist payments.
+  // `payout` = the saved account; `form` = the modal's editable copy.
+  const [payoutModal, setPayoutModal] = useState(false);
+  const [savingPayout, setSavingPayout] = useState(false);
+  const EMPTY_PAYOUT = { bankName: '', accountTitle: '', accountNumber: '' };
+  const [payout, setPayout] = useState(EMPTY_PAYOUT);
+  const [form, setForm] = useState(EMPTY_PAYOUT);
+  useEffect(() => {
+    const p = profile?.payoutAccount;
+    if (p) setPayout({ bankName: p.bankName || '', accountTitle: p.accountTitle || '', accountNumber: p.accountNumber || '' });
+  }, [profile]);
+  const hasPayout = !!(payout.bankName || payout.accountNumber || payout.accountTitle);
+  const openPayout = () => { setForm(payout); setPayoutModal(true); };
+
+  const savePayout = async () => {
+    if (!form.accountTitle.trim()) return Alert.alert('Required', 'Enter the account title.');
+    if (!form.accountNumber.trim()) return Alert.alert('Required', 'Enter the account number / IBAN.');
+    setSavingPayout(true);
+    try {
+      const token = await storage.getItem('userToken');
+      const payoutAccount = {
+        bankName: form.bankName.trim(),
+        accountTitle: form.accountTitle.trim(),
+        accountNumber: form.accountNumber.trim(),
+      };
+      const res = await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { payoutAccount }, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data?.success) {
+        setPayout(payoutAccount); // commit only on success
+        setPayoutModal(false);
+        Alert.alert('Saved', 'Your payout account has been saved.');
+      } else {
+        Alert.alert('Error', res.data?.message || 'Could not save the account.');
+      }
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Could not save the account.');
+    } finally { setSavingPayout(false); }
+  };
 
   useEffect(() => {
     calculateEarnings();
@@ -488,7 +526,11 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
         )}
       </View>
 
-      <View style={[styles.paymentBox, {backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', marginTop: 16}]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={openPayout}
+        style={[styles.paymentBox, {backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', marginTop: 16}]}
+      >
         <View style={styles.paymentBoxContent}>
           <View style={[styles.paymentIconWrap, {backgroundColor: '#DCFCE7', borderColor: '#16A34A'}]}>
             <Ionicons name="business" size={20} color="#16A34A" />
@@ -498,12 +540,54 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
             <Text style={styles.paymentDesc}>Claim 90% amount of that Payments which patients paid to My Dentist Accounts</Text>
           </View>
           <View style={{flex: 1}}>
-            <Text style={styles.paymentTitle}>Add Account Number</Text>
-            <Text style={styles.paymentDesc}>Add your bank account to receive payments</Text>
+            {hasPayout ? (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.paymentTitle}>{payout.bankName || 'Bank account'}</Text>
+                  <View style={styles.payoutEditPill}><Ionicons name="create-outline" size={11} color="#0052FF" /><Text style={styles.payoutEditText}>Edit</Text></View>
+                </View>
+                {!!payout.accountTitle && <Text style={styles.acctHolder}>{payout.accountTitle}</Text>}
+                <Text style={styles.paymentDesc}>{payout.accountNumber}</Text>
+              </>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="add-circle" size={16} color="#16A34A" />
+                  <Text style={styles.paymentTitle}>Add Account Number</Text>
+                </View>
+                <Text style={styles.paymentDesc}>Add your bank account to receive payments</Text>
+              </>
+            )}
           </View>
         </View>
         {isWide && <Ionicons name="chevron-forward" size={20} color="#0A1551" />}
-      </View>
+      </TouchableOpacity>
+
+      {/* Payout account modal */}
+      <Modal visible={payoutModal} transparent animationType="slide" onRequestClose={() => setPayoutModal(false)}>
+        <View style={styles.payoutOverlay}>
+          <View style={styles.payoutSheet}>
+            <View style={styles.payoutHead}>
+              <Text style={styles.payoutTitle}>{hasPayout ? 'Edit Payout Account' : 'Add Payout Account'}</Text>
+              <TouchableOpacity onPress={() => setPayoutModal(false)} hitSlop={10}><Ionicons name="close" size={22} color="#0A1551" /></TouchableOpacity>
+            </View>
+            <Text style={styles.payoutNote}>Where My Dentist sends your 90% payout for payments patients made to the platform accounts.</Text>
+
+            <Text style={styles.payoutLabel}>Bank Name</Text>
+            <TextInput style={styles.payoutInput} placeholder="e.g. HBL, Meezan" placeholderTextColor="#94A3B8" value={form.bankName} onChangeText={(v) => setForm((p) => ({ ...p, bankName: v }))} />
+
+            <Text style={styles.payoutLabel}>Account Title</Text>
+            <TextInput style={styles.payoutInput} placeholder="Account holder name" placeholderTextColor="#94A3B8" value={form.accountTitle} onChangeText={(v) => setForm((p) => ({ ...p, accountTitle: v }))} autoCapitalize="words" />
+
+            <Text style={styles.payoutLabel}>Account Number / IBAN</Text>
+            <TextInput style={styles.payoutInput} placeholder="PK00XXXX0000000000000000" placeholderTextColor="#94A3B8" value={form.accountNumber} onChangeText={(v) => setForm((p) => ({ ...p, accountNumber: v }))} autoCapitalize="characters" />
+
+            <TouchableOpacity style={[styles.payoutSaveBtn, savingPayout && { opacity: 0.7 }]} disabled={savingPayout} onPress={savePayout}>
+              {savingPayout ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.payoutSaveText}>Save Account</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Deep Blue Footer Banner */}
       <View style={styles.footerBanner}>
@@ -536,6 +620,19 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: { padding: 24, paddingBottom: 60 },
+
+  // Payout account
+  payoutEditPill: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#EFF4FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  payoutEditText: { fontSize: 11, fontWeight: '700', color: '#0052FF' },
+  payoutOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.45)', justifyContent: 'flex-end' },
+  payoutSheet: { backgroundColor: '#FFF', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, paddingBottom: 30 },
+  payoutHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  payoutTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
+  payoutNote: { fontSize: 12.5, color: '#64748B', marginBottom: 12 },
+  payoutLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 6, marginTop: 12 },
+  payoutInput: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#0F172A', backgroundColor: '#F8FAFC' },
+  payoutSaveBtn: { backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15, marginTop: 20, alignItems: 'center', justifyContent: 'center' },
+  payoutSaveText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
 
   headerArea: { marginBottom: 20 },
   welcomeTitle: { fontSize: 24, fontWeight: 'bold', color: '#0A1551' },

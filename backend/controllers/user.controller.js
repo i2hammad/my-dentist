@@ -328,7 +328,8 @@ const updateDoctorProfile = async (req, res) => {
       'idBack',
       'location',
       'services',
-      'facilityScore'
+      'facilityScore',
+      'payoutAccount'
     ];
     const updates = {};
     for (const field of allowedFields) {

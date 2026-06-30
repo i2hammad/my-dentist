@@ -92,6 +92,13 @@ const doctorProfileSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Facility score cannot be negative'],
     },
+    // Doctor's bank account for receiving "My Dentist" payouts (90% of payments
+    // patients made into the platform accounts).
+    payoutAccount: {
+      bankName: { type: String, default: '' },
+      accountTitle: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+    },
     pmdcVerified: {
       type: Boolean,
       default: false,

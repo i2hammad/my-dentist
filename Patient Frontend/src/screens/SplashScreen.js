@@ -9,6 +9,18 @@ export default function SplashScreen({ navigation }) {
     let isCancelled = false;
 
     const checkLoginStatus = async () => {
+      // Web-only impersonation bootstrap: if an "impersonate" param is present in the
+      // URL, adopt it as the userToken before the normal login-status check reads it.
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.search) {
+        const impersonateToken = new URLSearchParams(window.location.search).get('impersonate');
+        if (impersonateToken) {
+          await storage.setItem('userToken', impersonateToken);
+          await storage.setItem('impersonating', '1');
+          // Strip the param from the URL so the token isn't left lying around.
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
+
       // Branded splash delay on native; near-instant on web (users expect a fast site).
       const delay = new Promise(resolve => setTimeout(resolve, Platform.OS === 'web' ? 0 : 3000));
       

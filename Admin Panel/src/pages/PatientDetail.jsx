@@ -41,11 +41,26 @@ export default function PatientDetail() {
     }
   };
 
+  const viewAs = async () => {
+    try {
+      const r = await api.post(`/api/admin/impersonate/${p.userId?._id || p.userId}`);
+      const token = r.data.data.token;
+      const webUrl = import.meta.env.VITE_APP_WEB_URL;
+      if (webUrl) {
+        window.open(`${webUrl}/?impersonate=${token}`, '_blank');
+      } else {
+        await navigator.clipboard.writeText(token);
+        toast('Impersonation token copied to clipboard');
+      }
+    } catch { toast('Failed to start impersonation', 'error'); }
+  };
+
   return (
     <div>
       <div className="card-head" style={{ marginBottom: 16 }}>
         <button className="btn ghost" onClick={() => nav('/patients')}><ArrowLeft size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Back to Patients</button>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" onClick={viewAs}>View as</button>
           <button className={`btn ${p.isBlocked ? 'ghost' : 'danger'}`} onClick={toggleBlock}>{p.isBlocked ? 'Reinstate' : 'Suspend'}</button>
           <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
         </div>

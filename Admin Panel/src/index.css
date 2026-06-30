@@ -289,6 +289,17 @@ tr:hover td { background: #FAFBFF; }
 }
 .lightbox-close:hover { background: rgba(255,255,255,.26); }
 
+/* ── Settings layout (tab nav + body) ── */
+.settings-layout { display: flex; gap: 16px; align-items: flex-start; }
+.settings-nav { width: 240px; flex-shrink: 0; padding: 10px; }
+.settings-body { flex: 1; min-width: 0; }
+@media (max-width: 860px) {
+  /* Stack: tab nav becomes a horizontal scroll strip above the content. */
+  .settings-layout { flex-direction: column; }
+  .settings-nav { width: 100%; display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 8px; }
+  .settings-nav .nav-item { width: auto !important; flex: 0 0 auto; white-space: nowrap; margin: 0 !important; }
+}
+
 /* Horizontal-scroll wrapper for wide tables. The table stays a single
    `display:table` element so header + body columns line up; only this wrapper
    scrolls sideways on narrow screens. */

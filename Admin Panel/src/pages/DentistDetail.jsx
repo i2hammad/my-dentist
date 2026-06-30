@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, SealCheck, Check, Trash, Wallet, Receipt, WarningCircle, CheckCircle } from '@phosphor-icons/react';
+import { ArrowLeft, SealCheck, Check, Trash, Wallet, Receipt, WarningCircle, CheckCircle, Eye } from '@phosphor-icons/react';
 import api, { imgUrl } from '../lib/api';
 import { ZoomImg } from '../components/Lightbox';
 import { Stars, fmtDate, money, PopularBadge, StatCards } from '../components/ui.jsx';
@@ -79,6 +79,19 @@ export default function DentistDetail() {
     try { const r = await api.patch(`/api/admin/dentists/${id}/commission/sync`); toast(`Dues synced to Rs. ${(r.data.data.owed || 0).toLocaleString()}`); load(); }
     catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
   };
+  const viewAs = async () => {
+    try {
+      const r = await api.post('/api/admin/impersonate/' + (doc.userId?._id || doc.userId));
+      const token = r.data.data.token;
+      const appUrl = import.meta.env.VITE_APP_WEB_URL;
+      if (appUrl) {
+        window.open(appUrl.replace(/\/$/, '') + '/?impersonate=' + token, '_blank');
+      } else {
+        try { await navigator.clipboard.writeText(token); } catch {}
+        toast('Set VITE_APP_WEB_URL to open the app directly. Impersonation token copied to clipboard.');
+      }
+    } catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
+  };
   const del = async () => {
     if (!(await confirm({ title: 'Delete Dentist', message: `Delete ${doc.fullName}?`, confirmText: 'Delete', destructive: true }))) return;
     try { await api.delete(`/api/admin/dentists/${id}`); toast('Deleted'); nav('/dentists'); }
@@ -96,6 +109,7 @@ export default function DentistDetail() {
       <div className="card-head" style={{ marginBottom: 16 }}>
         <button className="btn ghost" onClick={() => nav('/dentists')}><ArrowLeft size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Back to Dentists</button>
         <div className="row-actions">
+          <button className="btn ghost" onClick={viewAs}><Eye size={16} style={{ verticalAlign: -2, marginRight: 6 }} />View as</button>
           {doc.approvalStatus !== 'approved' && <button className="btn primary" onClick={approve}><Check size={16} weight="bold" style={{ verticalAlign: -2, marginRight: 6 }} />Approve</button>}
           {doc.approvalStatus === 'pending' && <button className="btn ghost" onClick={reject}>Reject</button>}
           <button className="btn ghost" onClick={addDues}>+ Add Dues</button>

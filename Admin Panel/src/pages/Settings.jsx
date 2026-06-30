@@ -24,8 +24,8 @@ export default function Settings() {
       <div className="page-title">Settings</div>
       <div className="breadcrumb">Dashboard › Settings</div>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div className="card" style={{ width: 240, flexShrink: 0, padding: 10 }}>
+      <div className="settings-layout">
+        <div className="card settings-nav">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className="nav-item" style={{ width: '100%', color: tab === t.id ? '#fff' : 'var(--text)', background: tab === t.id ? 'var(--blue)' : 'transparent', margin: '2px 0' }}>
@@ -33,7 +33,7 @@ export default function Settings() {
             </button>
           ))}
         </div>
-        <div style={{ flex: 1 }}>
+        <div className="settings-body">
           {tab === 'profile' && <ProfileTab admin={admin} refresh={refresh} />}
           {tab === 'password' && <PasswordTab />}
           {tab === 'permissions' && <PermissionsTab isSuper={isSuper} />}
@@ -72,7 +72,7 @@ function ProfileTab({ admin, refresh }) {
   };
 
   return (
-    <div className="card">
+    <div className="card" style={{ maxWidth: 460 }}>
       <div className="card-head"><h3>My Profile</h3></div>
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 20 }}>
         {image ? <img src={imgUrl(image)} alt="" style={{ width: 72, height: 72, borderRadius: 16 }} /> : <div className="avatar" style={{ width: 72, height: 72 }} />}
@@ -193,7 +193,7 @@ function AppTab({ isSuper }) {
     <div className="card">
       <div className="card-head"><h3>App Settings</h3></div>
       {!isSuper && <p className="muted" style={{ marginBottom: 16 }}>Read-only — only super admins can change these.</p>}
-      <fieldset disabled={!isSuper} style={{ border: 0, padding: 0 }}>
+      <fieldset disabled={!isSuper} style={{ border: 0, padding: 0, maxWidth: 760 }}>
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Rewards</h4>
         <div className="field-row">
           <Field label="Points per Appointment" type="number" value={s.rewardPointsPerAppointment} onChange={set('rewardPointsPerAppointment')} />

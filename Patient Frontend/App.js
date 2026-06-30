@@ -6,6 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { NotificationProvider } from './src/context/NotificationContext';
 import './src/config/alertOverride'; // route Alert.alert through the branded dialog
 import AppDialog from './src/components/AppDialog';
+import ImpersonationBanner from './src/components/ImpersonationBanner';
 
 // Mock deprecated/removed BackHandler.removeEventListener to prevent older packages from crashing the app
 if (BackHandler && !BackHandler.removeEventListener) {
@@ -56,6 +57,7 @@ export default function App() {
         <NotificationProvider>
           <AppNavigator />
           <AppDialog />
+          <ImpersonationBanner />
           <StatusBar style="dark" translucent backgroundColor="transparent" />
         </NotificationProvider>
       </SafeAreaProvider>

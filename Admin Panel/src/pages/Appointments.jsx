@@ -100,6 +100,32 @@ export default function Appointments() {
                 </div>
               </>
             )}
+            <div className="muted">Billing</div>
+            <div>
+              {view.bill ? (() => {
+                const b = view.bill;
+                const money = (n) => 'Rs. ' + (Number(n) || 0).toLocaleString();
+                const total = b.finalAmount || b.amount || 0;
+                const paid = b.paidAmount || 0;
+                const outstanding = Math.max(total - paid, 0);
+                const billMap = { paid: 'green', unpaid: 'red', payment_pending: 'amber', refunded: 'gray', draft: 'amber' };
+                const billLabel = b.status === 'payment_pending' ? 'Pending' : b.status;
+                return (
+                  <div className="detail-grid" style={{ rowGap: 6 }}>
+                    <div className="muted">Invoice #</div>
+                    <div>{b.invoiceNumber || '—'}</div>
+                    <div className="muted">Bill status</div>
+                    <div><span className={`badge ${billMap[b.status] || 'gray'}`}>{billLabel}</span></div>
+                    <div className="muted">Total</div>
+                    <div>{money(total)}</div>
+                    <div className="muted">Paid</div>
+                    <div>{money(paid)}</div>
+                    <div className="muted">Outstanding</div>
+                    <div>{money(outstanding)}</div>
+                  </div>
+                );
+              })() : 'No bill generated for this appointment.'}
+            </div>
             <div className="muted">Created</div>
             <div>{fmtDate(view.createdAt)}</div>
           </div>

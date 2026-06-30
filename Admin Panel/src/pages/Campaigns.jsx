@@ -15,11 +15,27 @@ export default function Campaigns() {
   const [counts, setCounts] = useState({});
   const [edit, setEdit] = useState(null); // null | {} (new) | campaign (edit)
   const [view, setView] = useState(null); // null | campaign (read-only preview)
+  const [rotationInterval, setRotationInterval] = useState(10);
+  const [savingInterval, setSavingInterval] = useState(false);
 
   const load = () => api.get('/api/campaigns/admin')
     .then((r) => { setData(r.data.data); setCounts(r.data.counts || {}); })
     .catch(() => setData([]));
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get('/api/admin/settings').then((r) => {
+      if (r.data?.data?.doctorCampaignRotationInterval) setRotationInterval(r.data.data.doctorCampaignRotationInterval);
+    }).catch(() => {});
+  }, []);
+
+  const saveInterval = async () => {
+    setSavingInterval(true);
+    try {
+      await api.put('/api/admin/settings', { doctorCampaignRotationInterval: Number(rotationInterval) });
+      toast('Rotation interval saved');
+    } catch { toast('Failed to save', 'error'); }
+    finally { setSavingInterval(false); }
+  };
 
   const toggle = async (c) => {
     try { await api.patch(`/api/campaigns/admin/${c._id}`, { isActive: !c.isActive }); toast(c.isActive ? 'Paused' : 'Activated'); load(); }
@@ -80,6 +96,20 @@ export default function Campaigns() {
         </table>
         </div>
       )}
+
+      {/* Rotation Interval Setting (doctor promotions) */}
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 0', borderTop: '1px solid #E2E8F0', marginTop: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>⏱ Campaign Rotation Interval:</span>
+        <input
+          type="number" min={3} max={60} value={rotationInterval}
+          onChange={(e) => setRotationInterval(e.target.value)}
+          style={{ width: 70, padding: '6px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }}
+        />
+        <span style={{ fontSize: 13, color: '#6B7280' }}>seconds (default: 10)</span>
+        <button className="btn primary" onClick={saveInterval} disabled={savingInterval} style={{ padding: '6px 16px' }}>
+          {savingInterval ? 'Saving…' : 'Save'}
+        </button>
+      </div>
 
       {edit && <CampaignForm c={edit} onClose={() => setEdit(null)}
         onSaved={() => { setEdit(null); load(); toast(edit._id ? 'Campaign updated' : 'Campaign created'); }} toast={toast} />}

@@ -13,23 +13,45 @@ const mLabel = (id) => (id ? id.slice(5) : '');
 
 export default function Analytics() {
   const [months, setMonths] = useState(6);
+  const [custom, setCustom] = useState(false);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [d, setD] = useState(null);
 
   useEffect(() => {
     setD(null);
-    api.get('/api/admin/analytics', { params: { months } }).then((r) => setD(r.data.data)).catch(() => setD(false));
-  }, [months]);
+    // Custom range (needs a from date) overrides the months preset.
+    const params = custom && from ? { from, ...(to ? { to } : {}) } : { months };
+    api.get('/api/admin/analytics', { params }).then((r) => setD(r.data.data)).catch(() => setD(false));
+  }, [months, custom, from, to]);
 
   return (
     <div className="card">
       <PageHeader title="Analytics" crumb="Analytics"
         actions={
-          <select value={months} onChange={(e) => setMonths(Number(e.target.value))}>
-            <option value={3}>Last 3 months</option>
-            <option value={6}>Last 6 months</option>
-            <option value={12}>Last 12 months</option>
-          </select>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={custom ? 'custom' : String(months)}
+              onChange={(e) => {
+                if (e.target.value === 'custom') setCustom(true);
+                else { setCustom(false); setMonths(Number(e.target.value)); }
+              }}
+            >
+              <option value="3">Last 3 months</option>
+              <option value="6">Last 6 months</option>
+              <option value="12">Last 12 months</option>
+              <option value="custom">Custom range…</option>
+            </select>
+            {custom && (
+              <>
+                <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+                <span className="muted" style={{ fontSize: 13 }}>to</span>
+                <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+              </>
+            )}
+          </div>
         } />
+      {custom && !from && <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>Pick a start date to load the custom range.</p>}
 
       {!d ? <SkeletonStatCards /> : d === false ? (
         <div className="empty">Failed to load analytics</div>

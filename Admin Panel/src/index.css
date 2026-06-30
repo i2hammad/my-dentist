@@ -32,9 +32,13 @@ input, select { font-family: inherit; font-size: 14px; }
   width: 240px; flex-shrink: 0;
   background: linear-gradient(180deg, var(--sidebar-from), var(--sidebar-to));
   color: #fff; padding: 20px 0; position: sticky; top: 0; height: 100vh;
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-.sidebar .brand { display: flex; align-items: center; gap: 8px; padding: 0 20px 24px; font-size: 18px; font-weight: 700; }
+/* The nav list scrolls inside the drawer so long menus don't spill past the
+   bottom (Activity Log / Settings / Logout) on short screens. min-height:0 lets
+   this flex child actually shrink + scroll. */
+.sidebar nav { flex: 1; min-height: 0; overflow-y: auto; }
+.sidebar .brand { display: flex; align-items: center; gap: 8px; padding: 0 20px 24px; font-size: 18px; font-weight: 700; flex-shrink: 0; }
 .sidebar .brand .dot { color: #60A5FA; }
 .nav-item {
   display: flex; align-items: center; gap: 12px; padding: 11px 20px; margin: 1px 12px;
@@ -43,7 +47,7 @@ input, select { font-family: inherit; font-size: 14px; }
 .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
 .nav-item.active { background: var(--blue); color: #fff; }
 .nav-item .ic { width: 18px; text-align: center; }
-.sidebar .logout { margin-top: auto; }
+.sidebar .logout { margin-top: 4px; flex-shrink: 0; }
 
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar {

@@ -31,7 +31,7 @@ export default function Campaigns() {
   const saveInterval = async () => {
     setSavingInterval(true);
     try {
-      await api.put('/api/admin/settings', { doctorCampaignRotationInterval: Number(rotationInterval) });
+      await api.patch('/api/admin/settings', { doctorCampaignRotationInterval: Number(rotationInterval) });
       toast('Rotation interval saved');
     } catch { toast('Failed to save', 'error'); }
     finally { setSavingInterval(false); }

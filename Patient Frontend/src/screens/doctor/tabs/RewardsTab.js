@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Image, Alert, Clipboard, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Image, Alert, Clipboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -21,30 +21,8 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
     creditPayments: '0'
   });
 
-  const [platformPayments, setPlatformPayments] = useState({
-    bankAccount: '',
-    bankName: '',
-    bankTitle: '',
-    easypaisaNumber: '',
-    easypaisaTitle: '',
-    jazzcashNumber: '',
-    jazzcashTitle: '',
-  });
   const [popularPointsThreshold, setPopularPointsThreshold] = useState(20000);
 
-  // Doctor's payout (bank) account for receiving My Dentist payments.
-  // `payout` = the saved account; `form` = the modal's editable copy.
-  const [payoutModal, setPayoutModal] = useState(false);
-  const [savingPayout, setSavingPayout] = useState(false);
-  const EMPTY_PAYOUT = { bankName: '', accountTitle: '', accountNumber: '' };
-  const [payout, setPayout] = useState(EMPTY_PAYOUT);
-  const [form, setForm] = useState(EMPTY_PAYOUT);
-  useEffect(() => {
-    const p = profile?.payoutAccount;
-    if (p) setPayout({ bankName: p.bankName || '', accountTitle: p.accountTitle || '', accountNumber: p.accountNumber || '' });
-  }, [profile]);
-  const hasPayout = !!(payout.bankName || payout.accountNumber || payout.accountTitle);
-  const openPayout = () => { setForm(payout); setPayoutModal(true); };
 
   // Bills is now its own bottom-tab screen (no longer a tab inside this screen),
   // so the old setActiveTab('bills') matched nothing and showed a blank view.
@@ -89,7 +67,6 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.data?.success) {
-          setPlatformPayments(res.data.data.payments);
           if (res.data.data.popularPointsThreshold) setPopularPointsThreshold(res.data.data.popularPointsThreshold);
         }
       } catch (_) {}
@@ -448,159 +425,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
         )}
       </View>
 
-      {/* Payment Accounts — My Dentist company accounts (set by admin) */}
-      <View style={styles.commissionBox}>
-        <View style={styles.commissionHeader}>
-          <View style={styles.commissionIconWrap}>
-            <Ionicons name="business" size={20} color="#0052FF" />
-          </View>
-          <View style={{flex: 1}}>
-            <Text style={styles.commissionTitle}>Pay 10% Commission to My Dentist</Text>
-            <Text style={styles.commissionDesc}>Send payment to any account below. Tap account number to copy.</Text>
-          </View>
-        </View>
-
-        {/* Bank / IBAN */}
-        {(platformPayments.bankAccount || platformPayments.bankName) ? (
-          <View style={styles.acctRow}>
-            <View style={[styles.acctIcon, {backgroundColor: '#EEF3FF'}]}>
-              <Ionicons name="card-outline" size={20} color="#1A3FAA" />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={styles.acctName}>{platformPayments.bankName || 'Bank'}</Text>
-              {platformPayments.bankTitle ? <Text style={styles.acctHolder}>{platformPayments.bankTitle}</Text> : null}
-              <Text style={styles.acctNumber}>{platformPayments.bankAccount}</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.acctCopyBtn, {backgroundColor: '#EEF3FF'}]}
-              onPress={() => { Clipboard.setString(platformPayments.bankAccount); Alert.alert('Copied', 'IBAN copied!'); }}
-            >
-              <Ionicons name="copy-outline" size={14} color="#1A3FAA" />
-              <Text style={[styles.acctCopyTxt, {color: '#1A3FAA'}]}>Copy</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* Divider */}
-        {(platformPayments.bankAccount || platformPayments.bankName) && platformPayments.easypaisaNumber ? (
-          <View style={styles.acctDivider} />
-        ) : null}
-
-        {/* EasyPaisa */}
-        {platformPayments.easypaisaNumber ? (
-          <View style={styles.acctRow}>
-            <View style={[styles.acctIcon, {backgroundColor: '#F0FDF4'}]}>
-              <Ionicons name="phone-portrait-outline" size={20} color="#166534" />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={styles.acctName}>EasyPaisa</Text>
-              {platformPayments.easypaisaTitle ? <Text style={styles.acctHolder}>{platformPayments.easypaisaTitle}</Text> : null}
-              <Text style={styles.acctNumber}>{platformPayments.easypaisaNumber}</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.acctCopyBtn, {backgroundColor: '#F0FDF4'}]}
-              onPress={() => { Clipboard.setString(platformPayments.easypaisaNumber); Alert.alert('Copied', 'EasyPaisa number copied!'); }}
-            >
-              <Ionicons name="copy-outline" size={14} color="#166534" />
-              <Text style={[styles.acctCopyTxt, {color: '#166534'}]}>Copy</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* JazzCash */}
-        {platformPayments.jazzcashNumber ? (
-          <>
-            {platformPayments.easypaisaNumber ? <View style={styles.acctDivider} /> : null}
-            <View style={styles.acctRow}>
-              <View style={[styles.acctIcon, {backgroundColor: '#FFFBEB'}]}>
-                <Ionicons name="phone-portrait-outline" size={20} color="#92400E" />
-              </View>
-              <View style={{flex: 1}}>
-                <Text style={styles.acctName}>JazzCash</Text>
-                {platformPayments.jazzcashTitle ? <Text style={styles.acctHolder}>{platformPayments.jazzcashTitle}</Text> : null}
-                <Text style={styles.acctNumber}>{platformPayments.jazzcashNumber}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.acctCopyBtn, {backgroundColor: '#FFFBEB'}]}
-                onPress={() => { Clipboard.setString(platformPayments.jazzcashNumber); Alert.alert('Copied', 'JazzCash number copied!'); }}
-              >
-                <Ionicons name="copy-outline" size={14} color="#92400E" />
-                <Text style={[styles.acctCopyTxt, {color: '#92400E'}]}>Copy</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : null}
-
-        {/* Nothing configured yet */}
-        {!platformPayments.bankAccount && !platformPayments.easypaisaNumber && !platformPayments.jazzcashNumber && (
-          <Text style={[styles.paymentDesc, {color: '#94A3B8', fontStyle: 'italic', marginTop: 8}]}>
-            Payment accounts not configured yet. Contact admin.
-          </Text>
-        )}
-      </View>
-
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={openPayout}
-        style={[styles.paymentBox, {backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', marginTop: 16}]}
-      >
-        <View style={styles.paymentBoxContent}>
-          <View style={[styles.paymentIconWrap, {backgroundColor: '#DCFCE7', borderColor: '#16A34A'}]}>
-            <Ionicons name="business" size={20} color="#16A34A" />
-          </View>
-          <View style={{flex: 1.5, paddingRight: isWide ? 20 : 0, marginBottom: isWide ? 0 : 12}}>
-            <Text style={styles.paymentTitle}>My dentist Payments to doctor account</Text>
-            <Text style={styles.paymentDesc}>Claim 90% amount of that Payments which patients paid to My Dentist Accounts</Text>
-          </View>
-          <View style={{flex: 1}}>
-            {hasPayout ? (
-              <>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.paymentTitle}>{payout.bankName || 'Bank account'}</Text>
-                  <View style={styles.payoutEditPill}><Ionicons name="create-outline" size={11} color="#0052FF" /><Text style={styles.payoutEditText}>Edit</Text></View>
-                </View>
-                {!!payout.accountTitle && <Text style={styles.acctHolder}>{payout.accountTitle}</Text>}
-                <Text style={styles.paymentDesc}>{payout.accountNumber}</Text>
-              </>
-            ) : (
-              <>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="add-circle" size={16} color="#16A34A" />
-                  <Text style={styles.paymentTitle}>Add Account Number</Text>
-                </View>
-                <Text style={styles.paymentDesc}>Add your bank account to receive payments</Text>
-              </>
-            )}
-          </View>
-        </View>
-        {isWide && <Ionicons name="chevron-forward" size={20} color="#0A1551" />}
-      </TouchableOpacity>
-
-      {/* Payout account modal */}
-      <Modal visible={payoutModal} transparent animationType="slide" onRequestClose={() => setPayoutModal(false)}>
-        <View style={styles.payoutOverlay}>
-          <View style={styles.payoutSheet}>
-            <View style={styles.payoutHead}>
-              <Text style={styles.payoutTitle}>{hasPayout ? 'Edit Payout Account' : 'Add Payout Account'}</Text>
-              <TouchableOpacity onPress={() => setPayoutModal(false)} hitSlop={10}><Ionicons name="close" size={22} color="#0A1551" /></TouchableOpacity>
-            </View>
-            <Text style={styles.payoutNote}>Where My Dentist sends your 90% payout for payments patients made to the platform accounts.</Text>
-
-            <Text style={styles.payoutLabel}>Bank Name</Text>
-            <TextInput style={styles.payoutInput} placeholder="e.g. HBL, Meezan" placeholderTextColor="#94A3B8" value={form.bankName} onChangeText={(v) => setForm((p) => ({ ...p, bankName: v }))} />
-
-            <Text style={styles.payoutLabel}>Account Title</Text>
-            <TextInput style={styles.payoutInput} placeholder="Account holder name" placeholderTextColor="#94A3B8" value={form.accountTitle} onChangeText={(v) => setForm((p) => ({ ...p, accountTitle: v }))} autoCapitalize="words" />
-
-            <Text style={styles.payoutLabel}>Account Number / IBAN</Text>
-            <TextInput style={styles.payoutInput} placeholder="PK00XXXX0000000000000000" placeholderTextColor="#94A3B8" value={form.accountNumber} onChangeText={(v) => setForm((p) => ({ ...p, accountNumber: v }))} autoCapitalize="characters" />
-
-            <TouchableOpacity style={[styles.payoutSaveBtn, savingPayout && { opacity: 0.7 }]} disabled={savingPayout} onPress={savePayout}>
-              {savingPayout ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.payoutSaveText}>Save Account</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Payment & commission options moved to Platform Fee tab */}
 
       {/* Deep Blue Footer Banner */}
       <View style={styles.footerBanner}>

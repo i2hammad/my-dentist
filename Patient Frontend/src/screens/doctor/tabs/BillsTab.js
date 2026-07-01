@@ -1172,7 +1172,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 <Ionicons name="chevron-down" size={16} color="#0A1551" />
               </TouchableOpacity>
               {showPatientDropdown && (
-                <View style={styles.dropdownContainer}>
+                <ScrollView style={styles.dropdownContainer} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                   {patients.length > 0 ? patients.map(p => (
                     <TouchableOpacity
                       key={p.id}
@@ -1180,7 +1180,6 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                       onPress={() => {
                         setSelectedPatient(p);
                         setShowPatientDropdown(false);
-                        // Load actual treatments from this patient's appointments
                         if (p.appointments && p.appointments.length > 0) {
                           setItems(p.appointments.map(a => ({ name: a.treatmentType, price: '' })));
                           setTreatmentMode('view');
@@ -1207,7 +1206,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   )) : (
                     <Text style={{ padding: 12, fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>No patients found from appointments.</Text>
                   )}
-                </View>
+                </ScrollView>
               )}
             </View>
 
@@ -1942,7 +1941,7 @@ const styles = StyleSheet.create({
   inputWrap: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 40, backgroundColor: '#FFF' },
   inputText: { fontSize: 13, color: '#0A1551' },
   
-  dropdownContainer: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, marginTop: 4, maxHeight: 150, overflow: 'scroll', zIndex: 999 },
+  dropdownContainer: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, marginTop: 4, maxHeight: 220, overflow: 'hidden', zIndex: 999 },
   dropdownItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
 
   /* Bill Summary Box */

@@ -1663,7 +1663,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
                 {/* Bill detail expanded */}
                 {billDetail ? (
-                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
                     <TouchableOpacity onPress={() => setBillDetail(null)} style={styles.bdBackRow}>
                       <Ionicons name="chevron-back" size={16} color="#0052FF" />
                       <Text style={styles.bdBackText}>Back to bills</Text>
@@ -1751,7 +1751,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                     </TouchableOpacity>
                   </ScrollView>
                 ) : (
-                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
                     {pBills.length === 0 ? (
                       <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 30 }}>No bills found for this patient.</Text>
                     ) : (

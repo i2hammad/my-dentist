@@ -262,6 +262,20 @@ export default function DentistDetail() {
             )) : <span className="muted">No bills yet</span>}
           </div>
 
+          {/* Doctor payout account (where My Dentist sends the 90% share) */}
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="card-head"><h3>Doctor Payout Account</h3></div>
+            {doc.payoutAccount?.accountNumber ? (
+              <div className="detail-grid">
+                <Row k="Bank Name" v={doc.payoutAccount.bankName || '—'} />
+                <Row k="Account Title" v={doc.payoutAccount.accountTitle || '—'} />
+                <Row k="Account Number / IBAN" v={doc.payoutAccount.accountNumber} />
+              </div>
+            ) : (
+              <p className="muted" style={{ fontSize: 13 }}>Doctor has not added a payout account yet.</p>
+            )}
+          </div>
+
           {/* Platform commission */}
           {d.earnings && (
             <div className="card" style={{ marginTop: 16 }}>

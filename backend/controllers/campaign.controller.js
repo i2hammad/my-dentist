@@ -118,6 +118,7 @@ exports.getActiveAllForDoctor = async (req, res) => {
 
     const campaigns = await Campaign.find({
       isActive: true,
+      targetAudience: { $ne: 'patient' },
       startAt: { $lte: now },
       endAt: { $gte: now },
       $or: [{ cities: { $size: 0 } }, { cities: city }],

@@ -253,25 +253,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
             <View style={[styles.earnIconWrap, {backgroundColor: '#DCFCE7'}]}><Ionicons name="person" size={16} color="#16A34A" /></View>
             <View style={{flex: 1}}>
               <Text style={styles.earnRuleTitle}>Patient Visit Completed</Text>
-              <Text style={styles.earnRuleDesc}>Per visit completed</Text>
-            </View>
-            <Text style={styles.earnPointsText}>+50 pts</Text>
-          </View>
-
-          <View style={styles.earnRow}>
-            <View style={[styles.earnIconWrap, {backgroundColor: '#EFF6FF'}]}><Ionicons name="card" size={16} color="#0052FF" /></View>
-            <View style={{flex: 1}}>
-              <Text style={styles.earnRuleTitle}>Current Visit Payment Received</Text>
-              <Text style={styles.earnRuleDesc}>When patient pays online to{'\n'}My Dentist Accounts</Text>
-            </View>
-            <Text style={styles.earnPointsText}>+50 pts</Text>
-          </View>
-
-          <View style={styles.earnRow}>
-            <View style={[styles.earnIconWrap, {backgroundColor: '#EFF6FF'}]}><Ionicons name="card-outline" size={16} color="#0052FF" /></View>
-            <View style={{flex: 1}}>
-              <Text style={styles.earnRuleTitle}>Last Visit Payment Received</Text>
-              <Text style={styles.earnRuleDesc}>When patient pays online to{'\n'}My Dentist Accounts</Text>
+              <Text style={styles.earnRuleDesc}>When doctor creates a patient bill</Text>
             </View>
             <Text style={styles.earnPointsText}>+50 pts</Text>
           </View>

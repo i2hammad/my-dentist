@@ -234,6 +234,11 @@ const createBill = async (req, res) => {
       status
     });
 
+    // Award 50 reward points to the doctor for completing a patient visit (non-draft bill).
+    if (status !== 'draft') {
+      await DoctorProfile.findByIdAndUpdate(doctorProfile._id, { $inc: { rewardPoints: 50 } });
+    }
+
     // Notify the patient — but not for drafts (drafts aren't issued yet).
     if (status !== 'draft') {
       await Notification.create({
@@ -611,6 +616,11 @@ const updateBill = async (req, res) => {
       .populate({ path: 'doctorId', select: 'fullName clinicName specialization' })
       .populate({ path: 'patientId', select: 'fullName' })
       .populate({ path: 'appointmentId', select: 'treatmentType date time' });
+
+    // Award 50 reward points to the doctor when marking a bill as paid.
+    if (updates.status === 'paid' && bill.status !== 'paid') {
+      await DoctorProfile.findByIdAndUpdate(doctorProfile._id, { $inc: { rewardPoints: 50 } });
+    }
 
     res.status(200).json({
       success: true,

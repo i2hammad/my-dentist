@@ -41,10 +41,15 @@ function Row({ label, value, valueColor, bold }) {
 const EMPTY_PAYOUT = { bankName: '', accountTitle: '', accountNumber: '' };
 
 export default function PlatformFeeTab({ profile, bills = [] }) {
+  const [commissionRate, setCommissionRate] = useState(10);
+
+  // Derived live from bills — updates the moment a bill is marked paid
+  const paidBills = bills.filter(b => b.status === 'paid');
+  const duePlatformFee = Math.round(
+    paidBills.reduce((sum, b) => sum + (b.finalAmount || b.amount || 0), 0) * commissionRate / 100
+  );
   const totalRedeemedAmount = bills.reduce((sum, b) => sum + (b.discountFromRewards || 0), 0);
-  const duePlatformFee = profile?.commissionDue || 0;
   const remainingPlatformFee = Math.max(0, duePlatformFee - totalRedeemedAmount);
-  const commissionRate = 10;
 
   // Admin payment accounts
   const [platformPayments, setPlatformPayments] = useState({
@@ -74,7 +79,10 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
         const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.data?.success) setPlatformPayments(res.data.data.payments);
+        if (res.data?.success) {
+          setPlatformPayments(res.data.data.payments);
+          if (res.data.data.commissionRate) setCommissionRate(res.data.data.commissionRate);
+        }
       } catch (_) {}
     })();
   }, []);

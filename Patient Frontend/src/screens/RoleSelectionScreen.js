@@ -44,7 +44,7 @@ export default function RoleSelectionScreen({ navigation }) {
           <Ionicons name="person-circle-outline" size={36} color="#2563EB" />
         </View>
         <View style={styles.cardTextContainer}>
-          <Text style={styles.cardTitle}>I'm a Doctor</Text>
+          <Text style={styles.cardTitle}>I'm a Dentist</Text>
           <Text style={styles.cardSubtitle}>Manage your practice, appointments and patients</Text>
         </View>
         <View style={[styles.chevronCircle, { backgroundColor: '#EFF6FF' }]}>

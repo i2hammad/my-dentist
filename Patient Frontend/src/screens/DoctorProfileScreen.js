@@ -2518,6 +2518,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
       <Modal
         visible={showBillDetailModal}
         transparent
+        statusBarTranslucent={true}
         animationType="slide"
         onRequestClose={() => setShowBillDetailModal(false)}
       >
@@ -2624,11 +2625,12 @@ export default function DoctorProfileScreen({ route, navigation }) {
       <Modal
         visible={showPaymentModal}
         transparent={true}
+        statusBarTranslucent={true}
         animationType="slide"
         onRequestClose={() => setShowPaymentModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Checkout / Pay Invoice</Text>
               <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
@@ -2737,6 +2739,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
       <Modal
         visible={showAddMethodModal}
         transparent={true}
+        statusBarTranslucent={true}
         animationType="slide"
         onRequestClose={() => setShowAddMethodModal(false)}
       >
@@ -2810,6 +2813,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
       <Modal
         visible={showReviewModal}
         transparent={true}
+        statusBarTranslucent={true}
         animationType="slide"
         onRequestClose={() => setShowReviewModal(false)}
       >

@@ -46,6 +46,7 @@ router.get('/platform-settings', async (req, res) => {
           easypaisaNumber:  s.payments?.easypaisaNumber  || '',
           easypaisaTitle:   s.payments?.easypaisaTitle   || '',
           jazzcashNumber:   s.payments?.jazzcashNumber   || '',
+          jazzcashTitle:    s.payments?.jazzcashTitle    || '',
         },
         commissionRate: s.commissionRate ?? 10,
         popularPointsThreshold: s.popularPointsThreshold ?? 20000,

@@ -410,34 +410,53 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
   const confirmPayBill = async () => {
     if (!checkoutBill) return;
+    const paidBillId = checkoutBill._id;
+    const invoiceNo = checkoutBill.invoiceNumber;
     try {
-      setPayingBillId(checkoutBill._id);
+      setPayingBillId(paidBillId);
       const token = await storage.getItem('userToken');
-      const res = await axios.put(`${API_BASE_URL}/api/bills/${checkoutBill._id}/pay`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.put(`${API_BASE_URL}/api/bills/${paidBillId}/pay`,
+        { paymentType: 'cash', paymentMethodLabel: 'Cash' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (res.data?.success) {
-        Alert.alert('Success', 'Bill marked as paid! Generating receipt...');
+        // Cash goes to "payment_pending" (doctor must confirm receipt); card/wallet settles instantly.
+        const pending = !!res.data.data?.pending;
+        const serverBill = res.data.data?.bill || {};
+        const newStatus = pending ? 'payment_pending' : 'paid';
         setShowPaymentModal(false);
-        // Refresh billing list
-        const billRes = await axios.get(`${API_BASE_URL}/api/bills/my`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (billRes.data?.success) {
-          const docId = doctor._id || doctor.userId;
-          setBills(billRes.data.data.filter(b => b.doctorId?._id === docId || b.doctorId === docId));
+
+        // Reflect the new status immediately in every open view (list + detail sheet).
+        const applyStatus = (x) => (x && x._id === paidBillId)
+          ? { ...x, status: newStatus, paymentType: 'cash', paymentMethodLabel: 'Cash',
+              paidAmount: pending ? (x.paidAmount || 0) : (x.finalAmount || x.amount) }
+          : x;
+        setBills(prev => prev.map(applyStatus));
+        setSelectedBillDetail(prev => applyStatus(prev));
+        setCheckoutBill(null);
+
+        // Hard refresh from the server (source of truth), then re-sync the open detail sheet.
+        const docId = doctor._id || doctor.userId;
+        try {
+          const billRes = await axios.get(`${API_BASE_URL}/api/bills/my`, { headers: { Authorization: `Bearer ${token}` } });
+          if (billRes.data?.success) {
+            const fresh = billRes.data.data.filter(b => b.doctorId?._id === docId || b.doctorId === docId);
+            setBills(fresh);
+            setSelectedBillDetail(prev => prev ? (fresh.find(b => b._id === prev._id) || applyStatus(prev)) : prev);
+          }
+          const rewardRes = await axios.get(`${API_BASE_URL}/api/rewards/my`, { headers: { Authorization: `Bearer ${token}` } });
+          if (rewardRes.data?.success) setRewards(rewardRes.data.data || { points: 0, transactions: [] });
+        } catch (_) {}
+
+        if (pending) {
+          Alert.alert(
+            'Cash Payment Recorded',
+            `Bill ${invoiceNo} is marked as paid by cash.\n\nIt will show as Paid once your doctor confirms they received the cash.`
+          );
+        } else {
+          Alert.alert('Payment Successful', 'Your payment is confirmed. Generating receipt…');
+          handleDownloadInvoice({ ...checkoutBill, ...serverBill, status: 'paid' });
         }
-        // Also refresh rewards
-        const rewardRes = await axios.get(`${API_BASE_URL}/api/rewards/my`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (rewardRes.data?.success) {
-          setRewards(rewardRes.data.data || { points: 0, transactions: [] });
-        }
-        // Download/share receipt
-        const updatedBill = res.data.data.bill || checkoutBill;
-        updatedBill.status = 'paid';
-        handleDownloadInvoice(updatedBill);
       }
     } catch (e) {
       console.log('Error paying bill:', e);
@@ -1581,26 +1600,43 @@ export default function DoctorProfileScreen({ route, navigation }) {
               { key: 'modern',   icon: 'business',         name: 'Modern Clinic',   range: '16 – 30 Points', color: '#0052FF', bg: '#EFF6FF', bd: '#BFDBFE' },
               { key: 'standard', icon: 'shield-checkmark', name: 'Standard Clinic', range: '1 – 15 Points',  color: '#64748B', bg: '#F8FAFC', bd: '#E2E8F0' },
             ];
+            const tierDark = ({ elite: '#B45309', modern: '#1E40AF', standard: '#475569', unrated: '#64748B' })[tierKey];
             return (
               <View style={{ gap: 14 }}>
 
-                {/* ── Clinic Grade badge ── */}
-                <View style={[cardBase, { borderWidth: 2, borderColor: tier.color, padding: 20, alignItems: 'center' }]}>
-                  <View style={{ width: 104, height: 104, borderRadius: 26, backgroundColor: tier.bg, borderWidth: 2, borderColor: tier.color, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
-                    <Ionicons name={gradeIcon} size={52} color={tier.color} />
-                    <View style={{ position: 'absolute', bottom: -11, backgroundColor: tier.color, borderRadius: 10, borderWidth: 2, borderColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>{tagLabel}</Text>
+                {/* ── Clinic Grade — certification badge (medallion + ribbon) ── */}
+                <View style={[cardBase, { padding: 20, paddingBottom: 18, alignItems: 'center' }]}>
+                  {/* eyebrow */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                    <Ionicons name="sparkles" size={11} color={tier.color} style={{ marginRight: 7 }} />
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.6 }}>CERTIFIED CLINIC GRADE</Text>
+                    <Ionicons name="sparkles" size={11} color={tier.color} style={{ marginLeft: 7 }} />
+                  </View>
+
+                  {/* medallion seal */}
+                  <View style={{ width: 132, height: 132, borderRadius: 66, backgroundColor: tier.bg, borderWidth: 2, borderColor: tier.color + '4D', justifyContent: 'center', alignItems: 'center' }}>
+                    <View style={{ position: 'absolute', top: 3, width: 12, height: 12, borderRadius: 6, backgroundColor: tier.color }} />
+                    <View style={{ position: 'absolute', bottom: 3, width: 8, height: 8, borderRadius: 4, backgroundColor: tier.color + '66' }} />
+                    <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: '#FFFFFF', borderWidth: 5, borderColor: tier.color, justifyContent: 'center', alignItems: 'center', shadowColor: tier.color, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 7, elevation: 3 }}>
+                      <Ionicons name={gradeIcon} size={26} color={tier.color} />
+                      <Text style={{ fontSize: 23, fontWeight: '900', color: '#0A1551', lineHeight: 25, marginTop: 1 }}>{facilityScore}</Text>
+                      <Text style={{ fontSize: 7.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1 }}>POINTS</Text>
                     </View>
                   </View>
-                  <Text style={{ fontSize: 20, fontWeight: '800', color: '#0A1551', marginTop: 6 }}>{tier.label}</Text>
-                  <Text style={{ fontSize: 12.5, color: '#64748B', textAlign: 'center', marginTop: 5, lineHeight: 18, marginHorizontal: 8 }}>{tier.desc}</Text>
 
-                  {/* facility score circle */}
-                  <View style={{ width: 96, height: 96, borderRadius: 48, borderWidth: 6, borderColor: tier.color, justifyContent: 'center', alignItems: 'center', marginTop: 18 }}>
-                    <Text style={{ fontSize: 30, fontWeight: '900', color: '#0A1551', lineHeight: 34 }}>{facilityScore}</Text>
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.8 }}>POINTS</Text>
+                  {/* ribbon banner with fishtail ends */}
+                  <View style={{ marginTop: -14, height: 34, borderRadius: 4, backgroundColor: tier.color, justifyContent: 'center', paddingHorizontal: 28, shadowColor: tierDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1 }}>{tier.label.toUpperCase()}</Text>
+                    <View style={{ position: 'absolute', left: 0, width: 0, height: 0, borderTopWidth: 17, borderBottomWidth: 17, borderLeftWidth: 9, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#FFFFFF' }} />
+                    <View style={{ position: 'absolute', right: 0, width: 0, height: 0, borderTopWidth: 17, borderBottomWidth: 17, borderRightWidth: 9, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: '#FFFFFF' }} />
                   </View>
-                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, marginTop: 8 }}>FACILITY SCORE</Text>
+
+                  {/* verified + description */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14 }}>
+                    <Ionicons name="shield-checkmark" size={13} color="#16A34A" style={{ marginRight: 5 }} />
+                    <Text style={{ fontSize: 11.5, color: '#16A34A', fontWeight: '800' }}>Verified facility profile</Text>
+                  </View>
+                  <Text style={{ fontSize: 12.5, color: '#64748B', textAlign: 'center', marginTop: 6, lineHeight: 18, marginHorizontal: 6 }}>{tier.desc}</Text>
                 </View>
 
                 {/* ── Verified Highlights ── */}
@@ -1847,99 +1883,94 @@ export default function DoctorProfileScreen({ route, navigation }) {
                     .filter(a => a.status !== 'confirmed' && a.status !== 'pending')
                     .sort((a, b) => ts(b) - ts(a)); // most recent first
 
-                  const renderCard = (apt, isNext = false) => {
+                  // ── Timeline item: a vertical rail (connector + status dot) beside a tappable card ──
+                  const renderItem = (apt, i, arr, accent) => {
                     const ti = getTreatmentIcon(apt.treatmentType);
                     const ss = statusStyle(apt.status);
                     const isCompleted = (apt.status || '').toLowerCase() === 'completed';
                     const isUpcoming = apt.status === 'confirmed' || apt.status === 'pending';
+                    const isNext = accent === '#0052FF' && i === 0;
                     const rel = isUpcoming ? relLabel(apt) : '';
                     const soon = rel === 'Today' || rel === 'Tomorrow';
                     const d = new Date(apt.date);
                     const valid = !isNaN(d.getTime());
                     const dayNum = valid ? d.getDate() : '--';
-                    const monthStr = valid ? d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase() : '';
+                    const monthStr = valid ? d.toLocaleDateString(undefined, { month: 'short' }) : '';
+                    const isFirst = i === 0;
+                    const isLast = i === arr.length - 1;
+                    const rail = '#E6EBF2';
 
                     return (
-                      <TouchableOpacity
-                        key={apt._id}
-                        activeOpacity={0.85}
-                        style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: isNext ? 2 : 1, borderColor: isNext ? '#0052FF' : '#F1F5F9', padding: 14, marginBottom: 12, shadowColor: isNext ? '#0052FF' : '#000', shadowOffset: { width: 0, height: isNext ? 4 : 2 }, shadowOpacity: isNext ? 0.13 : 0.04, shadowRadius: isNext ? 12 : 8, elevation: isNext ? 4 : 2 }}
-                        onPress={() => navigation.navigate('AppointmentDetail', { appointment: { ...apt, doctorId: apt.doctorId || doctor } })}
-                      >
-                        {isNext ? (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#0052FF', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-                              <Ionicons name="flash" size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
-                              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.6 }}>NEXT VISIT</Text>
-                            </View>
-                            {rel ? <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#0052FF', marginLeft: 8 }}>{rel}</Text> : null}
+                      <View key={apt._id} style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+                        {/* Rail: top connector · status dot · bottom connector */}
+                        <View style={{ width: 26, alignItems: 'center' }}>
+                          <View style={{ width: 2.5, height: 22, borderRadius: 2, backgroundColor: isFirst ? 'transparent' : rail }} />
+                          <View style={{ width: 15, height: 15, borderRadius: 8, backgroundColor: isNext ? ss.text : '#FFFFFF', borderWidth: 3, borderColor: ss.text, justifyContent: 'center', alignItems: 'center' }}>
+                            {isNext ? <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFFFFF' }} /> : null}
                           </View>
-                        ) : null}
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          {/* status-tinted date tile */}
-                          <View style={{ width: 58, borderRadius: 14, backgroundColor: ss.tileBg, borderWidth: 1, borderColor: ss.border, paddingVertical: 9, alignItems: 'center', marginRight: 12 }}>
-                            <Text style={{ fontSize: 21, fontWeight: '900', color: ss.text, lineHeight: 24 }}>{dayNum}</Text>
-                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: ss.text, letterSpacing: 1 }}>{monthStr}</Text>
-                            <View style={{ width: 20, height: 1, backgroundColor: ss.border, marginVertical: 5 }} />
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Ionicons name="time-outline" size={10} color="#64748B" style={{ marginRight: 2 }} />
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B' }}>{apt.time}</Text>
-                            </View>
-                          </View>
+                          <View style={{ width: 2.5, flex: 1, borderRadius: 2, backgroundColor: isLast ? 'transparent' : rail }} />
+                        </View>
 
-                          {/* body */}
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              {/* treatment icon chip with status badge */}
-                              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: ti.color + '18', borderWidth: 1, borderColor: ti.color + '33', justifyContent: 'center', alignItems: 'center' }}>
-                                <Ionicons name={ti.icon} size={20} color={ti.color} />
-                                <View style={{ position: 'absolute', bottom: -4, right: -4, width: 17, height: 17, borderRadius: 9, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                                  <Ionicons name={ss.icon} size={13} color={ss.text} />
-                                </View>
+                        {/* Content column (paddingBottom lives here so the rail spans the gap) */}
+                        <View style={{ flex: 1, paddingBottom: isLast ? 2 : 14, marginLeft: 6 }}>
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => navigation.navigate('AppointmentDetail', { appointment: { ...apt, doctorId: apt.doctorId || doctor } })}
+                            style={{ backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: isNext ? 1.5 : 1, borderColor: isNext ? '#BFDBFE' : '#EEF2F7', padding: 13, shadowColor: isNext ? '#0052FF' : '#0A1551', shadowOffset: { width: 0, height: isNext ? 4 : 2 }, shadowOpacity: isNext ? 0.1 : 0.04, shadowRadius: isNext ? 12 : 8, elevation: isNext ? 4 : 2 }}
+                          >
+                            {isNext ? (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#0052FF', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 10 }}>
+                                <Ionicons name="flash" size={10} color="#FFFFFF" style={{ marginRight: 4 }} />
+                                <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.6 }}>NEXT VISIT</Text>
                               </View>
-                              <View style={{ flex: 1, marginLeft: 12 }}>
-                                <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A', lineHeight: 19 }}>{apt.treatmentType}</Text>
-                                {/* status pill + relative-time chip */}
+                            ) : null}
+
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              {/* treatment icon */}
+                              <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: ti.color + '18', borderWidth: 1, borderColor: ti.color + '2E', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name={ti.icon} size={18} color={ti.color} />
+                              </View>
+                              <View style={{ flex: 1, marginLeft: 11 }}>
+                                {/* time · date */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                                  <Ionicons name="time-outline" size={12} color={ss.text} style={{ marginRight: 3 }} />
+                                  <Text style={{ fontSize: 12.5, fontWeight: '800', color: ss.text }}>{apt.time}</Text>
+                                  <Text style={{ fontSize: 12, color: '#CBD5E1', marginHorizontal: 5 }}>·</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748B' }}>{dayNum} {monthStr}</Text>
+                                </View>
+                                <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A', lineHeight: 19 }} numberOfLines={1}>{apt.treatmentType}</Text>
+                                {/* status + relative chip */}
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 7 }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: ss.bg, borderWidth: 1, borderColor: ss.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginRight: 6, marginBottom: 2 }}>
-                                    <Ionicons name={ss.icon} size={11} color={ss.text} style={{ marginRight: 5 }} />
-                                    <Text style={{ fontSize: 10, fontWeight: '800', color: ss.text, letterSpacing: 0.5 }}>{ss.label.toUpperCase()}</Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: ss.bg, borderWidth: 1, borderColor: ss.border, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3.5, marginRight: 6, marginBottom: 2 }}>
+                                    <Ionicons name={ss.icon} size={10} color={ss.text} style={{ marginRight: 4 }} />
+                                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: ss.text, letterSpacing: 0.4 }}>{ss.label.toUpperCase()}</Text>
                                   </View>
-                                  {isUpcoming && rel && !isNext ? (
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: soon ? '#0052FF' : '#EFF6FF', borderWidth: 1, borderColor: soon ? '#0052FF' : '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginBottom: 2 }}>
-                                      <Ionicons name="hourglass-outline" size={10} color={soon ? '#FFFFFF' : '#0052FF'} style={{ marginRight: 4 }} />
-                                      <Text style={{ fontSize: 10, fontWeight: '800', color: soon ? '#FFFFFF' : '#0052FF' }}>{rel}</Text>
+                                  {isUpcoming && rel ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: soon ? '#0052FF' : '#EFF6FF', borderWidth: 1, borderColor: soon ? '#0052FF' : '#DBEAFE', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3.5, marginBottom: 2 }}>
+                                      <Ionicons name="hourglass-outline" size={9} color={soon ? '#FFFFFF' : '#0052FF'} style={{ marginRight: 3 }} />
+                                      <Text style={{ fontSize: 9.5, fontWeight: '800', color: soon ? '#FFFFFF' : '#0052FF' }}>{rel}</Text>
                                     </View>
                                   ) : null}
                                 </View>
                               </View>
-                              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginLeft: 6 }} />
+                              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginLeft: 4 }} />
                             </View>
-                          </View>
-                        </View>
 
-                        {/* completed: visit summary tri-state */}
-                        {apt.visitSummary ? (
-                          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7 }}>
-                              <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
-                                <Ionicons name="document-text-outline" size={13} color="#0052FF" />
+                            {/* completed: visit summary tri-state */}
+                            {apt.visitSummary ? (
+                              <View style={{ marginTop: 11, paddingTop: 11, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                                <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, marginBottom: 5 }}>VISIT SUMMARY</Text>
+                                <Text style={{ fontSize: 12.5, color: '#334155', lineHeight: 18, fontWeight: '500' }}>{apt.visitSummary}</Text>
                               </View>
-                              <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.1, flex: 1 }} numberOfLines={1}>TREATMENT RECORD / VISIT SUMMARY</Text>
-                            </View>
-                            <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', padding: 11 }}>
-                              <Text style={{ fontSize: 12.5, color: '#334155', lineHeight: 18, fontWeight: '500' }}>{apt.visitSummary}</Text>
-                            </View>
-                          </View>
-                        ) : isCompleted ? (
-                          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', paddingHorizontal: 11, paddingVertical: 9 }}>
-                              <Ionicons name="document-text-outline" size={15} color="#94A3B8" />
-                              <Text style={{ fontSize: 11.5, fontStyle: 'italic', color: '#94A3B8', marginLeft: 8, flex: 1, lineHeight: 16 }}>No treatment record entered by doctor yet.</Text>
-                            </View>
-                          </View>
-                        ) : null}
-                      </TouchableOpacity>
+                            ) : isCompleted ? (
+                              <View style={{ marginTop: 11, paddingTop: 11, borderTopWidth: 1, borderTopColor: '#F1F5F9', flexDirection: 'row', alignItems: 'center' }}>
+                                <Ionicons name="document-text-outline" size={13} color="#94A3B8" />
+                                <Text style={{ fontSize: 11, fontStyle: 'italic', color: '#94A3B8', marginLeft: 7, flex: 1, lineHeight: 16 }}>No treatment record entered yet.</Text>
+                              </View>
+                            ) : null}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     );
                   };
 
@@ -1956,7 +1987,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
                               <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF' }}>{upcoming.length}</Text>
                             </View>
                           </View>
-                          {upcoming.map((apt, i) => renderCard(apt, i === 0))}
+                          {upcoming.map((apt, i) => renderItem(apt, i, upcoming, '#0052FF'))}
                         </View>
                       ) : null}
 
@@ -1971,7 +2002,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
                               <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#64748B' }}>{past.length}</Text>
                             </View>
                           </View>
-                          {past.map((apt) => renderCard(apt))}
+                          {past.map((apt, i) => renderItem(apt, i, past, '#94A3B8'))}
                         </View>
                       ) : null}
                     </View>
@@ -2030,50 +2061,49 @@ export default function DoctorProfileScreen({ route, navigation }) {
                         </View>
                       </View>
 
-                      <View style={{ backgroundColor: '#0A1551', borderRadius: 18, padding: 18, overflow: 'hidden', ...cardShadow }}>
-                        <View style={{ position: 'absolute', top: -44, right: -34, width: 148, height: 148, borderRadius: 74, backgroundColor: 'rgba(0,82,255,0.20)' }} />
-                        <View style={{ position: 'absolute', bottom: -54, left: -30, width: 128, height: 128, borderRadius: 64, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+                      <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#E8EEF9', overflow: 'hidden', ...cardShadow }}>
+                        <View style={{ position: 'absolute', top: -46, right: -36, width: 150, height: 150, borderRadius: 75, backgroundColor: '#F1F6FF' }} />
 
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
-                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: totalOutstanding > 0 ? '#FCA5A5' : '#86EFAC', marginRight: 7 }} />
-                            <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#BFDBFE', letterSpacing: 1.4 }}>TOTAL OUTSTANDING</Text>
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: totalOutstanding > 0 ? '#EF4444' : '#16A34A', marginRight: 7 }} />
+                            <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#64748B', letterSpacing: 1.4 }}>TOTAL OUTSTANDING</Text>
                           </View>
-                          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-                            <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
+                          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="wallet-outline" size={20} color="#0052FF" />
                           </View>
                         </View>
-                        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 30, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.2 }}>
+                        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 30, fontWeight: '900', color: totalOutstanding > 0 ? '#0A1551' : '#16A34A', letterSpacing: 0.2 }}>
                           PKR {Number(totalOutstanding || 0).toLocaleString()}
                         </Text>
-                        <Text style={{ fontSize: 12, color: '#93A4C8', fontWeight: '500', marginTop: 3 }}>
+                        <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '500', marginTop: 3 }}>
                           {totalOutstanding > 0 ? 'Amount still due across all invoices' : 'You are all settled up — nothing due'}
                         </Text>
 
                         {/* 2x2 mini-stat grid — three DISTINCT metrics (no duplicate Outstanding) */}
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 16, marginHorizontal: -5 }}>
                           {[
-                            { key: 'inv', label: 'Invoices', value: `${totalBillsCount}`, tint: '#BFDBFE', icon: 'receipt-outline', sub: 'On record' },
-                            { key: 'paid', label: 'Paid', value: `PKR ${Number(totalPaidAmount || 0).toLocaleString()}`, tint: '#86EFAC', icon: 'checkmark-done-outline', sub: 'Settled to date' },
-                            { key: 'disc', label: 'Discount', value: `PKR ${Number(totalDiscount || 0).toLocaleString()}`, tint: '#DDD6FE', icon: 'gift-outline', sub: 'From rewards' },
-                            { key: 'due', label: 'Outstanding', value: `PKR ${Number(totalOutstanding || 0).toLocaleString()}`, tint: '#FCA5A5', icon: 'alert-circle-outline', sub: 'Still due' },
+                            { key: 'inv', label: 'Invoices', value: `${totalBillsCount}`, tint: '#0052FF', bg: '#EFF6FF', border: '#DBEAFE', icon: 'receipt-outline', sub: 'On record' },
+                            { key: 'paid', label: 'Paid', value: `PKR ${Number(totalPaidAmount || 0).toLocaleString()}`, tint: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', icon: 'checkmark-done-outline', sub: 'Settled to date' },
+                            { key: 'disc', label: 'Discount', value: `PKR ${Number(totalDiscount || 0).toLocaleString()}`, tint: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', icon: 'gift-outline', sub: 'From rewards' },
+                            { key: 'due', label: 'Outstanding', value: `PKR ${Number(totalOutstanding || 0).toLocaleString()}`, tint: '#DC2626', bg: '#FEF2F2', border: '#FECACA', icon: 'alert-circle-outline', sub: 'Still due' },
                           ].map((s) => (
                             <View key={s.key} style={{ width: '50%', paddingHorizontal: 5, marginBottom: 10 }}>
-                              <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', paddingVertical: 11, paddingHorizontal: 12 }}>
+                              <View style={{ backgroundColor: s.bg, borderRadius: 14, borderWidth: 1, borderColor: s.border, paddingVertical: 11, paddingHorizontal: 12 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                                   <Ionicons name={s.icon} size={14} color={s.tint} />
-                                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#93A4C8', letterSpacing: 1, marginLeft: 6 }}>{s.label.toUpperCase()}</Text>
+                                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, marginLeft: 6 }}>{s.label.toUpperCase()}</Text>
                                 </View>
                                 <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 15, fontWeight: '900', color: s.tint }}>{s.value}</Text>
-                                <Text style={{ fontSize: 9.5, color: '#93A4C8', fontWeight: '600', marginTop: 2 }}>{s.sub}</Text>
+                                <Text style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: '600', marginTop: 2 }}>{s.sub}</Text>
                               </View>
                             </View>
                           ))}
                         </View>
 
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)' }}>
-                          <Ionicons name="shield-checkmark" size={15} color="#86EFAC" />
-                          <Text style={{ flex: 1, fontSize: 11, color: '#BFDBFE', fontWeight: '600', marginLeft: 8, lineHeight: 15 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                          <Ionicons name="shield-checkmark" size={15} color="#16A34A" />
+                          <Text style={{ flex: 1, fontSize: 11, color: '#64748B', fontWeight: '600', marginLeft: 8, lineHeight: 15 }}>
                             All transactions are encrypted and processed securely.
                           </Text>
                         </View>
@@ -2282,28 +2312,27 @@ export default function DoctorProfileScreen({ route, navigation }) {
           {activeTab === 'Rewards & Payments' && (
             <View>
               {/* ===== POINTS BALANCE HERO (signature dark navy) ===== */}
-              <View style={{ backgroundColor: '#0A1551', borderRadius: 22, padding: 20, overflow: 'hidden', shadowColor: '#0A1551', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 6 }}>
-                {/* faux-gradient depth circles */}
-                <View style={{ position: 'absolute', top: -50, right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: '#1D4ED8', opacity: 0.28 }} />
-                <View style={{ position: 'absolute', top: 30, right: 30, width: 120, height: 120, borderRadius: 60, backgroundColor: '#1E3A8A', opacity: 0.35 }} />
-                <View style={{ position: 'absolute', bottom: -60, left: -30, width: 160, height: 160, borderRadius: 80, backgroundColor: '#1E3A8A', opacity: 0.25 }} />
+              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 22, padding: 20, borderWidth: 1, borderColor: '#E8EEF9', overflow: 'hidden', shadowColor: '#0A1551', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 }}>
+                {/* soft brand-tint depth circles */}
+                <View style={{ position: 'absolute', top: -50, right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: '#F1F6FF' }} />
+                <View style={{ position: 'absolute', bottom: -60, left: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: '#FBF9FF' }} />
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1, marginRight: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#60A5FA', marginRight: 8 }} />
-                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#93C5FD', letterSpacing: 1.4 }}>AVAILABLE REWARD POINTS</Text>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#0052FF', marginRight: 8 }} />
+                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#64748B', letterSpacing: 1.4 }}>AVAILABLE REWARD POINTS</Text>
                     </View>
-                    <Text style={{ fontSize: 44, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1, lineHeight: 48 }} numberOfLines={1} adjustsFontSizeToFit>
+                    <Text style={{ fontSize: 44, fontWeight: '900', color: '#0A1551', letterSpacing: -1, lineHeight: 48 }} numberOfLines={1} adjustsFontSizeToFit>
                       {rewards.totalPoints || rewards.points || 0}
                     </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
-                      <Ionicons name="cash-outline" size={13} color="#BBF7D0" style={{ marginRight: 5 }} />
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#E2E8F0' }}>= PKR {(rewards.totalPoints || rewards.points || 0)} Discount Value</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
+                      <Ionicons name="cash-outline" size={13} color="#16A34A" style={{ marginRight: 5 }} />
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#16A34A' }}>= PKR {(rewards.totalPoints || rewards.points || 0)} Discount Value</Text>
                     </View>
                   </View>
-                  <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}>
-                    <Ionicons name="gift" size={26} color="#FFFFFF" />
+                  <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}>
+                    <Ionicons name="gift" size={26} color="#0052FF" />
                   </View>
                 </View>
 
@@ -2311,16 +2340,16 @@ export default function DoctorProfileScreen({ route, navigation }) {
                 <TouchableOpacity
                   onPress={() => setShowRewardHistory(v => !v)}
                   activeOpacity={0.8}
-                  style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', borderRadius: 14, paddingVertical: 12 }}
+                  style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 14, paddingVertical: 12 }}
                 >
-                  <Ionicons name={showRewardHistory ? 'chevron-up' : 'time-outline'} size={16} color="#FFFFFF" style={{ marginRight: 7 }} />
-                  <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13.5 }}>
+                  <Ionicons name={showRewardHistory ? 'chevron-up' : 'time-outline'} size={16} color="#0052FF" style={{ marginRight: 7 }} />
+                  <Text style={{ color: '#0052FF', fontWeight: '700', fontSize: 13.5 }}>
                     {showRewardHistory ? 'Hide Rewards History' : 'View Rewards History'}
                   </Text>
                 </TouchableOpacity>
 
                 {showRewardHistory && (
-                  <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 6 }}>
+                  <View style={{ marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1, borderColor: '#EEF2F7', padding: 6 }}>
                     {(() => {
                       const history = rewards.recentHistory || rewards.transactions || [];
                       if (!history.length) {
@@ -2523,96 +2552,125 @@ export default function DoctorProfileScreen({ route, navigation }) {
         onRequestClose={() => setShowBillDetailModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%', paddingBottom: insets.bottom + 20 }]}>
+          <View style={[styles.modalContent, { maxHeight: '88%', paddingBottom: Math.min(insets.bottom, 8) + 16 }]}>
             {selectedBillDetail && (() => {
               const b = selectedBillDetail;
               const isPaid = b.status === 'paid';
+              const isPending = b.status === 'payment_pending';
               const outstanding = isPaid ? 0 : Math.max((b.finalAmount || b.amount) - (b.paidAmount || 0), 0);
+              const heroAmount = isPaid ? (b.paidAmount || b.finalAmount || b.amount || 0) : outstanding;
+              // Tri-state look: paid (green) · pending doctor confirmation (purple) · unpaid (red).
+              const sc = isPaid
+                ? { accent: '#16A34A', tint: '#F0FDF4', border: '#BBF7D0', badge: 'PAID', icon: 'checkmark-circle', amtLabel: 'Amount Paid', amtColor: '#16A34A' }
+                : isPending
+                ? { accent: '#7C3AED', tint: '#F5F3FF', border: '#DDD6FE', badge: 'AWAITING CONFIRMATION', icon: 'hourglass-outline', amtLabel: 'Paid by Cash · Pending', amtColor: '#0A1551' }
+                : { accent: '#EF4444', tint: '#FEF2F2', border: '#FECACA', badge: 'UNPAID', icon: 'alert-circle', amtLabel: 'Amount Due', amtColor: '#0A1551' };
+              const rows = [
+                { label: 'Date',           icon: 'calendar-outline', value: new Date(b.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) },
+                { label: 'Due Date',       icon: 'time-outline',     value: b.dueDate ? new Date(b.dueDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                { label: 'Treatment',      icon: 'medkit-outline',   value: b.treatmentName },
+                { label: 'Payment Method', icon: 'wallet-outline',   value: (b.paymentMethodLabel || b.paymentMethod || 'cash').toUpperCase() },
+              ];
               return (
                 <>
                   {/* Header */}
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0A1551' }}>Bill Details</Text>
-                    <TouchableOpacity onPress={() => setShowBillDetailModal(false)}>
-                      <Ionicons name="close-circle" size={28} color="#94A3B8" />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 18, fontWeight: '800', color: '#0A1551' }}>Bill Details</Text>
+                      <Text style={{ fontSize: 12.5, color: '#94A3B8', fontWeight: '600', marginTop: 2 }}>{b.invoiceNumber}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setShowBillDetailModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={28} color="#CBD5E1" />
                     </TouchableOpacity>
                   </View>
 
-                  {/* Status Badge */}
-                  <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                    <View style={{ backgroundColor: isPaid ? '#F0FDF4' : '#FEF2F2', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: isPaid ? '#16A34A' : '#EF4444' }}>
-                        {isPaid ? '✓ PAID' : '⚠ UNPAID'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Invoice Info */}
-                    {[
-                      { label: 'Invoice Number', value: b.invoiceNumber },
-                      { label: 'Date',           value: new Date(b.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) },
-                      { label: 'Due Date',       value: b.dueDate ? new Date(b.dueDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
-                      { label: 'Treatment',      value: b.treatmentName },
-                      { label: 'Payment Method', value: (b.paymentMethod || 'cash').toUpperCase() },
-                    ].map(row => (
-                      <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
-                        <Text style={{ fontSize: 13, color: '#64748B' }}>{row.label}</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A', maxWidth: '55%', textAlign: 'right' }}>{row.value}</Text>
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 4 }}>
+                    {/* Hero: status + amount */}
+                    <View style={{ borderRadius: 16, padding: 16, backgroundColor: sc.tint, borderWidth: 1, borderColor: sc.border, marginBottom: 16 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: sc.border }}>
+                          <Ionicons name={sc.icon} size={13} color={sc.accent} style={{ marginRight: 4 }} />
+                          <Text style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: sc.accent }}>{sc.badge}</Text>
+                        </View>
+                        <Ionicons name="receipt-outline" size={22} color={sc.border} />
                       </View>
-                    ))}
+                      <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600', marginTop: 14 }}>{sc.amtLabel}</Text>
+                      <Text style={{ fontSize: 27, fontWeight: '900', color: sc.amtColor, marginTop: 2 }}>PKR {heroAmount.toLocaleString()}</Text>
+                    </View>
+
+                    {/* Detail rows */}
+                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#EEF2F7', paddingHorizontal: 14, marginBottom: 14 }}>
+                      {rows.map((row, idx) => (
+                        <View key={row.label} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderBottomWidth: idx === rows.length - 1 ? 0 : 1, borderBottomColor: '#F5F7FA' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name={row.icon} size={14} color="#94A3B8" style={{ marginRight: 8 }} />
+                            <Text style={{ fontSize: 13, color: '#64748B' }}>{row.label}</Text>
+                          </View>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A', maxWidth: '55%', textAlign: 'right' }}>{row.value}</Text>
+                        </View>
+                      ))}
+                    </View>
 
                     {/* Amount breakdown */}
-                    <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, marginTop: 16 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#EEF2F7', padding: 14 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 9 }}>
                         <Text style={{ fontSize: 13, color: '#64748B' }}>Total Amount</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }}>PKR {b.amount?.toLocaleString()}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>PKR {b.amount?.toLocaleString()}</Text>
                       </View>
                       {(b.discountFromRewards || 0) > 0 && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 9 }}>
                           <Text style={{ fontSize: 13, color: '#64748B' }}>Discount</Text>
-                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#16A34A' }}>- PKR {(b.discountFromRewards || 0).toLocaleString()}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>- PKR {(b.discountFromRewards || 0).toLocaleString()}</Text>
                         </View>
                       )}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 9 }}>
                         <Text style={{ fontSize: 13, color: '#64748B' }}>Paid Amount</Text>
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }}>PKR {(b.paidAmount || 0).toLocaleString()}</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>PKR {(b.paidAmount || 0).toLocaleString()}</Text>
                       </View>
-                      <View style={{ height: 1, backgroundColor: '#E2E8F0', marginVertical: 8 }} />
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#0A1551' }}>Outstanding</Text>
-                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: outstanding > 0 ? '#EF4444' : '#16A34A' }}>
+                      <View style={{ height: 1, backgroundColor: '#E2E8F0', marginVertical: 9 }} />
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0A1551' }}>Outstanding</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '900', color: outstanding > 0 ? '#EF4444' : '#16A34A' }}>
                           PKR {outstanding.toLocaleString()}
                         </Text>
                       </View>
                     </View>
                   </ScrollView>
 
-                  {/* Action Buttons */}
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-                    {!isPaid && (
+                  {/* Actions */}
+                  <View style={{ marginTop: 16 }}>
+                    {isPending ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10 }}>
+                        <Ionicons name="hourglass-outline" size={17} color="#7C3AED" style={{ marginRight: 9 }} />
+                        <Text style={{ flex: 1, fontSize: 12, color: '#5B21B6', fontWeight: '600', lineHeight: 16 }}>Marked as paid by cash — awaiting your doctor to confirm receipt.</Text>
+                      </View>
+                    ) : !isPaid ? (
                       <TouchableOpacity
-                        style={{ flex: 1, backgroundColor: '#0052FF', padding: 14, borderRadius: 12, alignItems: 'center' }}
+                        activeOpacity={0.9}
+                        style={{ backgroundColor: '#0052FF', paddingVertical: 15, borderRadius: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginBottom: 10, shadowColor: '#0052FF', shadowOpacity: 0.28, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 }}
                         onPress={() => { setShowBillDetailModal(false); handlePayBill(b); }}
                       >
-                        <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 14 }}>Pay Now</Text>
+                        <Ionicons name="card-outline" size={17} color="#FFF" style={{ marginRight: 7 }} />
+                        <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 15 }}>Pay Now · PKR {outstanding.toLocaleString()}</Text>
                       </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#F0FDF4', padding: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-                      onPress={() => { setShowBillDetailModal(false); handleDownloadInvoice(b); }}
-                    >
-                      <Ionicons name="cloud-download-outline" size={16} color="#16A34A" />
-                      <Text style={{ color: '#16A34A', fontWeight: 'bold', fontSize: 14 }}>
-                        {isPaid ? 'Download Receipt' : 'Download Invoice'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ paddingHorizontal: 20, padding: 14, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center' }}
-                      onPress={() => setShowBillDetailModal(false)}
-                    >
-                      <Text style={{ color: '#64748B', fontWeight: '600' }}>Close</Text>
-                    </TouchableOpacity>
+                    ) : null}
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={{ flex: 1, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', paddingVertical: 13, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
+                        onPress={() => { setShowBillDetailModal(false); handleDownloadInvoice(b); }}
+                      >
+                        <Ionicons name="cloud-download-outline" size={16} color="#16A34A" style={{ marginRight: 6 }} />
+                        <Text style={{ color: '#16A34A', fontWeight: '700', fontSize: 13.5 }}>{isPaid ? 'Download Receipt' : 'Download Invoice'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={{ width: 92, backgroundColor: '#F1F5F9', paddingVertical: 13, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+                        onPress={() => setShowBillDetailModal(false)}
+                      >
+                        <Text style={{ color: '#64748B', fontWeight: '700', fontSize: 13.5 }}>Close</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </>
               );
@@ -2630,7 +2688,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
         onRequestClose={() => setShowPaymentModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={[styles.modalContent, { paddingBottom: Math.min(insets.bottom, 8) + 16 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Checkout / Pay Invoice</Text>
               <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
@@ -2639,7 +2697,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
             </View>
 
             {checkoutBill && (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 0 }}>
                 <View style={styles.checkoutSummaryCard}>
                   <Text style={styles.checkoutInvoiceNum}>{checkoutBill.invoiceNumber}</Text>
                   <Text style={styles.checkoutDesc}>{checkoutBill.treatmentName}</Text>
@@ -2724,11 +2782,17 @@ export default function DoctorProfileScreen({ route, navigation }) {
                     <ActivityIndicator color="#FFF" />
                   ) : (
                     <>
-                      <Ionicons name="receipt-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.confirmPayBtnText}>Confirm Cash Payment & Download Receipt</Text>
+                      <Ionicons name="cash-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.confirmPayBtnText}>Confirm Cash Payment</Text>
                     </>
                   )}
                 </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
+                  <Ionicons name="information-circle-outline" size={13} color="#94A3B8" style={{ marginRight: 5 }} />
+                  <Text style={{ fontSize: 11, color: '#94A3B8', fontWeight: '500', textAlign: 'center', flexShrink: 1 }}>
+                    Your doctor confirms cash receipt — the bill shows Paid once confirmed.
+                  </Text>
+                </View>
               </ScrollView>
             )}
           </View>

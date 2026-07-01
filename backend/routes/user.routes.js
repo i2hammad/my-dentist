@@ -48,6 +48,7 @@ router.get('/platform-settings', async (req, res) => {
           jazzcashNumber:   s.payments?.jazzcashNumber   || '',
         },
         commissionRate: s.commissionRate ?? 10,
+        popularPointsThreshold: s.popularPointsThreshold ?? 20000,
       },
     });
   } catch (e) {

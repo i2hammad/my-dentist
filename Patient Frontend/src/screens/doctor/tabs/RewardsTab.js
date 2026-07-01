@@ -30,6 +30,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
     jazzcashNumber: '',
     jazzcashTitle: '',
   });
+  const [popularPointsThreshold, setPopularPointsThreshold] = useState(20000);
 
   // Doctor's payout (bank) account for receiving My Dentist payments.
   // `payout` = the saved account; `form` = the modal's editable copy.
@@ -87,7 +88,10 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
         const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.data?.success) setPlatformPayments(res.data.data.payments);
+        if (res.data?.success) {
+          setPlatformPayments(res.data.data.payments);
+          if (res.data.data.popularPointsThreshold) setPopularPointsThreshold(res.data.data.popularPointsThreshold);
+        }
       } catch (_) {}
     })();
   }, []);
@@ -149,7 +153,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
     );
   };
 
-  const POINTS_THRESHOLD = 20000;
+  const POINTS_THRESHOLD = popularPointsThreshold;
   const canGenerateCode = points >= POINTS_THRESHOLD;
 
   const handleGenerateCode = () => {

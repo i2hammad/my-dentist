@@ -179,6 +179,7 @@ function AppTab({ isSuper }) {
       await api.patch('/api/admin/settings', {
         rewardPointsPerAppointment: Number(s.rewardPointsPerAppointment),
         rewardPointValuePkr: Number(s.rewardPointValuePkr),
+        popularPointsThreshold: Number(s.popularPointsThreshold ?? 20000),
         defaultConsultationFee: Number(s.defaultConsultationFee),
         commissionRate: Number(s.commissionRate),
         supportEmail: s.supportEmail, payments: s.payments,
@@ -198,6 +199,11 @@ function AppTab({ isSuper }) {
         <div className="field-row">
           <Field label="Points per Appointment" type="number" value={s.rewardPointsPerAppointment} onChange={set('rewardPointsPerAppointment')} />
           <Field label="Point Value (PKR)" type="number" value={s.rewardPointValuePkr} onChange={set('rewardPointValuePkr')} />
+        </div>
+        <div className="field-row">
+          <Field label="Popular Badge Points Threshold" type="number" value={s.popularPointsThreshold ?? 20000} onChange={set('popularPointsThreshold')}
+            hint="Doctors reaching this many points unlock the green Popular badge." />
+          <div />
         </div>
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Commission</h4>
         <div className="field-row">

@@ -640,7 +640,7 @@ exports.updateSettings = async (req, res) => {
     const me = await AdminProfile.findOne({ userId: req.user._id });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can change app settings');
     const s = await getOrCreateSettings();
-    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'commissionRate', 'campaignRotationInterval', 'doctorCampaignRotationInterval'];
+    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'popularPointsThreshold', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'commissionRate', 'campaignRotationInterval', 'doctorCampaignRotationInterval'];
     for (const k of allowed) if (k in req.body) s[k] = req.body[k];
     await s.save();
     ok(res, s);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, EyeSlash, Plus, MapPin, Briefcase, EnvelopeSimple, Key, ArrowsClockwise, GenderMale, GenderFemale, GenderIntersex } from '@phosphor-icons/react';
+import { Tooth, SealCheck, Clock, Sparkle, Check, Trash, Eye, EyeSlash, Plus, MapPin, Briefcase, EnvelopeSimple, Key, ArrowsClockwise, GenderMale, GenderFemale, GenderIntersex, Gift } from '@phosphor-icons/react';
 
 // ♂ / ♀ gender chip.
 function GenderTag({ value }) {
@@ -42,6 +42,7 @@ export default function Dentists() {
   const [showAdd, setShowAdd] = useState(false);
   const [resetFor, setResetFor] = useState(null);   // dentist whose password we're resetting
   const [pwMap, setPwMap] = useState({});            // dentistId -> { value, show } (only the just-reset password)
+  const [givePointsFor, setGivePointsFor] = useState(null); // null = closed, 'pick' = open with search, or a specific doctor object
 
   const approve = async (d) => {
     try { await L.patch(d._id, { pmdcVerified: true }); toast(`${d.fullName} approved`); }
@@ -67,6 +68,7 @@ export default function Dentists() {
       <PageHeader title="Dentists" crumb="Dentists"
         actions={<>
           <button className="btn ghost" onClick={() => nav('/verification')}><SealCheck size={16} style={{ marginRight: 6, verticalAlign: -2 }} />Approve New Dentists</button>
+          <button className="btn ghost" onClick={() => setGivePointsFor('pick')}><Gift size={16} style={{ marginRight: 6, verticalAlign: -2 }} />Give Points</button>
           <ExportButton path="/api/admin/dentists" params={{ search, status }} columns={DENTIST_CSV_COLS} filename="dentists.csv" />
           <button className="btn primary" onClick={() => setShowAdd(true)}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Dentist</button>
         </>} />
@@ -169,6 +171,7 @@ export default function Dentists() {
                     <button className="btn ghost" style={{ padding: '5px 10px', fontSize: 12.5 }} onClick={() => nav(`/dentists/${d._id}`)}>
                       <Eye size={14} style={{ marginRight: 4, verticalAlign: -2 }} />View User Details
                     </button>
+                    <button className="icon-btn" title="Give Points" onClick={() => setGivePointsFor(d)}><Gift size={16} /></button>
                     {!d.pmdcVerified && <button className="icon-btn" title="Approve" onClick={() => approve(d)}><Check size={16} /></button>}
                     <button className="icon-btn del" title="Delete" onClick={() => del(d)}><Trash size={16} /></button>
                   </td>
@@ -185,6 +188,7 @@ export default function Dentists() {
 
       {showAdd && <AddDentist onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); L.reload(); toast('Dentist created'); }} toast={toast} />}
       {resetFor && <ResetPasswordModal d={resetFor} onClose={() => setResetFor(null)} onReset={(pw) => onReset(resetFor, pw)} toast={toast} />}
+      {givePointsFor && <GivePointsModal preSelected={givePointsFor === 'pick' ? null : givePointsFor} onClose={() => setGivePointsFor(null)} onSaved={() => { setGivePointsFor(null); L.reload(); }} toast={toast} />}
     </div>
   );
 }
@@ -237,6 +241,113 @@ function ResetPasswordModal({ d, onClose, onReset, toast }) {
           </div>
         </>
       )}
+    </Modal>
+  );
+}
+
+function GivePointsModal({ preSelected, onClose, onSaved, toast }) {
+  const [search, setSearch] = useState('');
+  const [doctors, setDoctors] = useState([]);
+  const [selected, setSelected] = useState(preSelected || null);
+  const [points, setPoints] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Load all doctors once for the picker
+  useState(() => {
+    if (!preSelected) {
+      api.get('/api/admin/dentists', { params: { limit: 200 } })
+        .then((r) => setDoctors(r.data.data || []))
+        .catch(() => {});
+    }
+  });
+
+  const filtered = doctors.filter((d) =>
+    !search || d.fullName?.toLowerCase().includes(search.toLowerCase()) || d.userId?.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const submit = async () => {
+    if (!selected) return toast('Select a doctor first', 'error');
+    const pts = parseInt(points, 10);
+    if (isNaN(pts) || pts === 0) return toast('Enter a non-zero number of points', 'error');
+    setBusy(true);
+    try {
+      await api.patch(`/api/admin/dentists/${selected._id}/popular`, { addPoints: pts });
+      toast(`${pts > 0 ? '+' : ''}${pts} pts given to ${selected.fullName}`);
+      onSaved();
+    } catch (e) {
+      toast(e.response?.data?.message || 'Failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Give Points to Doctor"
+      onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={busy || !selected || !points} onClick={submit}>
+          {busy ? 'Saving…' : 'Give Points'}
+        </button>
+      </>}
+    >
+      {/* Doctor picker — hidden when pre-selected from the row button */}
+      {!preSelected && (
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Select Doctor</label>
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', marginBottom: 8 }}
+          />
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+            {filtered.length === 0 && <div className="muted" style={{ padding: '10px 14px', fontSize: 13 }}>No doctors found</div>}
+            {filtered.map((d) => (
+              <div
+                key={d._id}
+                onClick={() => setSelected(d)}
+                style={{
+                  padding: '9px 14px', cursor: 'pointer', fontSize: 13,
+                  background: selected?._id === d._id ? 'var(--blue)' : 'transparent',
+                  color: selected?._id === d._id ? '#fff' : 'inherit',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <strong>{d.fullName}</strong>
+                <span style={{ marginLeft: 8, opacity: 0.7 }}>{d.specialization}</span>
+                <span style={{ float: 'right', opacity: 0.7 }}>{(d.rewardPoints || 0).toLocaleString()} pts</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected doctor summary */}
+      {selected && (
+        <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+          <strong>{selected.fullName}</strong>
+          <span style={{ marginLeft: 8, color: '#64748B' }}>{selected.specialization}</span>
+          <span style={{ float: 'right', fontWeight: 700 }}>{(selected.rewardPoints || 0).toLocaleString()} pts current</span>
+        </div>
+      )}
+
+      <Field
+        label="Points to Add (use negative to deduct)"
+        type="number"
+        value={points}
+        onChange={setPoints}
+        placeholder="e.g. 500"
+      />
+      <Field
+        label="Note (optional)"
+        value={note}
+        onChange={setNote}
+        placeholder="Reason for this adjustment…"
+      />
     </Modal>
   );
 }

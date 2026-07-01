@@ -451,20 +451,12 @@ const completeAppointment = async (req, res) => {
     try {
       const AppSettings = require('../models/AppSettings');
       const settings = await AppSettings.findOne({ key: 'global' });
-      const patientPts = settings?.rewardPointsPerAppointment ?? 50;
+      const doctorPts = settings?.rewardPointsPerAppointment ?? 50;
 
-      // Patient earns loyalty points for completing the visit.
-      const Reward = require('../models/Reward');
-      await Reward.create({
-        patientId: appointment.patientId._id,
-        type: 'visit',
-        points: patientPts,
-        description: `Completed appointment with Dr. ${appointment.doctorId.fullName}`,
-      });
-
-      // Doctor earns points too — drives the green "popular" badge at 20k.
+      // Doctor earns points — drives the green "popular" badge at 20k.
+      // Patient reward is awarded separately when the bill is paid (2% of treatment amount).
       const { addDoctorPoints } = require('../utils/popular');
-      await addDoctorPoints(appointment.doctorId._id, patientPts);
+      await addDoctorPoints(appointment.doctorId._id, doctorPts);
 
       // Referral bonus: 100/100 to the patient + their referrer after this
       // patient's FIRST completed treatment.

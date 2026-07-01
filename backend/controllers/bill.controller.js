@@ -239,6 +239,23 @@ const createBill = async (req, res) => {
       await DoctorProfile.findByIdAndUpdate(doctorProfile._id, { $inc: { rewardPoints: 50 } });
     }
 
+    // Award patient 2% treatment reward when bill is created as paid.
+    if (status === 'paid') {
+      const pts = Math.floor(finalAmount * 0.02);
+      if (pts > 0) {
+        const existing = await Reward.findOne({ billId: bill._id });
+        if (!existing) {
+          await Reward.create({
+            patientId,
+            type: 'visit',
+            points: pts,
+            description: 'Points earned from treatment payment (2%)',
+            billId: bill._id,
+          });
+        }
+      }
+    }
+
     // Notify the patient — but not for drafts (drafts aren't issued yet).
     if (status !== 'draft') {
       await Notification.create({
@@ -350,12 +367,16 @@ const payBill = async (req, res) => {
 
     const rewardPoints = Math.floor(bill.amount * 0.02);
     if (rewardPoints > 0) {
-      await Reward.create({
-        patientId: bill.patientId._id,
-        type: 'visit',
-        points: rewardPoints,
-        description: 'Points earned from payment'
-      });
+      const existingReward = await Reward.findOne({ billId: bill._id });
+      if (!existingReward) {
+        await Reward.create({
+          patientId: bill.patientId._id,
+          type: 'visit',
+          points: rewardPoints,
+          description: 'Points earned from treatment payment (2%)',
+          billId: bill._id,
+        });
+      }
     }
 
     await Notification.create({
@@ -413,12 +434,16 @@ const confirmPayment = async (req, res) => {
     // Grant the reward now that the cash payment is confirmed.
     const rewardPoints = Math.floor(bill.amount * 0.02);
     if (rewardPoints > 0) {
-      await Reward.create({
-        patientId: bill.patientId._id,
-        type: 'visit',
-        points: rewardPoints,
-        description: 'Points earned from payment'
-      });
+      const existingReward = await Reward.findOne({ billId: bill._id });
+      if (!existingReward) {
+        await Reward.create({
+          patientId: bill.patientId._id,
+          type: 'visit',
+          points: rewardPoints,
+          description: 'Points earned from treatment payment (2%)',
+          billId: bill._id,
+        });
+      }
     }
 
     // Notify the patient.
@@ -620,6 +645,22 @@ const updateBill = async (req, res) => {
     // Award 50 reward points to the doctor when marking a bill as paid.
     if (updates.status === 'paid' && bill.status !== 'paid') {
       await DoctorProfile.findByIdAndUpdate(doctorProfile._id, { $inc: { rewardPoints: 50 } });
+
+      // Award patient 2% treatment reward.
+      const paidFinal = updates.finalAmount !== undefined ? updates.finalAmount : (bill.finalAmount || bill.amount);
+      const pts = Math.floor(paidFinal * 0.02);
+      if (pts > 0) {
+        const existing = await Reward.findOne({ billId: bill._id });
+        if (!existing) {
+          await Reward.create({
+            patientId: bill.patientId,
+            type: 'visit',
+            points: pts,
+            description: 'Points earned from treatment payment (2%)',
+            billId: bill._id,
+          });
+        }
+      }
     }
 
     res.status(200).json({

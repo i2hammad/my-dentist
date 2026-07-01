@@ -553,7 +553,6 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
       if (res.data?.success) {
         const newBill = res.data.data;
-        Alert.alert('Success', asDraft ? 'Saved as draft.' : (editingBillId ? 'Bill updated successfully!' : 'Bill created successfully!'));
         setEditingBillId(null);
 
         // Drafts: just refresh the list and stay; don't go to print.
@@ -563,6 +562,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
           fetchBills();
           setSubTab('previous');
           setSaving(false);
+          Alert.alert('Saved', 'Bill saved as draft.');
           return;
         }
 
@@ -588,9 +588,14 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         setPaidAmount('0');
         setDiscount('0');
         setPointsCode('');
-        
         fetchBills();
-        setSubTab('print'); // Redirect to print tab immediately
+
+        // Navigate to Print Preview after user acknowledges success.
+        Alert.alert(
+          editingBillId ? 'Bill Updated' : 'Bill Created',
+          'Bill saved successfully.',
+          [{ text: 'View Receipt', onPress: () => setSubTab('print') }]
+        );
       }
     } catch (err) {
       console.log('Error creating bill:', err);
@@ -837,8 +842,10 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   }, [bills, billSearch, billStatusFilter, dateRange, sort]);
 
   const { totalPaid, totalDiscount, totalOutstanding, monthRevenue, allTimeRevenue, overdueBills, overdueSum, trendPct, collectionRate, counts, filteredBills } = derived;
-  const visibleBills = filteredBills.slice(0, billVisible);
-  const hasMoreBills = visibleBills.length < filteredBills.length;
+  // Previous Bills tab shows only paid bills.
+  const prevBills = filteredBills.filter((b) => b.status === 'paid');
+  const visibleBills = prevBills.slice(0, billVisible);
+  const hasMoreBills = visibleBills.length < prevBills.length;
   React.useEffect(() => { setBillVisible(20); }, [billSearch, billStatusFilter, dateRange, sort]);
 
   return (
@@ -943,7 +950,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   </TouchableOpacity>
                 )}
               </View>
-              <TouchableOpacity style={styles.exportBtn} onPress={() => exportCsv(filteredBills)} disabled={exporting}>
+              <TouchableOpacity style={styles.exportBtn} onPress={() => exportCsv(prevBills)} disabled={exporting}>
                 {exporting ? <ActivityIndicator size="small" color="#0052FF" /> : <Ionicons name="download-outline" size={18} color="#0052FF" />}
                 <Text style={styles.exportBtnText}>Export</Text>
               </TouchableOpacity>
@@ -961,32 +968,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               })}
             </ScrollView>
 
-            {/* Status chips (with counts) + sort */}
-            <View style={styles.filterSortRow}>
-              <View style={styles.billFilterRow}>
-                {BILL_FILTERS.map((f) => {
-                  const active = billStatusFilter === f.key;
-                  const c = counts[f.key] || 0;
-                  return (
-                    <TouchableOpacity key={f.key} style={[styles.billChip, active && styles.billChipActive]} onPress={() => setBillStatusFilter(f.key)}>
-                      <Text style={[styles.billChipText, active && styles.billChipTextActive]}>{f.label}</Text>
-                      {c > 0 && (
-                        <View style={[styles.chipCount, active && styles.chipCountActive]}>
-                          <Text style={[styles.chipCountText, active && styles.chipCountTextActive]}>{c}</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+            {/* Sort button (status filter chips hidden — Previous Bills shows paid bills only) */}
             <View style={styles.sortRow}>
-              {(billStatusFilter === 'outstanding' || billStatusFilter === 'overdue') && (
-                <TouchableOpacity style={styles.clearFilterBtn} onPress={() => setBillStatusFilter('all')}>
-                  <Ionicons name="close" size={13} color="#0052FF" />
-                  <Text style={styles.clearFilterText}>{billStatusFilter === 'overdue' ? 'Overdue' : 'Outstanding'}</Text>
-                </TouchableOpacity>
-              )}
               <View style={{ flex: 1 }} />
               <TouchableOpacity
                 style={styles.sortBtn}
@@ -1002,9 +985,9 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
             {loading ? (
               <ActivityIndicator size="small" color="#0052FF" style={{ marginVertical: 30 }} />
-            ) : filteredBills.length === 0 ? (
+            ) : prevBills.length === 0 ? (
               <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
-                {billSearch || billStatusFilter !== 'all' || dateRange !== 'all' ? 'No bills match your filters.' : "No bills found. Create a bill in the 'Current Bill' tab."}
+                {billSearch || dateRange !== 'all' ? 'No paid bills match your filters.' : 'No paid bills found yet.'}
               </Text>
             ) : !isWide ? (
               // ── Phone: stacked cards (no horizontal scroll) ──
@@ -1127,10 +1110,10 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
             )}
 
             {/* Pagination: showing count + Load More */}
-            {!loading && filteredBills.length > 0 && (
+            {!loading && prevBills.length > 0 && (
               <View style={{ alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ color: '#94A3B8', fontSize: 12, marginBottom: hasMoreBills ? 10 : 0 }}>
-                  Showing {visibleBills.length} of {filteredBills.length}
+                  Showing {visibleBills.length} of {prevBills.length}
                 </Text>
                 {hasMoreBills && (
                   <TouchableOpacity style={styles.loadMoreBtn} onPress={() => setBillVisible((c) => c + 20)}>
@@ -1323,34 +1306,21 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   <View style={{ marginBottom: 16 }}>
                     <Text style={styles.sumLabelText}>Payment Method</Text>
                     <View style={{ marginTop: 6, gap: 8 }}>
-                      <TouchableOpacity 
-                        style={[
-                          styles.payMethodBtn, 
-                          paymentMethod === 'cash' && styles.payMethodBtnActive
-                        ]}
-                        onPress={() => setPaymentMethod('cash')}
-                      >
-                        <Ionicons name="cash-outline" size={16} color={paymentMethod === 'cash' ? '#0052FF' : '#475569'} />
-                        <Text style={[styles.payMethodText, paymentMethod === 'cash' && styles.payMethodTextActive]}>Cash</Text>
-                      </TouchableOpacity>
-
-                      <View style={[styles.payMethodBtn, styles.payMethodBtnDisabled]}>
-                        <Ionicons name="phone-portrait-outline" size={16} color="#94A3B8" />
-                        <Text style={styles.payMethodTextDisabled}>EasyPaisa</Text>
-                        <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
-                      </View>
-
-                      <View style={[styles.payMethodBtn, styles.payMethodBtnDisabled]}>
-                        <Ionicons name="wallet-outline" size={16} color="#94A3B8" />
-                        <Text style={styles.payMethodTextDisabled}>JazzCash</Text>
-                        <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
-                      </View>
-
-                      <View style={[styles.payMethodBtn, styles.payMethodBtnDisabled]}>
-                        <Ionicons name="card-outline" size={16} color="#94A3B8" />
-                        <Text style={styles.payMethodTextDisabled}>Credit / Debit Card</Text>
-                        <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
-                      </View>
+                      {[
+                        { key: 'cash',      icon: 'cash-outline',           label: 'Cash' },
+                        { key: 'easypaisa', icon: 'phone-portrait-outline', label: 'EasyPaisa' },
+                        { key: 'jazzcash',  icon: 'wallet-outline',         label: 'JazzCash' },
+                        { key: 'card',      icon: 'card-outline',           label: 'Credit / Debit Card' },
+                      ].map(pm => (
+                        <TouchableOpacity
+                          key={pm.key}
+                          style={[styles.payMethodBtn, paymentMethod === pm.key && styles.payMethodBtnActive]}
+                          onPress={() => setPaymentMethod(pm.key)}
+                        >
+                          <Ionicons name={pm.icon} size={16} color={paymentMethod === pm.key ? '#0052FF' : '#475569'} />
+                          <Text style={[styles.payMethodText, paymentMethod === pm.key && styles.payMethodTextActive]}>{pm.label}</Text>
+                        </TouchableOpacity>
+                      ))}
                     </View>
                   </View>
 

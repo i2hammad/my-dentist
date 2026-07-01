@@ -32,6 +32,12 @@ const rewardSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Prevents awarding duplicate points for the same bill across payment paths.
+    billId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Bill',
+      default: null,
+    },
     // Set once a doctor applies the redeem code to a bill (prevents reuse).
     appliedAt: {
       type: Date,

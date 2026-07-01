@@ -973,186 +973,717 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
           {/* ══════════════ ABOUT ══════════════ */}
           {activeTab === 'About' && (
-            <View>
-              <Text style={styles.sectionTitle}>About Doctor</Text>
-              <Text style={styles.aboutDesc}>
-                {doctor.about || 'No biography provided.'}
-              </Text>
-              <View style={styles.infoList}>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}><Ionicons name="time-outline" size={18} color="#0052FF" /></View>
-                  <Text style={styles.infoLabel}>Experience</Text>
-                  <Text style={styles.infoValue}>{doctor.experience || 0}+ Years</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}><Ionicons name="school-outline" size={18} color="#0052FF" /></View>
-                  <Text style={styles.infoLabel}>Qualification</Text>
-                  <Text style={styles.infoValue}>{doctor.qualification || 'BDS'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}><Ionicons name="medkit-outline" size={18} color="#0052FF" /></View>
-                  <Text style={styles.infoLabel}>Specialization</Text>
-                  <Text style={styles.infoValue}>{doctor.specialization || 'Dentist'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}><Ionicons name="shield-checkmark-outline" size={18} color="#0052FF" /></View>
-                  <Text style={styles.infoLabel}>PMDC Verified</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <Text style={[styles.infoValue, { flex: 0, marginRight: 6 }]}>{doctor.pmdcVerified ? 'Yes' : 'Pending'}</Text>
-                    {doctor.pmdcVerified && <Ionicons name="checkmark-circle" size={16} color="#16A34A" />}
+            <View style={{ gap: 14 }}>
+
+              {/* ── TRUST STRIP (soft hero: verification + metrics) ── */}
+              <View style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: '#F1F5F9',
+                overflow: 'hidden',
+                shadowColor: '#0A1551',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.06,
+                shadowRadius: 12,
+                elevation: 3,
+              }}>
+                {/* faux-gradient wash via stacked tints (behind content) */}
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 84, backgroundColor: '#EFF6FF' }} />
+                <View style={{ position: 'absolute', top: -34, right: -24, width: 120, height: 120, borderRadius: 60, backgroundColor: '#DBEAFE', opacity: 0.7 }} />
+                <View style={{ position: 'absolute', top: 6, right: 26, width: 64, height: 64, borderRadius: 32, backgroundColor: '#BFDBFE', opacity: 0.6 }} />
+
+                <View style={{ padding: 18 }}>
+                  {/* eyebrow */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#0052FF' }} />
+                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF', letterSpacing: 1.2 }}>TRUST & CREDENTIALS</Text>
+                  </View>
+
+                  {/* PMDC verified row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{
+                      width: 52, height: 52, borderRadius: 16,
+                      backgroundColor: doctor.pmdcVerified ? '#DCFCE7' : '#FEF3C7',
+                      justifyContent: 'center', alignItems: 'center',
+                      borderWidth: 1, borderColor: doctor.pmdcVerified ? '#BBF7D0' : '#FDE68A',
+                    }}>
+                      <Ionicons name={doctor.pmdcVerified ? 'shield-checkmark' : 'shield-outline'} size={26} color={doctor.pmdcVerified ? '#16A34A' : '#D97706'} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F172A', lineHeight: 20 }}>
+                        {doctor.pmdcVerified ? 'PMDC Verified' : 'PMDC Verification Pending'}
+                      </Text>
+                      <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', lineHeight: 16, marginTop: 2 }}>
+                        {doctor.pmdcVerified ? 'Licensed & registered practitioner' : 'Registration under review'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* divider */}
+                  <View style={{ height: 1, backgroundColor: '#F1F5F9', marginVertical: 14 }} />
+
+                  {/* experience + rating + reviews mini-metrics */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '900', color: '#0A1551', lineHeight: 24 }}>{doctor.experience || 0}+</Text>
+                      <Text style={{ fontSize: 9.5, color: '#64748B', fontWeight: '700', letterSpacing: 0.3, marginTop: 3 }} numberOfLines={1}>YEARS EXP.</Text>
+                    </View>
+                    <View style={{ width: 1, height: 30, backgroundColor: '#F1F5F9' }} />
+                    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <Ionicons name="star" size={15} color="#D97706" />
+                        <Text style={{ fontSize: 20, fontWeight: '900', color: '#0A1551', lineHeight: 24 }}>{avgRating || '0.0'}</Text>
+                      </View>
+                      <Text style={{ fontSize: 9.5, color: '#64748B', fontWeight: '700', letterSpacing: 0.3, marginTop: 3 }} numberOfLines={1}>RATING</Text>
+                    </View>
+                    <View style={{ width: 1, height: 30, backgroundColor: '#F1F5F9' }} />
+                    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '900', color: '#0A1551', lineHeight: 24 }} numberOfLines={1}>{totalReviewCount || 0}</Text>
+                      <Text style={{ fontSize: 9.5, color: '#64748B', fontWeight: '700', letterSpacing: 0.3, marginTop: 3 }} numberOfLines={1}>REVIEWS</Text>
+                    </View>
                   </View>
                 </View>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}><Ionicons name="globe-outline" size={18} color="#0052FF" /></View>
-                  <Text style={styles.infoLabel}>Languages</Text>
-                  <Text style={styles.infoValue}>{(doctor.languages || ['English', 'Urdu']).join(', ')}</Text>
+              </View>
+
+              {/* ── BIOGRAPHY ── */}
+              <View style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 18,
+                padding: 18,
+                borderWidth: 1,
+                borderColor: '#F1F5F9',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.04,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="person-outline" size={16} color="#0052FF" />
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1 }} numberOfLines={1}>ABOUT {drName(doctor.fullName).toUpperCase()}</Text>
                 </View>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}><Ionicons name="time-outline" size={18} color="#0052FF" /></View>
-                  <Text style={styles.infoLabel}>Clinic Timing</Text>
-                  <Text style={[styles.infoValue, { flex: 1 }]}>{formatClinicTiming(doctor.clinicTiming)}</Text>
-                  <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+                <Text style={{ fontSize: 13.5, color: '#475569', lineHeight: 22, fontWeight: '400' }}>
+                  {doctor.about || 'No biography provided.'}
+                </Text>
+              </View>
+
+              {/* ── CREDENTIALS LEDGER (full-width rows → never truncates) ── */}
+              <View style={{ gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginLeft: 2 }}>
+                  <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF' }} />
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>CREDENTIALS</Text>
+                </View>
+
+                <View style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: '#F1F5F9',
+                  overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.04,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  {[
+                    { icon: 'ribbon-outline', color: '#D97706', bg: '#FEF3C7', border: '#FDE68A', lbl: 'EXPERIENCE', val: (doctor.experience || 0) + ' years in dental practice' },
+                    { icon: 'school-outline', color: '#7C3AED', bg: '#EDE9FE', border: '#DDD6FE', lbl: 'QUALIFICATION', val: doctor.qualification || 'BDS' },
+                    { icon: 'medkit-outline', color: '#0052FF', bg: '#EFF6FF', border: '#BFDBFE', lbl: 'SPECIALIZATION', val: doctor.specialization || 'General Dentistry' },
+                    doctor.pmdcVerified
+                      ? { icon: 'shield-checkmark', color: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0', lbl: 'PMDC REGISTRATION', val: 'Verified & registered practitioner' }
+                      : { icon: 'shield-outline', color: '#D97706', bg: '#FEF3C7', border: '#FDE68A', lbl: 'PMDC REGISTRATION', val: 'Verification pending' },
+                  ].map(function (r, i, arr) {
+                    return (
+                      <View key={i} style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 14,
+                        paddingHorizontal: 16,
+                        paddingVertical: 14,
+                        borderBottomWidth: i === arr.length - 1 ? 0 : 1,
+                        borderBottomColor: '#F1F5F9',
+                      }}>
+                        <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: r.bg, borderWidth: 1, borderColor: r.border, justifyContent: 'center', alignItems: 'center' }}>
+                          <Ionicons name={r.icon} size={21} color={r.color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, marginBottom: 3 }}>{r.lbl}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', lineHeight: 19 }}>{r.val}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
+
+              {/* ── LANGUAGES ── */}
+              <View style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 18,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: '#F1F5F9',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.04,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="chatbubbles-outline" size={19} color="#0052FF" />
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1 }} numberOfLines={1}>LANGUAGES SPOKEN</Text>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {(doctor.languages && doctor.languages.length ? doctor.languages : ['English', 'Urdu']).map(function (lang, i) {
+                    return (
+                      <View key={i} style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 5,
+                        backgroundColor: '#EFF6FF',
+                        borderWidth: 1, borderColor: '#DBEAFE',
+                        borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+                      }}>
+                        <Ionicons name="language-outline" size={13} color="#0052FF" />
+                        <Text style={{ fontSize: 12.5, color: '#1D4ED8', fontWeight: '700' }}>{lang}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ── CLINIC LOCATION + TIMINGS ── */}
+              <View style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 18,
+                overflow: 'hidden',
+                borderWidth: 1,
+                borderColor: '#F1F5F9',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.04,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                {/* header */}
+                <View style={{ paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+                  <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="business-outline" size={19} color="#D97706" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.8 }}>CLINIC</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', lineHeight: 19 }} numberOfLines={2}>
+                      {doctor.clinicName || 'Clinic details'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* address row */}
+                {(doctor.address || doctor.city) ? (
+                  <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+                    <Ionicons name="location-outline" size={16} color="#64748B" style={{ marginTop: 1 }} />
+                    <Text style={{ flex: 1, fontSize: 12.5, color: '#475569', fontWeight: '500', lineHeight: 18 }}>
+                      {[doctor.address, doctor.city].filter(Boolean).join(', ')}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* timings — one row per line from formatClinicTiming (days / morning / evening / off) */}
+                <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <Ionicons name="time-outline" size={15} color="#0052FF" />
+                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.8 }}>OPENING HOURS</Text>
+                  </View>
+                  <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', paddingHorizontal: 14, paddingVertical: 4 }}>
+                    {String(formatClinicTiming(doctor.clinicTiming) || '').split('\n').filter(function (l) { return l.trim().length; }).map(function (line, i, all) {
+                      var text = line.trim();
+                      var closed = /off|clos|holiday/i.test(text);
+                      var morning = /morning/i.test(text);
+                      var evening = /evening|night/i.test(text);
+                      var ic = closed ? 'moon-outline' : morning ? 'sunny-outline' : evening ? 'partly-sunny-outline' : 'calendar-outline';
+                      var icColor = closed ? '#94A3B8' : morning ? '#D97706' : evening ? '#7C3AED' : '#0052FF';
+                      return (
+                        <View key={i} style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 10,
+                          paddingVertical: 11,
+                          borderBottomWidth: i === all.length - 1 ? 0 : 1,
+                          borderBottomColor: '#F1F5F9',
+                        }}>
+                          <Ionicons name={ic} size={16} color={icColor} />
+                          <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: closed ? '#94A3B8' : '#334155', lineHeight: 18 }}>{text}</Text>
+                          {closed ? (
+                            <View style={{ backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.4 }}>CLOSED</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+
             </View>
           )}
 
           {/* ══════════════ TREATMENTS ══════════════ */}
           {activeTab === 'Treatments' && (
             <View>
-              <Text style={styles.sectionTitle}>Dental Treatments</Text>
-              <Text style={styles.sectionSubtitle}>Select or view treatments offered by {drName(doctor.fullName)}</Text>
-              {treatments.length > 0 ? (
-                treatments.map((t) => (
-                  <View key={t._id} style={styles.treatmentRow}>
-                    <View style={styles.checkboxContainer}>
-                      <Ionicons name="checkmark-circle" size={18} color="#0052FF" style={{ marginRight: 8 }} />
-                      <Text style={styles.treatmentNameTxt}>{t.name}</Text>
+              {/* ─── Header ─── */}
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF', marginRight: 8 }} />
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>MENU OF CARE</Text>
+                </View>
+                <Text style={{ fontSize: 23, fontWeight: '800', color: '#0A1551', letterSpacing: -0.4 }}>Treatments</Text>
+                <Text style={{ fontSize: 13.5, color: '#64748B', marginTop: 4, lineHeight: 20 }}>
+                  Services offered by {drName(doctor.fullName)}, with clear and upfront pricing.
+                </Text>
+              </View>
+
+              {(() => {
+                if (!treatments || treatments.length === 0) {
+                  return (
+                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', paddingVertical: 36, paddingHorizontal: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                      <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                        <Ionicons name="medkit-outline" size={28} color="#0052FF" />
+                      </View>
+                      <Text style={{ fontSize: 15.5, fontWeight: '800', color: '#0F172A' }}>No treatments listed yet</Text>
+                      <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+                        {drName(doctor.fullName)} hasn't added a service menu yet. You can still book a consultation to discuss your care.
+                      </Text>
                     </View>
-                    <View style={styles.priceContainer}>
-                      <Text style={styles.priceTxt}>PKR {(t.priceMin || 0).toLocaleString()} - {(t.priceMax || 0).toLocaleString()}</Text>
+                  );
+                }
+
+                const fmt = (v) => (Number(v) || 0).toLocaleString();
+
+                // Derive a soft icon + colour from the treatment name (case-insensitive).
+                const meta = (rawName) => {
+                  const n = (rawName || '').toLowerCase();
+                  if (/(whiten|bleach)/.test(n)) return { icon: 'sparkles-outline', fg: '#D97706', bg: '#FEF3C7', bd: '#FDE68A' };
+                  if (/(crown|cap|veneer)/.test(n)) return { icon: 'diamond-outline', fg: '#7C3AED', bg: '#EDE9FE', bd: '#DDD6FE' };
+                  if (/(root\s*canal|rct|endo)/.test(n)) return { icon: 'medical-outline', fg: '#DC2626', bg: '#FEE2E2', bd: '#FECACA' };
+                  if (/(fill|cavity|restor|composite)/.test(n)) return { icon: 'bandage-outline', fg: '#7C3AED', bg: '#EDE9FE', bd: '#DDD6FE' };
+                  if (/(denture|bridge)/.test(n)) return { icon: 'medkit-outline', fg: '#0052FF', bg: '#EFF6FF', bd: '#DBEAFE' };
+                  if (/(implant)/.test(n)) return { icon: 'construct-outline', fg: '#0052FF', bg: '#DBEAFE', bd: '#BFDBFE' };
+                  if (/(extract|removal|wisdom)/.test(n)) return { icon: 'cut-outline', fg: '#DC2626', bg: '#FEE2E2', bd: '#FECACA' };
+                  if (/(scal|clean|polish|hygiene)/.test(n)) return { icon: 'water-outline', fg: '#0052FF', bg: '#EFF6FF', bd: '#DBEAFE' };
+                  if (/(check|exam|consult)/.test(n)) return { icon: 'clipboard-outline', fg: '#16A34A', bg: '#DCFCE7', bd: '#BBF7D0' };
+                  if (/(x-?ray|radiograph|scan)/.test(n)) return { icon: 'scan-outline', fg: '#475569', bg: '#F1F5F9', bd: '#E2E8F0' };
+                  if (/(brace|align|ortho|invisalign)/.test(n)) return { icon: 'git-compare-outline', fg: '#0052FF', bg: '#EFF6FF', bd: '#DBEAFE' };
+                  return { icon: 'medkit-outline', fg: '#0052FF', bg: '#EFF6FF', bd: '#DBEAFE' };
+                };
+
+                const mins = treatments.map((t) => Number(t.priceMin) || 0).filter((v) => v > 0);
+                const startFrom = mins.length ? Math.min(...mins) : 0;
+
+                return (
+                  <View>
+                    {/* ─── Simple summary strip ─── */}
+                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 16, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                      <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                        <Ionicons name="pricetags-outline" size={22} color="#0052FF" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>
+                          {treatments.length} {treatments.length === 1 ? 'Treatment' : 'Treatments'}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Transparent, upfront pricing</Text>
+                      </View>
+                      {startFrom > 0 && (
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.8 }}>FROM</Text>
+                          <Text style={{ fontSize: 18, fontWeight: '800', color: '#0A1551', letterSpacing: -0.3 }}>PKR {fmt(startFrom)}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* ─── Single clean list card ─── */}
+                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', paddingHorizontal: 16, marginTop: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                      {treatments.map((t, i) => {
+                        const m = meta(t.name);
+                        const isLast = i === treatments.length - 1;
+                        const min = Number(t.priceMin) || 0;
+                        const max = Number(t.priceMax) || 0;
+                        const samePrice = !max || max === min;
+                        return (
+                          <View
+                            key={t._id}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              paddingVertical: 16,
+                              borderBottomWidth: isLast ? 0 : 1,
+                              borderBottomColor: '#F1F5F9',
+                            }}
+                          >
+                            {/* icon chip */}
+                            <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: m.bg, borderWidth: 1, borderColor: m.bd, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                              <Ionicons name={m.icon} size={21} color={m.fg} />
+                            </View>
+
+                            {/* name (wraps freely) */}
+                            <View style={{ flex: 1, paddingRight: 10 }}>
+                              <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A', lineHeight: 21 }}>
+                                {t.name}
+                              </Text>
+                            </View>
+
+                            {/* price — right aligned, never collides */}
+                            <View style={{ alignItems: 'flex-end', flexShrink: 0, maxWidth: 132 }}>
+                              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.6, marginBottom: 2 }}>PKR</Text>
+                              <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0A1551', textAlign: 'right', lineHeight: 19 }}>
+                                {samePrice ? fmt(min || max) : fmt(min) + ' – ' + fmt(max)}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {/* ─── Footer reassurance ─── */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18, marginBottom: 4, paddingHorizontal: 8 }}>
+                      <Ionicons name="shield-checkmark-outline" size={14} color="#94A3B8" style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 12, color: '#94A3B8', textAlign: 'center', lineHeight: 17 }}>
+                        Estimated prices · Final cost confirmed after your consultation
+                      </Text>
                     </View>
                   </View>
-                ))
-              ) : (
-                <Text style={styles.emptyText}>No treatments listed yet.</Text>
-              )}
+                );
+              })()}
             </View>
           )}
 
           {/* ══════════════ GALLERY ══════════════ */}
           {activeTab === 'Gallery' && (
             <View>
-              <Text style={styles.sectionTitle}>Clinic Photos</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
-                {clinicPhotos.length > 0 ? (
-                  clinicPhotos.map(item => (
-                    <TouchableOpacity key={item._id} onPress={() => setLightboxUri(imgUrl(item.imageUrl))}>
-                      <ShimmerImage source={{ uri: imgUrl(item.imageUrl) }} style={styles.galleryImage} />
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={styles.emptyText}>No clinic photos uploaded.</Text>
-                )}
-              </ScrollView>
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Before & After Results</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
-                {beforeAfters.length > 0 ? (
-                  beforeAfters.map(item => (
-                    <View key={item._id} style={styles.beforeAfterCard}>
-                      {item.beforeImage && item.afterImage ? (
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <TouchableOpacity onPress={() => setLightboxUri(imgUrl(item.beforeImage))}>
-                            <ShimmerImage source={{ uri: imgUrl(item.beforeImage) }} style={styles.beforeAfterImg} />
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => setLightboxUri(imgUrl(item.afterImage))}>
-                            <ShimmerImage source={{ uri: imgUrl(item.afterImage) }} style={styles.beforeAfterImg} />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <TouchableOpacity onPress={() => setLightboxUri(imgUrl(item.imageUrl || item.beforeImage || item.afterImage))}>
-                          <ShimmerImage source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={[styles.beforeAfterImg, { width: 180 }]} />
-                        </TouchableOpacity>
-                      )}
-                      {item.title ? <Text style={{ fontSize: 10, color: '#64748B', textAlign: 'center', marginTop: 4 }}>{item.title}</Text> : null}
+              {/* ══════════════ CLINIC PHOTOS ══════════════ */}
+              <View style={{ marginBottom: 16 }}>
+                {/* eyebrow */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                  <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF' }} />
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>CLINIC PHOTOS</Text>
+                  <View style={{ flex: 1 }} />
+                  {clinicPhotos.length > 0 ? (
+                    <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF' }}>{clinicPhotos.length}</Text>
                     </View>
-                  ))
-                ) : (
-                  <Text style={styles.emptyText}>No comparisons uploaded.</Text>
-                )}
-              </ScrollView>
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Certificates & Awards</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
-                {certificates.length > 0 ? (
-                  certificates.map(item => (
-                    <TouchableOpacity key={item._id} onPress={() => setLightboxUri(imgUrl(item.imageUrl))}>
-                      <ShimmerImage source={{ uri: imgUrl(item.imageUrl) }} style={styles.certificateImg} />
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={styles.emptyText}>No certificates uploaded.</Text>
-                )}
-              </ScrollView>
-              <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', marginTop: 12 }}>Tap any image to view full size</Text>
+                  ) : null}
+                </View>
+
+                {/* card */}
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                  {/* header row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="business-outline" size={22} color="#0052FF" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A' }}>Inside the Clinic</Text>
+                      <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', marginTop: 2 }}>A look at the practice & facilities</Text>
+                    </View>
+                  </View>
+
+                  {clinicPhotos.length > 0 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 2 }}>
+                      {clinicPhotos.map((item, idx) => (
+                        <TouchableOpacity
+                          key={item._id}
+                          activeOpacity={0.85}
+                          onPress={() => setLightboxUri(imgUrl(item.imageUrl))}
+                          style={{ marginRight: idx === clinicPhotos.length - 1 ? 0 : 10 }}
+                        >
+                          <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#F1F5F9', backgroundColor: '#F8FAFC' }}>
+                            <ShimmerImage source={{ uri: imgUrl(item.imageUrl) }} style={{ width: 200, height: 134, resizeMode: 'cover' }} />
+                            {/* corner expand affordance */}
+                            <View style={{ position: 'absolute', bottom: 8, right: 8, width: 26, height: 26, borderRadius: 8, backgroundColor: 'rgba(10,21,81,0.55)', justifyContent: 'center', alignItems: 'center' }}>
+                              <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#DBEAFE', paddingVertical: 26, paddingHorizontal: 18, alignItems: 'center' }}>
+                      <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                        <Ionicons name="camera-outline" size={26} color="#0052FF" />
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>Clinic photos coming soon</Text>
+                      <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '500', textAlign: 'center', lineHeight: 17, marginTop: 5 }}>This dentist hasn't added photos of their space yet. Check back to preview the clinic.</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* ══════════════ BEFORE & AFTER ══════════════ */}
+              <View style={{ marginBottom: 16 }}>
+                {/* eyebrow */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                  <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#7C3AED' }} />
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>BEFORE & AFTER</Text>
+                  <View style={{ flex: 1 }} />
+                  {beforeAfters.length > 0 ? (
+                    <View style={{ backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#7C3AED' }}>{beforeAfters.length}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* card */}
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                  {/* header row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#DDD6FE', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="sparkles-outline" size={21} color="#7C3AED" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A' }}>Treatment Results</Text>
+                      <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', marginTop: 2 }}>Real smile transformations</Text>
+                    </View>
+                  </View>
+
+                  {beforeAfters.length > 0 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 2 }}>
+                      {beforeAfters.map((item, idx) => (
+                        <View key={item._id} style={{ marginRight: idx === beforeAfters.length - 1 ? 0 : 12, width: 236 }}>
+                          {item.beforeImage && item.afterImage ? (
+                            <View style={{ flexDirection: 'row', borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#F1F5F9', backgroundColor: '#F8FAFC' }}>
+                              {/* BEFORE half */}
+                              <TouchableOpacity activeOpacity={0.85} onPress={() => setLightboxUri(imgUrl(item.beforeImage))} style={{ flex: 1 }}>
+                                <ShimmerImage source={{ uri: imgUrl(item.beforeImage) }} style={{ width: '100%', height: 140, resizeMode: 'cover' }} />
+                                <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(15,23,42,0.7)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                                  <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 }}>BEFORE</Text>
+                                </View>
+                              </TouchableOpacity>
+                              {/* seam */}
+                              <View style={{ width: 2, backgroundColor: '#FFFFFF' }} />
+                              {/* AFTER half */}
+                              <TouchableOpacity activeOpacity={0.85} onPress={() => setLightboxUri(imgUrl(item.afterImage))} style={{ flex: 1 }}>
+                                <ShimmerImage source={{ uri: imgUrl(item.afterImage) }} style={{ width: '100%', height: 140, resizeMode: 'cover' }} />
+                                <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(22,163,74,0.92)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 }}>
+                                  <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 }}>AFTER</Text>
+                                </View>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <TouchableOpacity activeOpacity={0.85} onPress={() => setLightboxUri(imgUrl(item.imageUrl || item.beforeImage || item.afterImage))}>
+                              <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#F1F5F9', backgroundColor: '#F8FAFC' }}>
+                                <ShimmerImage source={{ uri: imgUrl(item.imageUrl || item.beforeImage || item.afterImage) }} style={{ width: 236, height: 140, resizeMode: 'cover' }} />
+                                <View style={{ position: 'absolute', bottom: 8, right: 8, width: 26, height: 26, borderRadius: 8, backgroundColor: 'rgba(10,21,81,0.55)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          )}
+                          <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#334155', textAlign: 'center', marginTop: 8 }} numberOfLines={1}>
+                            {item.title || 'Smile Transformation'}
+                          </Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#DDD6FE', paddingVertical: 26, paddingHorizontal: 18, alignItems: 'center' }}>
+                      <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#DDD6FE', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                        <Ionicons name="happy-outline" size={26} color="#7C3AED" />
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>No results shared yet</Text>
+                      <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '500', textAlign: 'center', lineHeight: 17, marginTop: 5 }}>Before & after comparisons will appear here once this dentist showcases their work.</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* ══════════════ CERTIFICATES & AWARDS ══════════════ */}
+              <View style={{ marginBottom: 8 }}>
+                {/* eyebrow */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                  <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#16A34A' }} />
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>CERTIFICATES & AWARDS</Text>
+                  <View style={{ flex: 1 }} />
+                  {certificates.length > 0 ? (
+                    <View style={{ backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#16A34A' }}>{certificates.length}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* card */}
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                  {/* header row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="ribbon-outline" size={22} color="#16A34A" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A' }}>Qualifications</Text>
+                      <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', marginTop: 2 }}>Credentials & achievements</Text>
+                    </View>
+                  </View>
+
+                  {certificates.length > 0 ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 2 }}>
+                      {certificates.map((item, idx) => (
+                        <TouchableOpacity
+                          key={item._id}
+                          activeOpacity={0.85}
+                          onPress={() => setLightboxUri(imgUrl(item.imageUrl))}
+                          style={{ marginRight: idx === certificates.length - 1 ? 0 : 10 }}
+                        >
+                          <View style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#F1F5F9', backgroundColor: '#F8FAFC', padding: 5 }}>
+                            <View style={{ borderRadius: 8, overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
+                              <ShimmerImage source={{ uri: imgUrl(item.imageUrl) }} style={{ width: 128, height: 168, resizeMode: 'cover' }} />
+                            </View>
+                            <View style={{ position: 'absolute', top: 10, left: 10, width: 24, height: 24, borderRadius: 7, backgroundColor: 'rgba(22,163,74,0.92)', justifyContent: 'center', alignItems: 'center' }}>
+                              <Ionicons name="ribbon" size={13} color="#FFFFFF" />
+                            </View>
+                            <View style={{ position: 'absolute', bottom: 11, right: 11, width: 24, height: 24, borderRadius: 7, backgroundColor: 'rgba(22,163,74,0.9)', justifyContent: 'center', alignItems: 'center' }}>
+                              <Ionicons name="expand-outline" size={13} color="#FFFFFF" />
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#BBF7D0', paddingVertical: 26, paddingHorizontal: 18, alignItems: 'center' }}>
+                      <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                        <Ionicons name="school-outline" size={26} color="#16A34A" />
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>Credentials on file</Text>
+                      <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '500', textAlign: 'center', lineHeight: 17, marginTop: 5 }}>Certificates and awards will be displayed here as this dentist adds them.</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* tap-to-view affordance */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 6, marginBottom: 2 }}>
+                <Ionicons name="scan-outline" size={13} color="#94A3B8" style={{ marginRight: 5 }} />
+                <Text style={{ fontSize: 11.5, color: '#94A3B8', fontWeight: '500', textAlign: 'center' }}>Tap any image to view full size</Text>
+              </View>
             </View>
           )}
 
           {/* ══════════════ FACILITIES & SERVICES ══════════════ */}
-          {activeTab === 'Facilities' && (
-            <View>
-              {/* Clinic Tier Badge */}
-              <View style={[styles.tierCard, { borderLeftColor: tier.color }]}>
-                <View style={styles.tierTopRow}>
-                  <View style={[styles.tierBadge, { backgroundColor: tier.bg }]}>
-                    <Ionicons name="ribbon-outline" size={16} color={tier.color} style={{ marginRight: 4 }} />
-                    <Text style={[styles.tierBadgeText, { color: tier.color }]}>{tier.label}</Text>
+          {activeTab === 'Facilities' && (() => {
+            const tierKey = facilityScore >= 31 ? 'elite' : facilityScore >= 16 ? 'modern' : facilityScore >= 1 ? 'standard' : 'unrated';
+            const gradeIcon = tierKey === 'elite' ? 'ribbon' : tierKey === 'modern' ? 'business' : 'shield-checkmark';
+            const tagLabel = (tier.label || 'Unrated').replace(' Clinic', '').toUpperCase();
+            const cardBase = { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 };
+            const LEGENDS = [
+              { key: 'elite',    icon: 'ribbon',           name: 'Elite Clinic',    range: '31+ Points',     color: '#D97706', bg: '#FFFBEB', bd: '#FDE68A' },
+              { key: 'modern',   icon: 'business',         name: 'Modern Clinic',   range: '16 – 30 Points', color: '#0052FF', bg: '#EFF6FF', bd: '#BFDBFE' },
+              { key: 'standard', icon: 'shield-checkmark', name: 'Standard Clinic', range: '1 – 15 Points',  color: '#64748B', bg: '#F8FAFC', bd: '#E2E8F0' },
+            ];
+            return (
+              <View style={{ gap: 14 }}>
+
+                {/* ── Clinic Grade badge ── */}
+                <View style={[cardBase, { borderWidth: 2, borderColor: tier.color, padding: 20, alignItems: 'center' }]}>
+                  <View style={{ width: 104, height: 104, borderRadius: 26, backgroundColor: tier.bg, borderWidth: 2, borderColor: tier.color, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                    <Ionicons name={gradeIcon} size={52} color={tier.color} />
+                    <View style={{ position: 'absolute', bottom: -11, backgroundColor: tier.color, borderRadius: 10, borderWidth: 2, borderColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 }}>{tagLabel}</Text>
+                    </View>
                   </View>
-                  <View style={styles.scoreCircle}>
-                    <Text style={styles.scoreCircleNum}>{facilityScore}</Text>
-                    <Text style={styles.scoreCircleLabel}>pts</Text>
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: '#0A1551', marginTop: 6 }}>{tier.label}</Text>
+                  <Text style={{ fontSize: 12.5, color: '#64748B', textAlign: 'center', marginTop: 5, lineHeight: 18, marginHorizontal: 8 }}>{tier.desc}</Text>
+
+                  {/* facility score circle */}
+                  <View style={{ width: 96, height: 96, borderRadius: 48, borderWidth: 6, borderColor: tier.color, justifyContent: 'center', alignItems: 'center', marginTop: 18 }}>
+                    <Text style={{ fontSize: 30, fontWeight: '900', color: '#0A1551', lineHeight: 34 }}>{facilityScore}</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.8 }}>POINTS</Text>
                   </View>
+                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, marginTop: 8 }}>FACILITY SCORE</Text>
                 </View>
-                <Text style={styles.tierDesc}>{tier.desc}</Text>
-                <View style={styles.tierLevels}>
-                  {[
-                    { label: 'Standard', range: '1–15', color: '#94A3B8' },
-                    { label: 'Modern',   range: '16–30', color: '#0052FF' },
-                    { label: 'Elite',    range: '31+',   color: '#D97706' },
-                  ].map(lvl => (
-                    <View key={lvl.label} style={[styles.tierLevel, { borderTopColor: lvl.color, borderTopWidth: 3 }]}>
-                      <Text style={[styles.tierLevelName, { color: lvl.color }]}>{lvl.label}</Text>
-                      <Text style={styles.tierLevelRange}>{lvl.range}</Text>
+
+                {/* ── Verified Highlights ── */}
+                <View style={[cardBase, { padding: 16 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#16A34A', marginRight: 8 }} />
+                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>VERIFIED HIGHLIGHTS</Text>
+                  </View>
+                  {['Verified Services', 'High Patient Satisfaction', 'Advanced Technology', 'Hygiene & Safety'].map((h, i, arr) => (
+                    <View key={h} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: i === arr.length - 1 ? 0 : 1, borderBottomColor: '#F1F5F9' }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center', marginRight: 11 }}>
+                        <Ionicons name="checkmark" size={16} color="#16A34A" />
+                      </View>
+                      <Text style={{ fontSize: 13.5, fontWeight: '600', color: '#0F172A' }}>{h}</Text>
                     </View>
                   ))}
                 </View>
+
+                {/* ── Available Services ── */}
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                    <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF', marginRight: 8 }} />
+                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>AVAILABLE SERVICES</Text>
+                    <View style={{ flex: 1 }} />
+                    {facilityList.length > 0 ? (
+                      <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                        <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF' }}>{facilityList.length}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <View style={[cardBase, { padding: 14 }]}>
+                    {facilityList.length > 0 ? (
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                        {facilityList.map((fac, idx) => (
+                          <View key={idx} style={{ width: '48.5%', flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 12, marginBottom: 9 }}>
+                            <Ionicons name="checkmark-circle" size={16} color="#0052FF" style={{ marginRight: 8 }} />
+                            <Text style={{ fontSize: 12.5, fontWeight: '600', color: '#0F172A', flex: 1 }} numberOfLines={2}>{fac.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={{ paddingVertical: 22, alignItems: 'center' }}>
+                        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                          <Ionicons name="business-outline" size={26} color="#0052FF" />
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>No services listed yet</Text>
+                        <Text style={{ fontSize: 12, color: '#94A3B8', fontWeight: '500', textAlign: 'center', lineHeight: 17, marginTop: 5 }}>This clinic hasn't listed its facilities & services yet.</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* ── Clinic Grade legend ── */}
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                    <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#D97706', marginRight: 8 }} />
+                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>CLINIC GRADES</Text>
+                  </View>
+                  <View style={{ gap: 10 }}>
+                    {LEGENDS.map((lg) => {
+                      const active = tierKey === lg.key;
+                      return (
+                        <View key={lg.key} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: lg.bg, borderWidth: active ? 2 : 1, borderColor: active ? lg.color : lg.bd, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14 }}>
+                          <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: lg.color, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                            <Ionicons name={lg.icon} size={15} color="#FFFFFF" />
+                          </View>
+                          <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0A1551', flex: 1 }}>{lg.name}</Text>
+                          {active && (
+                            <View style={{ backgroundColor: lg.color, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginRight: 8 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.4 }}>THIS CLINIC</Text>
+                            </View>
+                          )}
+                          <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#64748B' }}>{lg.range}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+
               </View>
-
-              {/* Services & Facilities Grid */}
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Available Services</Text>
-              <Text style={styles.sectionSubtitle}>Facilities & services available at this clinic</Text>
-              {facilityList.length > 0 ? (
-                <View style={styles.servicesGrid}>
-                  {facilityList.map((fac, idx) => (
-                    <View key={idx} style={[styles.serviceTag, { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 8 }]}>
-                      <Ionicons name={fac.icon || 'checkmark-circle-outline'} size={16} color="#0052FF" style={{ marginRight: 8 }} />
-                      <Text style={[styles.serviceTagText, { fontSize: 13 }]}>{fac.label}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.emptyText}>No facilities listed for this clinic.</Text>
-              )}
-
-              {/* Verified Highlights */}
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Verified Highlights</Text>
-              {['Verified Services', 'High Patient Satisfaction', 'Advanced Technology', 'Hygiene & Safety'].map(h => (
-                <View key={h} style={styles.highlightRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#16A34A" style={{ marginRight: 8 }} />
-                  <Text style={styles.highlightText}>{h}</Text>
-                </View>
-              ))}
-            </View>
-          )}
+            );
+          })()}
 
           {/* ══════════════ REVIEWS (REDESIGNED) ══════════════ */}
           {activeTab === 'Reviews' && (
@@ -1263,56 +1794,198 @@ export default function DoctorProfileScreen({ route, navigation }) {
           {/* ══════════════ APPOINTMENTS ══════════════ */}
           {activeTab === 'Appointments' && (
             <View>
-              <View style={styles.cardHeader}>
-                <Text style={styles.sectionTitle}>My Appointments with {drName(doctor.fullName)}</Text>
+              {/* ── Header: My Appointments with Dr. X ── */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginLeft: 2 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="calendar-outline" size={22} color="#0052FF" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={{ fontSize: 15.5, fontWeight: '800', color: '#0F172A' }}>My Appointments</Text>
+                  <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', marginTop: 2 }} numberOfLines={1}>with {drName(doctor.fullName)}</Text>
+                </View>
               </View>
+
               {appointments.length > 0 ? (
-                appointments.map(apt => (
-                  <TouchableOpacity
-                    key={apt._id}
-                    activeOpacity={0.85}
-                    style={styles.apptCard}
-                    onPress={() => navigation.navigate('AppointmentDetail', { appointment: { ...apt, doctorId: apt.doctorId || doctor } })}
-                  >
-                    <View style={styles.apptRow}>
-                      <View style={styles.timeBadge}>
-                        <Text style={styles.timeText}>{apt.time}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.treatmentName}>{apt.treatmentType}</Text>
-                        <Text style={styles.dateLabel}>{new Date(apt.date).toLocaleDateString()}</Text>
-                      </View>
-                      <View style={[styles.statusBadge, {
-                        backgroundColor: apt.status === 'confirmed' ? '#DCFCE7' : apt.status === 'pending' ? '#FEF9C3' : '#F1F5F9'
-                      }]}>
-                        <Text style={[styles.statusText, {
-                          color: apt.status === 'confirmed' ? '#16A34A' : apt.status === 'pending' ? '#CA8A04' : '#64748B'
-                        }]}>
-                          {apt.status.toUpperCase()}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginLeft: 6 }} />
+                (() => {
+                  // ── Status resolver: covers every status; unknown falls back to slate ──
+                  const statusStyle = (raw) => {
+                    const s = (raw || '').toLowerCase();
+                    switch (s) {
+                      case 'confirmed': return { bg: '#DCFCE7', border: '#BBF7D0', text: '#16A34A', tileBg: '#F0FDF4', icon: 'checkmark-circle', label: 'Confirmed' };
+                      case 'pending':   return { bg: '#FEF3C7', border: '#FDE68A', text: '#D97706', tileBg: '#FFFBEB', icon: 'time-outline', label: 'Pending' };
+                      case 'completed': return { bg: '#DBEAFE', border: '#BFDBFE', text: '#0A1551', tileBg: '#EFF6FF', icon: 'checkmark-done-circle', label: 'Completed' };
+                      case 'cancelled': return { bg: '#FEE2E2', border: '#FECACA', text: '#DC2626', tileBg: '#FEF2F2', icon: 'close-circle', label: 'Cancelled' };
+                      default:          return { bg: '#F1F5F9', border: '#E2E8F0', text: '#64748B', tileBg: '#F8FAFC', icon: 'ellipse-outline', label: (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Scheduled') };
+                    }
+                  };
+
+                  // Sortable timestamp from date + time string (safe against bad input).
+                  const ts = (apt) => {
+                    const d = new Date(apt.date);
+                    let base = isNaN(d.getTime()) ? 0 : d.getTime();
+                    const m = /^(\d{1,2}):(\d{2})/.exec(apt.time || '');
+                    if (m) base += (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) * 60000;
+                    return base;
+                  };
+
+                  // Relative-day label from today (Today / Tomorrow / In N days / N days ago).
+                  const relLabel = (apt) => {
+                    const d = new Date(apt.date);
+                    if (isNaN(d.getTime())) return '';
+                    const s = (x) => { const y = new Date(x); y.setHours(0, 0, 0, 0); return y.getTime(); };
+                    const diff = Math.round((s(d) - s(new Date())) / 86400000);
+                    if (diff === 0) return 'Today';
+                    if (diff === 1) return 'Tomorrow';
+                    if (diff === -1) return 'Yesterday';
+                    return diff > 1 ? `In ${diff} days` : `${Math.abs(diff)} days ago`;
+                  };
+
+                  const upcoming = appointments
+                    .filter(a => a.status === 'confirmed' || a.status === 'pending')
+                    .sort((a, b) => ts(a) - ts(b)); // soonest first
+                  const past = appointments
+                    .filter(a => a.status !== 'confirmed' && a.status !== 'pending')
+                    .sort((a, b) => ts(b) - ts(a)); // most recent first
+
+                  const renderCard = (apt, isNext = false) => {
+                    const ti = getTreatmentIcon(apt.treatmentType);
+                    const ss = statusStyle(apt.status);
+                    const isCompleted = (apt.status || '').toLowerCase() === 'completed';
+                    const isUpcoming = apt.status === 'confirmed' || apt.status === 'pending';
+                    const rel = isUpcoming ? relLabel(apt) : '';
+                    const soon = rel === 'Today' || rel === 'Tomorrow';
+                    const d = new Date(apt.date);
+                    const valid = !isNaN(d.getTime());
+                    const dayNum = valid ? d.getDate() : '--';
+                    const monthStr = valid ? d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase() : '';
+
+                    return (
+                      <TouchableOpacity
+                        key={apt._id}
+                        activeOpacity={0.85}
+                        style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: isNext ? 2 : 1, borderColor: isNext ? '#0052FF' : '#F1F5F9', padding: 14, marginBottom: 12, shadowColor: isNext ? '#0052FF' : '#000', shadowOffset: { width: 0, height: isNext ? 4 : 2 }, shadowOpacity: isNext ? 0.13 : 0.04, shadowRadius: isNext ? 12 : 8, elevation: isNext ? 4 : 2 }}
+                        onPress={() => navigation.navigate('AppointmentDetail', { appointment: { ...apt, doctorId: apt.doctorId || doctor } })}
+                      >
+                        {isNext ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#0052FF', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                              <Ionicons name="flash" size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
+                              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.6 }}>NEXT VISIT</Text>
+                            </View>
+                            {rel ? <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#0052FF', marginLeft: 8 }}>{rel}</Text> : null}
+                          </View>
+                        ) : null}
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {/* status-tinted date tile */}
+                          <View style={{ width: 58, borderRadius: 14, backgroundColor: ss.tileBg, borderWidth: 1, borderColor: ss.border, paddingVertical: 9, alignItems: 'center', marginRight: 12 }}>
+                            <Text style={{ fontSize: 21, fontWeight: '900', color: ss.text, lineHeight: 24 }}>{dayNum}</Text>
+                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: ss.text, letterSpacing: 1 }}>{monthStr}</Text>
+                            <View style={{ width: 20, height: 1, backgroundColor: ss.border, marginVertical: 5 }} />
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Ionicons name="time-outline" size={10} color="#64748B" style={{ marginRight: 2 }} />
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B' }}>{apt.time}</Text>
+                            </View>
+                          </View>
+
+                          {/* body */}
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              {/* treatment icon chip with status badge */}
+                              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: ti.color + '18', borderWidth: 1, borderColor: ti.color + '33', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name={ti.icon} size={20} color={ti.color} />
+                                <View style={{ position: 'absolute', bottom: -4, right: -4, width: 17, height: 17, borderRadius: 9, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name={ss.icon} size={13} color={ss.text} />
+                                </View>
+                              </View>
+                              <View style={{ flex: 1, marginLeft: 12 }}>
+                                <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A', lineHeight: 19 }}>{apt.treatmentType}</Text>
+                                {/* status pill + relative-time chip */}
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 7 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: ss.bg, borderWidth: 1, borderColor: ss.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginRight: 6, marginBottom: 2 }}>
+                                    <Ionicons name={ss.icon} size={11} color={ss.text} style={{ marginRight: 5 }} />
+                                    <Text style={{ fontSize: 10, fontWeight: '800', color: ss.text, letterSpacing: 0.5 }}>{ss.label.toUpperCase()}</Text>
+                                  </View>
+                                  {isUpcoming && rel && !isNext ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: soon ? '#0052FF' : '#EFF6FF', borderWidth: 1, borderColor: soon ? '#0052FF' : '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginBottom: 2 }}>
+                                      <Ionicons name="hourglass-outline" size={10} color={soon ? '#FFFFFF' : '#0052FF'} style={{ marginRight: 4 }} />
+                                      <Text style={{ fontSize: 10, fontWeight: '800', color: soon ? '#FFFFFF' : '#0052FF' }}>{rel}</Text>
+                                    </View>
+                                  ) : null}
+                                </View>
+                              </View>
+                              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" style={{ marginLeft: 6 }} />
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* completed: visit summary tri-state */}
+                        {apt.visitSummary ? (
+                          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7 }}>
+                              <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                                <Ionicons name="document-text-outline" size={13} color="#0052FF" />
+                              </View>
+                              <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.1, flex: 1 }} numberOfLines={1}>TREATMENT RECORD / VISIT SUMMARY</Text>
+                            </View>
+                            <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', padding: 11 }}>
+                              <Text style={{ fontSize: 12.5, color: '#334155', lineHeight: 18, fontWeight: '500' }}>{apt.visitSummary}</Text>
+                            </View>
+                          </View>
+                        ) : isCompleted ? (
+                          <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', paddingHorizontal: 11, paddingVertical: 9 }}>
+                              <Ionicons name="document-text-outline" size={15} color="#94A3B8" />
+                              <Text style={{ fontSize: 11.5, fontStyle: 'italic', color: '#94A3B8', marginLeft: 8, flex: 1, lineHeight: 16 }}>No treatment record entered by doctor yet.</Text>
+                            </View>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  };
+
+                  return (
+                    <View>
+                      {/* UPCOMING */}
+                      {upcoming.length > 0 ? (
+                        <View style={{ marginBottom: 18 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                            <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF' }} />
+                            <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>UPCOMING</Text>
+                            <View style={{ flex: 1 }} />
+                            <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                              <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF' }}>{upcoming.length}</Text>
+                            </View>
+                          </View>
+                          {upcoming.map((apt, i) => renderCard(apt, i === 0))}
+                        </View>
+                      ) : null}
+
+                      {/* PAST — neutral slate eyebrow (statuses inside are mixed) */}
+                      {past.length > 0 ? (
+                        <View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                            <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#94A3B8' }} />
+                            <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>PAST</Text>
+                            <View style={{ flex: 1 }} />
+                            <View style={{ backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                              <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#64748B' }}>{past.length}</Text>
+                            </View>
+                          </View>
+                          {past.map((apt) => renderCard(apt))}
+                        </View>
+                      ) : null}
                     </View>
-                    {apt.visitSummary ? (
-                      <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
-                          TREATMENT RECORD / VISIT SUMMARY:
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#475569', lineHeight: 16 }}>
-                          {apt.visitSummary}
-                        </Text>
-                      </View>
-                    ) : apt.status === 'completed' ? (
-                      <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
-                        <Text style={{ fontSize: 11, fontStyle: 'italic', color: '#94A3B8' }}>
-                          No treatment record entered by doctor yet.
-                        </Text>
-                      </View>
-                    ) : null}
-                  </TouchableOpacity>
-                ))
+                  );
+                })()
               ) : (
-                <Text style={styles.emptyText}>You haven't booked any appointments with this doctor.</Text>
+                /* ── Premium empty state ── */
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', paddingVertical: 32, paddingHorizontal: 22, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+                    <Ionicons name="calendar-outline" size={27} color="#0052FF" />
+                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>No appointments yet</Text>
+                  <Text style={{ fontSize: 12.5, color: '#64748B', fontWeight: '500', textAlign: 'center', lineHeight: 18, marginTop: 6 }}>You haven't booked any appointments with this doctor.</Text>
+                </View>
               )}
             </View>
           )}
@@ -1320,260 +1993,506 @@ export default function DoctorProfileScreen({ route, navigation }) {
           {/* ══════════════ BILLS (ENHANCED) ══════════════ */}
           {activeTab === 'Bills & Bill History' && (
             <View>
-              {/* Summary Grid — 4 cards */}
-              <View style={styles.summaryGridWrap}>
-                <View style={styles.summarySubCard}>
-                  <Text style={styles.sumLabel}>Total Invoices</Text>
-                  <Text style={styles.sumVal}>{totalBillsCount}</Text>
-                </View>
-                <View style={[styles.summarySubCard, { borderLeftColor: '#16A34A', borderLeftWidth: 4 }]}>
-                  <Text style={styles.sumLabel}>Paid Amount</Text>
-                  <Text style={[styles.sumVal, { color: '#16A34A' }]}>PKR {totalPaidAmount.toLocaleString()}</Text>
-                </View>
-                <View style={[styles.summarySubCard, { borderLeftColor: '#EF4444', borderLeftWidth: 4 }]}>
-                  <Text style={styles.sumLabel}>Outstanding</Text>
-                  <Text style={[styles.sumVal, { color: '#EF4444' }]}>PKR {totalOutstanding.toLocaleString()}</Text>
-                </View>
-                <View style={[styles.summarySubCard, { borderLeftColor: '#7C3AED', borderLeftWidth: 4 }]}>
-                  <Text style={styles.sumLabel}>Total Discount</Text>
-                  <Text style={[styles.sumVal, { color: '#7C3AED' }]}>PKR {totalDiscount.toLocaleString()}</Text>
-                  <Text style={styles.sumSubLabel}>From rewards</Text>
-                </View>
-              </View>
+              {(() => {
+                const statusMeta = (s) => {
+                  switch (s) {
+                    case 'paid':
+                      return { label: 'Paid', text: '#16A34A', bg: '#DCFCE7', border: '#BBF7D0', icon: 'checkmark-circle' };
+                    case 'unpaid':
+                      return { label: 'Unpaid', text: '#DC2626', bg: '#FEE2E2', border: '#FECACA', icon: 'alert-circle' };
+                    case 'payment_pending':
+                      return { label: 'Pending', text: '#D97706', bg: '#FEF3C7', border: '#FDE68A', icon: 'time' };
+                    case 'draft':
+                      return { label: 'Draft', text: '#475569', bg: '#F1F5F9', border: '#E2E8F0', icon: 'document-text' };
+                    default:
+                      return { label: (s ? String(s).replace(/_/g, ' ') : 'Other'), text: '#7C3AED', bg: '#EDE9FE', border: '#DDD6FE', icon: 'ellipse' };
+                  }
+                };
+                const fmtDate = (d) => { try { return new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }); } catch (e) { return '—'; } };
+                const cardShadow = { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 };
+                const dueAmount = unpaidBill ? (() => {
+                  const fin = unpaidBill.finalAmount != null ? unpaidBill.finalAmount : unpaidBill.amount;
+                  const paid = unpaidBill.paidAmount != null ? unpaidBill.paidAmount : 0;
+                  const rem = Number(fin || 0) - Number(paid || 0);
+                  return rem > 0 ? rem : Number(unpaidBill.amount || 0);
+                })() : 0;
 
-              {/* Privacy badge */}
-              <View style={styles.privacyBadge}>
-                <Ionicons name="shield-checkmark" size={18} color="#0052FF" />
-                <Text style={styles.privacyText}>All transactions are encrypted and processed securely.</Text>
-              </View>
-
-              {/* Upcoming Payment */}
-              {unpaidBill && (
-                <View style={styles.upcomingPayCard}>
-                  <View style={styles.upcomingPayTop}>
-                    <View style={styles.upcomingIconWrap}>
-                      <Ionicons name="calendar" size={22} color="#D97706" />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.upcomingTreatment}>{unpaidBill.treatmentName}</Text>
-                      <Text style={styles.upcomingDate}>{new Date(unpaidBill.createdAt).toLocaleDateString()}</Text>
-                      <Text style={styles.upcomingAmount}>Amount PKR {unpaidBill.amount?.toLocaleString()}</Text>
-                      <Text style={styles.upcomingDue}>Due: {new Date(unpaidBill.dueDate || unpaidBill.createdAt).toLocaleDateString()}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.upcomingPayActions}>
-                    <TouchableOpacity
-                      style={styles.payNowBtnBlue}
-                      onPress={() => handlePayBill(unpaidBill)}
-                    >
-                      <Text style={styles.payNowBtnBlueText}>Pay Now</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setSelectedBillDetail(unpaidBill); setShowBillDetailModal(true); }}>
-                      <Text style={styles.viewDetailsLink}>View Details ›</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {/* Invoices */}
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Invoices</Text>
-              {bills.length > 0 ? (
-                bills.map(bill => {
-                  const ti = getTreatmentIcon(bill.treatmentName);
-                  return (
-                    <View key={bill._id} style={styles.billRowNew}>
-                      {/* Left icon */}
-                      <View style={[styles.billIconCircle, { backgroundColor: ti.color + '18' }]}>
-                        <Ionicons name={ti.icon} size={20} color={ti.color} />
+                return (
+                  <>
+                    {/* ══════════════ HERO SUMMARY CARD ══════════════ */}
+                    <View style={{ marginBottom: 16 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                        <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF' }} />
+                        <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>BILLING OVERVIEW</Text>
+                        <View style={{ flex: 1 }} />
+                        <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF' }}>{totalBillsCount} total</Text>
+                        </View>
                       </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={styles.billInvoiceNum}>{bill.invoiceNumber}</Text>
-                        <Text style={styles.billDate}>{new Date(bill.createdAt).toLocaleDateString()}</Text>
-                        <Text style={styles.billDesc}>{bill.treatmentName}</Text>
-                      </View>
-                      <View style={styles.billActionCol}>
-                        <Text style={styles.billAmount}>PKR {bill.amount?.toLocaleString()}</Text>
-                        {bill.status === 'unpaid' ? (
-                          <TouchableOpacity
-                            style={styles.payBtn}
-                            onPress={() => handlePayBill(bill)}
-                          >
-                            <Text style={styles.payBtnText}>Pay Now</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity style={styles.downloadBtn} onPress={() => handleDownloadInvoice(bill)}>
-                            <Ionicons name="cloud-download-outline" size={16} color="#0052FF" />
-                            <Text style={styles.downloadBtnText}>Invoice</Text>
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity onPress={() => { setSelectedBillDetail(bill); setShowBillDetailModal(true); }}>
-                          <Text style={styles.viewDetailsLink}>View Details ›</Text>
-                        </TouchableOpacity>
+
+                      <View style={{ backgroundColor: '#0A1551', borderRadius: 18, padding: 18, overflow: 'hidden', ...cardShadow }}>
+                        <View style={{ position: 'absolute', top: -44, right: -34, width: 148, height: 148, borderRadius: 74, backgroundColor: 'rgba(0,82,255,0.20)' }} />
+                        <View style={{ position: 'absolute', bottom: -54, left: -30, width: 128, height: 128, borderRadius: 64, backgroundColor: 'rgba(255,255,255,0.04)' }} />
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: totalOutstanding > 0 ? '#FCA5A5' : '#86EFAC', marginRight: 7 }} />
+                            <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#BFDBFE', letterSpacing: 1.4 }}>TOTAL OUTSTANDING</Text>
+                          </View>
+                          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
+                          </View>
+                        </View>
+                        <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 30, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.2 }}>
+                          PKR {Number(totalOutstanding || 0).toLocaleString()}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#93A4C8', fontWeight: '500', marginTop: 3 }}>
+                          {totalOutstanding > 0 ? 'Amount still due across all invoices' : 'You are all settled up — nothing due'}
+                        </Text>
+
+                        {/* 2x2 mini-stat grid — three DISTINCT metrics (no duplicate Outstanding) */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 16, marginHorizontal: -5 }}>
+                          {[
+                            { key: 'inv', label: 'Invoices', value: `${totalBillsCount}`, tint: '#BFDBFE', icon: 'receipt-outline', sub: 'On record' },
+                            { key: 'paid', label: 'Paid', value: `PKR ${Number(totalPaidAmount || 0).toLocaleString()}`, tint: '#86EFAC', icon: 'checkmark-done-outline', sub: 'Settled to date' },
+                            { key: 'disc', label: 'Discount', value: `PKR ${Number(totalDiscount || 0).toLocaleString()}`, tint: '#DDD6FE', icon: 'gift-outline', sub: 'From rewards' },
+                            { key: 'due', label: 'Outstanding', value: `PKR ${Number(totalOutstanding || 0).toLocaleString()}`, tint: '#FCA5A5', icon: 'alert-circle-outline', sub: 'Still due' },
+                          ].map((s) => (
+                            <View key={s.key} style={{ width: '50%', paddingHorizontal: 5, marginBottom: 10 }}>
+                              <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', paddingVertical: 11, paddingHorizontal: 12 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                                  <Ionicons name={s.icon} size={14} color={s.tint} />
+                                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#93A4C8', letterSpacing: 1, marginLeft: 6 }}>{s.label.toUpperCase()}</Text>
+                                </View>
+                                <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 15, fontWeight: '900', color: s.tint }}>{s.value}</Text>
+                                <Text style={{ fontSize: 9.5, color: '#93A4C8', fontWeight: '600', marginTop: 2 }}>{s.sub}</Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)' }}>
+                          <Ionicons name="shield-checkmark" size={15} color="#86EFAC" />
+                          <Text style={{ flex: 1, fontSize: 11, color: '#BFDBFE', fontWeight: '600', marginLeft: 8, lineHeight: 15 }}>
+                            All transactions are encrypted and processed securely.
+                          </Text>
+                        </View>
                       </View>
                     </View>
-                  );
-                })
-              ) : (
-                <Text style={styles.emptyText}>No invoices generated for this doctor.</Text>
-              )}
 
-              {/* Help Card */}
-              <View style={styles.helpCard}>
-                <View style={styles.helpIconWrap}>
-                  <Ionicons name="help-circle" size={28} color="#0052FF" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.helpTitle}>Need help with a payment?</Text>
-                  <Text style={styles.helpSub}>Our support team is available 24/7 to assist you with billing queries.</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.contactSupportBtn}
-                  onPress={() => {
-                    const msg = 'Hello, I need help with a payment on My Dentist.';
-                    if (Platform.OS === 'web') { openWhatsApp(msg); return; }
-                    Alert.alert('Contact Support', 'How would you like to reach us?', [
-                      { text: 'WhatsApp', onPress: () => openWhatsApp(msg) },
-                      { text: 'Email', onPress: () => openSupportEmail('My Dentist — Payment Support') },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]);
-                  }}
-                >
-                  <Text style={styles.contactSupportText}>Contact Support</Text>
-                </TouchableOpacity>
-              </View>
+                    {/* ══════════════ AMOUNT DUE (unpaidBill) ══════════════ */}
+                    {unpaidBill ? (
+                      <View style={{ marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                          <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#D97706' }} />
+                          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>UPCOMING PAYMENT</Text>
+                        </View>
+
+                        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#FDE68A', padding: 16, ...cardShadow }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A', justifyContent: 'center', alignItems: 'center' }}>
+                              <Ionicons name="alarm-outline" size={24} color="#D97706" />
+                            </View>
+                            <View style={{ flex: 1, marginLeft: 12 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
+                                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#D97706', letterSpacing: 0.8, marginRight: 8 }}>AMOUNT DUE</Text>
+                                <View style={{ backgroundColor: '#FEF3C7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: '#FDE68A', marginTop: 2 }}>
+                                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#D97706' }}>Due {fmtDate(unpaidBill.dueDate || unpaidBill.createdAt)}</Text>
+                                </View>
+                              </View>
+                              <Text numberOfLines={2} style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A', lineHeight: 19 }}>{unpaidBill.treatmentName || 'Treatment'}</Text>
+                              <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', marginTop: 2 }}>Billed {fmtDate(unpaidBill.createdAt)}</Text>
+                            </View>
+                          </View>
+
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFBEB', borderRadius: 14, borderWidth: 1, borderColor: '#FDE68A', paddingVertical: 12, paddingHorizontal: 14, marginTop: 14 }}>
+                            <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', color: '#92400E', marginRight: 10 }}>Total to pay</Text>
+                            <Text numberOfLines={1} adjustsFontSizeToFit style={{ flexShrink: 1, fontSize: 22, fontWeight: '900', color: '#0A1551', textAlign: 'right' }}>PKR {Number(dueAmount).toLocaleString()}</Text>
+                          </View>
+
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14 }}>
+                            <TouchableOpacity
+                              activeOpacity={0.85}
+                              onPress={() => handlePayBill(unpaidBill)}
+                              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 13, ...cardShadow }}
+                            >
+                              <Ionicons name="card-outline" size={17} color="#FFFFFF" style={{ marginRight: 7 }} />
+                              <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF' }}>Pay Now</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => { setSelectedBillDetail(unpaidBill); setShowBillDetailModal(true); }}
+                              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginLeft: 10, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' }}
+                            >
+                              <Text style={{ fontSize: 13, fontWeight: '800', color: '#0052FF' }}>Details</Text>
+                              <Ionicons name="chevron-forward" size={14} color="#0052FF" style={{ marginLeft: 2 }} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {/* ══════════════ INVOICES LIST ══════════════ */}
+                    <View style={{ marginBottom: 16 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 }}>
+                        <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF' }} />
+                        <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4, marginLeft: 7 }}>INVOICES</Text>
+                        <View style={{ flex: 1 }} />
+                        {bills.length > 0 ? (
+                          <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2.5 }}>
+                            <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0052FF' }}>{bills.length}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      {bills.length > 0 ? (
+                        bills.map((bill, idx) => {
+                          const ti = getTreatmentIcon(bill.treatmentName);
+                          const meta = statusMeta(bill.status);
+                          const isUnpaid = bill.status === 'unpaid';
+                          return (
+                            <View
+                              key={bill._id || idx}
+                              style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 14, marginBottom: idx === bills.length - 1 ? 0 : 12, ...cardShadow }}
+                            >
+                              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                                <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: (ti.color || '#0052FF') + '18', borderWidth: 1, borderColor: (ti.color || '#0052FF') + '33', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name={ti.icon} size={21} color={ti.color || '#0052FF'} />
+                                </View>
+
+                                <View style={{ flex: 1, marginLeft: 12, marginRight: 10 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Ionicons name="receipt-outline" size={11} color="#94A3B8" style={{ marginRight: 4 }} />
+                                    <Text numberOfLines={1} style={{ flex: 1, fontSize: 11, fontWeight: '800', color: '#0052FF', letterSpacing: 0.4 }}>
+                                      {bill.invoiceNumber || 'Invoice'}
+                                    </Text>
+                                  </View>
+                                  <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', lineHeight: 18, marginTop: 3 }}>
+                                    {bill.treatmentName || 'Treatment'}
+                                  </Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                                    <Ionicons name="calendar-outline" size={11} color="#94A3B8" />
+                                    <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500', marginLeft: 4 }}>{fmtDate(bill.createdAt)}</Text>
+                                  </View>
+                                </View>
+
+                                <View style={{ alignItems: 'flex-end', maxWidth: 128 }}>
+                                  <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: 16, fontWeight: '900', color: '#0A1551', textAlign: 'right' }}>
+                                    PKR {Number((bill.finalAmount != null ? bill.finalAmount : bill.amount) || 0).toLocaleString()}
+                                  </Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: meta.bg, borderWidth: 1, borderColor: meta.border, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 }}>
+                                    <Ionicons name={meta.icon} size={11} color={meta.text} style={{ marginRight: 4 }} />
+                                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: meta.text }}>{meta.label}</Text>
+                                  </View>
+                                </View>
+                              </View>
+
+                              {bill.discountFromRewards ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginTop: 10 }}>
+                                  <Ionicons name="gift-outline" size={12} color="#7C3AED" style={{ marginRight: 5 }} />
+                                  <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#7C3AED' }}>PKR {Number(bill.discountFromRewards).toLocaleString()} reward discount</Text>
+                                </View>
+                              ) : null}
+
+                              <View style={{ height: 1, backgroundColor: '#F1F5F9', marginTop: 12, marginBottom: 12 }} />
+
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                {isUnpaid ? (
+                                  <TouchableOpacity
+                                    activeOpacity={0.85}
+                                    onPress={() => handlePayBill(bill)}
+                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 11 }}
+                                  >
+                                    <Ionicons name="card-outline" size={16} color="#FFFFFF" style={{ marginRight: 7 }} />
+                                    <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#FFFFFF' }}>Pay Now</Text>
+                                  </TouchableOpacity>
+                                ) : (
+                                  <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    onPress={() => handleDownloadInvoice(bill)}
+                                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 12, paddingVertical: 11 }}
+                                  >
+                                    <Ionicons name="cloud-download-outline" size={16} color="#0052FF" style={{ marginRight: 7 }} />
+                                    <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0052FF' }}>Download Invoice</Text>
+                                  </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity
+                                  activeOpacity={0.7}
+                                  onPress={() => { setSelectedBillDetail(bill); setShowBillDetailModal(true); }}
+                                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginLeft: 10, paddingVertical: 11, paddingHorizontal: 13, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' }}
+                                >
+                                  <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#334155' }}>Details</Text>
+                                  <Ionicons name="chevron-forward" size={14} color="#94A3B8" style={{ marginLeft: 2 }} />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          );
+                        })
+                      ) : (
+                        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center', ...cardShadow }}>
+                          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+                            <Ionicons name="receipt-outline" size={26} color="#0052FF" />
+                          </View>
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F172A', textAlign: 'center' }}>No invoices yet</Text>
+                          <Text style={{ fontSize: 12.5, color: '#64748B', fontWeight: '500', textAlign: 'center', lineHeight: 17, marginTop: 5 }}>
+                            No invoices generated for this doctor.
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* ══════════════ SUPPORT / HELP CARD ══════════════ */}
+                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#DBEAFE', padding: 16, ...cardShadow }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
+                          <Ionicons name="help-buoy-outline" size={24} color="#0052FF" />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0F172A' }}>Need help with a payment?</Text>
+                          <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '500', lineHeight: 16, marginTop: 2 }}>
+                            Our support team is available to assist you with any billing queries.
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          const msg = 'Hello, I need help with a payment on My Dentist.';
+                          if (Platform.OS === 'web') { openWhatsApp(msg); return; }
+                          Alert.alert('Contact Support', 'How would you like to reach us?', [
+                            { text: 'WhatsApp', onPress: () => openWhatsApp(msg) },
+                            { text: 'Email', onPress: () => openSupportEmail('My Dentist — Payment Support') },
+                            { text: 'Cancel', style: 'cancel' },
+                          ]);
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 12, marginTop: 14 }}
+                      >
+                        <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" style={{ marginRight: 7 }} />
+                        <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#FFFFFF' }}>Contact Support</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                );
+              })()}
             </View>
           )}
 
           {/* ══════════════ REWARDS (ENHANCED) ══════════════ */}
           {activeTab === 'Rewards & Payments' && (
             <View>
-              {/* Points Card + How You Earn — side-by-side on wide screens */}
-              <View style={isWide ? styles.rewardsTopRow : {}}>
-                {/* Dark Blue Points Card */}
-                <View style={[styles.pointsCard, isWide && { flex: 1, marginRight: 10 }]}>
-                  <View style={styles.pointsHeader}>
-                    <View>
-                      <Text style={styles.pointsLabel}>Available Reward Points</Text>
-                      <Text style={styles.pointsVal}>{rewards.totalPoints || rewards.points || 0}</Text>
-                      <Text style={styles.pointsDesc}>= PKR {(rewards.totalPoints || rewards.points || 0)} Discount Value</Text>
-                    </View>
-                    <Ionicons name="gift" size={48} color="#FFF" style={{ opacity: 0.8 }} />
-                  </View>
-                  {/* View Rewards History button */}
-                  <TouchableOpacity style={styles.rewardsHistoryBtn} onPress={() => setShowRewardHistory(v => !v)}>
-                    <Text style={styles.rewardsHistoryBtnText}>{showRewardHistory ? 'Hide Rewards History' : 'View Rewards History'} {showRewardHistory ? '⌃' : '›'}</Text>
-                  </TouchableOpacity>
+              {/* ===== POINTS BALANCE HERO (signature dark navy) ===== */}
+              <View style={{ backgroundColor: '#0A1551', borderRadius: 22, padding: 20, overflow: 'hidden', shadowColor: '#0A1551', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 6 }}>
+                {/* faux-gradient depth circles */}
+                <View style={{ position: 'absolute', top: -50, right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: '#1D4ED8', opacity: 0.28 }} />
+                <View style={{ position: 'absolute', top: 30, right: 30, width: 120, height: 120, borderRadius: 60, backgroundColor: '#1E3A8A', opacity: 0.35 }} />
+                <View style={{ position: 'absolute', bottom: -60, left: -30, width: 160, height: 160, borderRadius: 80, backgroundColor: '#1E3A8A', opacity: 0.25 }} />
 
-                  {showRewardHistory && (
-                    <View style={{ marginTop: 10, backgroundColor: '#FFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' }}>
-                      {(() => {
-                        const history = rewards.recentHistory || rewards.transactions || [];
-                        if (!history.length) {
-                          return <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 }}>No reward activity yet.</Text>;
-                        }
-                        return history.map((h, i) => (
-                          <View key={h._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < history.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }}>{h.description || h.type || 'Reward'}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#60A5FA', marginRight: 8 }} />
+                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#93C5FD', letterSpacing: 1.4 }}>AVAILABLE REWARD POINTS</Text>
+                    </View>
+                    <Text style={{ fontSize: 44, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1, lineHeight: 48 }} numberOfLines={1} adjustsFontSizeToFit>
+                      {rewards.totalPoints || rewards.points || 0}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
+                      <Ionicons name="cash-outline" size={13} color="#BBF7D0" style={{ marginRight: 5 }} />
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#E2E8F0' }}>= PKR {(rewards.totalPoints || rewards.points || 0)} Discount Value</Text>
+                    </View>
+                  </View>
+                  <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}>
+                    <Ionicons name="gift" size={26} color="#FFFFFF" />
+                  </View>
+                </View>
+
+                {/* View / Hide Rewards History toggle */}
+                <TouchableOpacity
+                  onPress={() => setShowRewardHistory(v => !v)}
+                  activeOpacity={0.8}
+                  style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', borderRadius: 14, paddingVertical: 12 }}
+                >
+                  <Ionicons name={showRewardHistory ? 'chevron-up' : 'time-outline'} size={16} color="#FFFFFF" style={{ marginRight: 7 }} />
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13.5 }}>
+                    {showRewardHistory ? 'Hide Rewards History' : 'View Rewards History'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showRewardHistory && (
+                  <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 6 }}>
+                    {(() => {
+                      const history = rewards.recentHistory || rewards.transactions || [];
+                      if (!history.length) {
+                        return (
+                          <View style={{ alignItems: 'center', paddingVertical: 22 }}>
+                            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                              <Ionicons name="sparkles-outline" size={20} color="#0052FF" />
+                            </View>
+                            <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0F172A', marginBottom: 3 }}>No reward activity yet.</Text>
+                            <Text style={{ fontSize: 12, color: '#94A3B8' }}>Earn points on visits, referrals and reviews.</Text>
+                          </View>
+                        );
+                      }
+                      return history.map((h, i) => {
+                        const pts = h.points || 0;
+                        const positive = pts >= 0;
+                        return (
+                          <View key={h._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 8, borderBottomWidth: i < history.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
+                            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: positive ? '#DCFCE7' : '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
+                              <Ionicons name={positive ? 'arrow-up' : 'arrow-down'} size={15} color={positive ? '#16A34A' : '#DC2626'} />
+                            </View>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }} numberOfLines={1}>{h.description || h.type || 'Reward'}</Text>
                               <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{h.createdAt ? new Date(h.createdAt).toLocaleDateString() : ''}</Text>
                             </View>
-                            <Text style={{ fontSize: 14, fontWeight: '800', color: (h.points || 0) >= 0 ? '#16A34A' : '#DC2626' }}>
-                              {(h.points || 0) >= 0 ? '+' : ''}{h.points || 0} pts
+                            <Text style={{ fontSize: 14, fontWeight: '800', color: positive ? '#16A34A' : '#DC2626' }}>
+                              {positive ? '+' : ''}{pts} pts
                             </Text>
                           </View>
-                        ));
-                      })()}
-                    </View>
-                  )}
-                </View>
-
-                {/* How You Earn Points */}
-                <View style={[styles.earnCard, isWide && { flex: 1, marginLeft: 10, marginTop: 0 }]}>
-                  <Text style={styles.earnTitle}>How You Earn Points</Text>
-                  <View style={styles.earnRow}>
-                    <Ionicons name="checkmark-circle" size={18} color="#16A34A" style={{ marginRight: 8 }} />
-                    <Text style={styles.earnDesc}>Visit Completed & online payment</Text>
-                    <Text style={styles.earnPts}>+2%</Text>
+                        );
+                      });
+                    })()}
                   </View>
-                  <View style={styles.earnRow}>
-                    <Ionicons name="person-add-outline" size={18} color="#7C3AED" style={{ marginRight: 8 }} />
-                    <Text style={styles.earnDesc}>Refer a Friend / When friend completes first visit</Text>
-                    <Text style={styles.earnPts}>+100 pts</Text>
-                  </View>
-                  <View style={styles.earnRow}>
-                    <Ionicons name="star-outline" size={18} color="#D97706" style={{ marginRight: 8 }} />
-                    <Text style={styles.earnDesc}>Review / After submitting verified review</Text>
-                    <Text style={styles.earnPts}>+50 pts</Text>
-                  </View>
-                </View>
+                )}
               </View>
 
-              {/* Redeem Points Card */}
-              <View style={styles.redeemCard}>
-                <View style={styles.redeemLeft}>
-                  <View style={styles.redeemIconWrap}>
-                    <Ionicons name="pricetag-outline" size={22} color="#16A34A" />
+              {/* ===== HOW YOU EARN POINTS ===== */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
+                <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF', marginRight: 9 }} />
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>HOW YOU EARN POINTS</Text>
+              </View>
+
+              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                {[
+                  { icon: 'checkmark-circle', tint: '#DCFCE7', border: '#BBF7D0', color: '#16A34A', title: 'Visit Completed', sub: 'On every online payment', pts: '+2%' },
+                  { icon: 'person-add', tint: '#EDE9FE', border: '#DDD6FE', color: '#7C3AED', title: 'Refer a Friend', sub: 'When friend completes first visit', pts: '+100 pts' },
+                  { icon: 'star', tint: '#FEF3C7', border: '#FDE68A', color: '#D97706', title: 'Write a Review', sub: 'After submitting a verified review', pts: '+50 pts' },
+                ].map((r, i, arr) => (
+                  <View key={r.title} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: r.tint, borderWidth: 1, borderColor: r.border, alignItems: 'center', justifyContent: 'center', marginRight: 13 }}>
+                      <Ionicons name={r.icon} size={21} color={r.color} />
+                    </View>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }}>{r.title}</Text>
+                      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{r.sub}</Text>
+                    </View>
+                    <View style={{ backgroundColor: r.color, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' }}>{r.pts}</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.redeemTitle}>Redeem Points</Text>
-                    <Text style={styles.redeemSub}>Redeem all {rewards.totalPoints || rewards.points || 0} pts = PKR {rewards.totalPoints || rewards.points || 0} discount</Text>
+                ))}
+              </View>
+
+              {/* ===== REDEEM POINTS ===== */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
+                <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#16A34A', marginRight: 9 }} />
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>REDEEM POINTS</Text>
+              </View>
+
+              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name="pricetag" size={22} color="#16A34A" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#0A1551' }}>Redeem Points</Text>
+                    <Text style={{ fontSize: 12.5, color: '#64748B', marginTop: 2 }}>
+                      Redeem all {rewards.totalPoints || rewards.points || 0} pts = PKR {rewards.totalPoints || rewards.points || 0} discount
+                    </Text>
                   </View>
                 </View>
+
                 {redeemCode ? (
-                  <View style={{ backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, marginTop: 10, borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 11, color: '#16A34A', fontWeight: '700', marginBottom: 4 }}>YOUR DISCOUNT CODE</Text>
-                    <Text style={{ fontSize: 22, fontWeight: '900', color: '#0A1551', letterSpacing: 4 }}>{redeemCode}</Text>
-                    <Text style={{ fontSize: 11, color: '#64748B', textAlign: 'center', marginTop: 6 }}>Share this code with your doctor. They'll apply it to your bill.</Text>
-                    <TouchableOpacity onPress={() => { Share.share({ message: `My Dentist Discount Code: ${redeemCode}` }); }} style={{ marginTop: 8, backgroundColor: '#16A34A', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' }}>
-                      <Ionicons name="share-social-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
-                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Share Code</Text>
+                  <View style={{ backgroundColor: '#F0FDF4', borderRadius: 16, padding: 18, marginTop: 14, borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <Ionicons name="checkmark-circle" size={15} color="#16A34A" style={{ marginRight: 5 }} />
+                      <Text style={{ fontSize: 10.5, color: '#16A34A', fontWeight: '800', letterSpacing: 1.2 }}>YOUR DISCOUNT CODE</Text>
+                    </View>
+                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#BBF7D0', borderStyle: 'dashed', paddingHorizontal: 20, paddingVertical: 12, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 26, fontWeight: '900', color: '#0A1551', letterSpacing: 6, textAlign: 'center' }}>{redeemCode}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => { Share.share({ message: 'My Dentist Discount Code: ' + redeemCode }); }}
+                      activeOpacity={0.85}
+                      style={{ marginTop: 4, backgroundColor: '#16A34A', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 11, flexDirection: 'row', alignItems: 'center' }}
+                    >
+                      <Ionicons name="share-social-outline" size={16} color="#FFFFFF" style={{ marginRight: 7 }} />
+                      <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13.5 }}>Share Code</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity style={styles.redeemBtn} onPress={handleRedeem} disabled={redeemLoading}>
-                    {redeemLoading ? <ActivityIndicator color="#FFF" size="small" /> : (
+                  <TouchableOpacity
+                    onPress={handleRedeem}
+                    disabled={redeemLoading}
+                    activeOpacity={0.85}
+                    style={{ marginTop: 14, backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: redeemLoading ? 0.85 : 1, shadowColor: '#0052FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 3 }}
+                  >
+                    {redeemLoading ? (
+                      <ActivityIndicator color="#FFF" size="small" />
+                    ) : (
                       <>
-                        <Text style={styles.redeemBtnText}>Tap to Generate Code</Text>
-                        <Ionicons name="chevron-forward" size={14} color="#FFF" />
+                        <Ionicons name="pricetags-outline" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
+                        <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>Tap to Generate Code</Text>
+                        <Ionicons name="chevron-forward" size={15} color="#FFFFFF" style={{ marginLeft: 4 }} />
                       </>
                     )}
                   </TouchableOpacity>
                 )}
-                <Text style={styles.redeemInfo}>
-                  Share this code with the doctor. They can apply it to deduct the amount from your bill.
-                </Text>
+
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 12 }}>
+                  <Ionicons name="information-circle-outline" size={14} color="#94A3B8" style={{ marginRight: 6, marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: 11.5, color: '#94A3B8', lineHeight: 16 }}>
+                    Share this code with the doctor. They can apply it to deduct the amount from your bill.
+                  </Text>
+                </View>
               </View>
 
-
-              {/* Saved Payment Methods moved to the patient Profile tab (<PaymentMethods /> in ProfileScreen). */}
-
-              {/* Payment History */}
-              <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Payment History</Text>
-              {bills.filter(b => b.status === 'paid').length > 0 ? (
-                bills.filter(b => b.status === 'paid').map(b => (
-                  <View key={b._id} style={styles.historyRow}>
-                    <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.historyName}>{b.treatmentName}</Text>
-                      <Text style={styles.historyDate}>{new Date(b.createdAt).toLocaleDateString()}</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                      <Text style={styles.historyPrice}>PKR {b.amount?.toLocaleString()}</Text>
-                      <TouchableOpacity 
-                        style={styles.downloadHistoryBtn} 
-                        onPress={() => handleDownloadInvoice(b)}
-                      >
-                        <Ionicons name="cloud-download-outline" size={14} color="#0052FF" />
-                        <Text style={styles.downloadHistoryBtnText}>Receipt</Text>
-                      </TouchableOpacity>
-                    </View>
+              {/* ===== PAYMENT HISTORY ===== */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
+                <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0A1551', marginRight: 9 }} />
+                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>PAYMENT HISTORY</Text>
+                {bills.filter(b => b.status === 'paid').length > 0 && (
+                  <View style={{ marginLeft: 'auto', backgroundColor: '#DCFCE7', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#16A34A' }}>{bills.filter(b => b.status === 'paid').length} paid</Text>
                   </View>
-                ))
-              ) : (
-                <Text style={styles.emptyText}>No paid transaction history.</Text>
-              )}
+                )}
+              </View>
 
-              {/* Refer-a-Friend moved to the Profile tab. */}
+              {bills.filter(b => b.status === 'paid').length > 0 ? (
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                  {bills.filter(b => b.status === 'paid').map((b, i, arr) => (
+                    <View key={b._id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center', justifyContent: 'center', marginRight: 13 }}>
+                        <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
+                      </View>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }} numberOfLines={1}>{b.treatmentName}</Text>
+                        <Text style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 2 }}>{new Date(b.createdAt).toLocaleDateString()}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0A1551' }}>PKR {b.amount?.toLocaleString()}</Text>
+                        <TouchableOpacity
+                          onPress={() => handleDownloadInvoice(b)}
+                          activeOpacity={0.8}
+                          style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}
+                        >
+                          <Ionicons name="cloud-download-outline" size={13} color="#0052FF" style={{ marginRight: 5 }} />
+                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#0052FF' }}>Receipt</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', paddingVertical: 30, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
+                  <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                    <Ionicons name="receipt-outline" size={24} color="#0052FF" />
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginBottom: 4 }}>No paid transaction history.</Text>
+                  <Text style={{ fontSize: 12.5, color: '#94A3B8' }}>Your paid bills will appear here.</Text>
+                </View>
+              )}
             </View>
           )}
 

@@ -20,7 +20,25 @@ export default function PromoScreen({ route, navigation }) {
   // Title / CTA can be empty or junk (e.g. a stray "•" or "Press") in admin data —
   // promoTitle/ctaLabel clean them with sensible fallbacks (shared with the banners).
   const displayTitle = promoTitle(campaign);
+  // The visitor already tapped the banner's "Learn More" / "What is this?" to reach
+  // this detail page, so the action button here should describe the external link it
+  // opens — not echo that same entry CTA (which read as a duplicate button).
   const ctaText = ctaLabel(campaign?.ctaLabel, 'Learn More');
+
+  // Open the link the admin set on the campaign (campaign.ctaLink). Admin values are
+  // often entered without a scheme (e.g. "www.site.com" or "site.com/page"), and
+  // Linking.openURL silently fails on Android without one — so normalise to https://.
+  const openCtaLink = async () => {
+    let url = (campaign?.ctaLink || '').trim();
+    if (!url) return;
+    const hasScheme = /^([a-z][a-z0-9+.\-]*:\/\/|mailto:|tel:)/i.test(url);
+    if (!hasScheme) url = 'https://' + url.replace(/^\/+/, '');
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      console.log('Promo link failed to open:', url, e?.message);
+    }
+  };
 
   // Promo artwork often contains the offer text baked in, so show the FULL image
   // (no crop, no overlay). We measure its natural ratio to render it uncropped.
@@ -126,13 +144,13 @@ export default function PromoScreen({ route, navigation }) {
             )}
 
             {campaign.ctaLink ? (
-              <TouchableOpacity style={styles.cta} activeOpacity={0.9} onPress={() => Linking.openURL(campaign.ctaLink)}>
+              <TouchableOpacity style={styles.cta} activeOpacity={0.9} onPress={openCtaLink}>
                 <Text style={styles.ctaText}>{ctaText}</Text>
                 <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.closeWide} activeOpacity={0.85} onPress={() => navigation.goBack()}>
-                <Text style={styles.closeWideText}>Close</Text>
+              <TouchableOpacity style={styles.cta} activeOpacity={0.9} onPress={() => navigation.goBack()}>
+                <Text style={styles.ctaText}>Got it</Text>
               </TouchableOpacity>
             )}
 

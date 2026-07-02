@@ -138,7 +138,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
       const remaining = (POINTS_THRESHOLD - points).toLocaleString();
       Alert.alert(
         'Not Enough Points',
-        `You need 20,000 points to generate a redemption code.\n\nYour points: ${points.toLocaleString()}\nStill needed: ${remaining}\n\nEarn points by completing patient visits, receiving payments, and collecting reviews.`
+        `You need ${POINTS_THRESHOLD.toLocaleString()} points to generate a redemption code.\n\nYour points: ${points.toLocaleString()}\nStill needed: ${remaining}\n\nEarn points by completing patient visits, receiving payments, and collecting reviews.`
       );
       return;
     }
@@ -149,7 +149,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
 
     Alert.alert(
       'Popular Badge Redemption Code',
-      `Send this code to the admin to receive your Popular Doctor badge:\n\n${code}\n\nThis code is linked to your account. The admin will verify your 20,000 points and activate your badge.`,
+      `Send this code to the admin to receive your Popular Doctor badge:\n\n${code}\n\nThis code is linked to your account. The admin will verify your ${POINTS_THRESHOLD.toLocaleString()} points and activate your badge.`,
       [
         {
           text: 'Copy Code',
@@ -172,13 +172,13 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
   // Earn 20,000 points → green badge is granted automatically by the backend.
   const handleRedeemPopular = () => {
     if (isPopular && profile?.popularType === 'earned') {
-      Alert.alert('You are Popular!', 'You have reached 20,000 points — your green Popular badge is active and you rank at the top of search.');
+      Alert.alert('You are Popular!', `You have reached ${POINTS_THRESHOLD.toLocaleString()} points — your green Popular badge is active and you rank at the top of search.`);
       return;
     }
-    const remaining = Math.max(0, 20000 - points);
+    const remaining = Math.max(0, POINTS_THRESHOLD - points);
     Alert.alert(
       'Earn the Popular Badge',
-      `Reach 20,000 points to automatically unlock the green Popular badge and rank at the top of patient search.\n\nYour points: ${points.toLocaleString()}\nRemaining: ${remaining.toLocaleString()}\n\nEarn points from completed appointments and patient reviews.`,
+      `Reach ${POINTS_THRESHOLD.toLocaleString()} points to automatically unlock the green Popular badge and rank at the top of patient search.\n\nYour points: ${points.toLocaleString()}\nRemaining: ${remaining.toLocaleString()}\n\nEarn points from completed appointments and patient reviews.`,
       [{ text: 'Got it' }]
     );
   };
@@ -207,7 +207,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
           <View style={styles.promoTagGreen}><Ionicons name="star" size={10} color="#FFF" /><Text style={styles.promoTagText}>POPULAR</Text></View>
           <Image source={{uri: `https://ui-avatars.com/api/?name=${doctorName.replace(' ', '+')}&background=F0FDF4&color=16A34A&size=100`}} style={styles.promoAvatar} />
           <View style={{flex: 1, paddingLeft: 10}}>
-            <Text style={styles.promoText}>Get popular doctor banner{'\n'}by earning 20,000 points</Text>
+            <Text style={styles.promoText}>Get popular doctor banner{'\n'}by earning {POINTS_THRESHOLD.toLocaleString()} points</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#0A1551" />
         </TouchableOpacity>
@@ -281,8 +281,8 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
                 <Ionicons name="information-circle-outline" size={14} color="#64748B" />
                 <Text style={styles.redeemInfoText}>
                   {canGenerateCode
-                    ? 'You have reached 20,000 points! Generate your code and send it to the admin to get your Popular Doctor Banner.'
-                    : `You need 20,000 points to generate a redemption code. You have ${points.toLocaleString()} pts — ${(POINTS_THRESHOLD - points).toLocaleString()} more to go.`}
+                    ? `You have reached ${POINTS_THRESHOLD.toLocaleString()} points! Generate your code and send it to the admin to get your Popular Doctor Banner.`
+                    : `You need ${POINTS_THRESHOLD.toLocaleString()} points to generate a redemption code. You have ${points.toLocaleString()} pts — ${(POINTS_THRESHOLD - points).toLocaleString()} more to go.`}
                 </Text>
               </View>
             </View>
@@ -307,10 +307,10 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
             />
             <View>
               <Text style={styles.generateBtnTextMain}>
-                {canGenerateCode ? 'Tap to Generate Code' : 'Locked — 20,000 pts required'}
+                {canGenerateCode ? 'Tap to Generate Code' : `Locked — ${POINTS_THRESHOLD.toLocaleString()} pts required`}
               </Text>
               <Text style={styles.generateBtnTextSub}>
-                {canGenerateCode ? 'Get a code to redeem your Popular badge' : `${points.toLocaleString()} / 20,000 pts earned`}
+                {canGenerateCode ? 'Get a code to redeem your Popular badge' : `${points.toLocaleString()} / ${POINTS_THRESHOLD.toLocaleString()} pts earned`}
               </Text>
             </View>
           </TouchableOpacity>

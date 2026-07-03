@@ -854,10 +854,15 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   }, [bills, billSearch, billStatusFilter, dateRange, sort]);
 
   const { totalPaid, totalDiscount, totalOutstanding, monthRevenue, allTimeRevenue, overdueBills, overdueSum, trendPct, collectionRate, counts, filteredBills } = derived;
-  // Previous Bills tab shows only paid bills.
-  const prevBills = filteredBills.filter((b) => b.status === 'paid');
+  // "Previous Bills" shows paid bills; the "Drafts" tab reuses this same list UI for drafts.
+  const prevBills = filteredBills.filter((b) => b.status === (subTab === 'drafts' ? 'draft' : 'paid'));
   const visibleBills = prevBills.slice(0, billVisible);
   const hasMoreBills = visibleBills.length < prevBills.length;
+
+  // Draft-tab summary stats (all drafts, independent of the search box).
+  const draftAll = bills.filter((b) => b.status === 'draft');
+  const draftTotal = draftAll.reduce((s, b) => s + (b.finalAmount || b.amount || 0), 0);
+  const draftAvg = draftAll.length ? Math.round(draftTotal / draftAll.length) : 0;
   React.useEffect(() => { setBillVisible(20); }, [billSearch, billStatusFilter, dateRange, sort]);
 
   return (
@@ -874,6 +879,10 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
           <Ionicons name="document-text-outline" size={16} color={subTab === 'previous' ? '#0052FF' : '#94A3B8'} />
           <Text style={[styles.tabText, subTab === 'previous' && styles.tabTextActive]}>Previous Bills</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabBtn, subTab === 'drafts' && styles.tabBtnActive]} onPress={() => setSubTab('drafts')}>
+          <Ionicons name="create-outline" size={16} color={subTab === 'drafts' ? '#0052FF' : '#94A3B8'} />
+          <Text style={[styles.tabText, subTab === 'drafts' && styles.tabTextActive]}>Drafts</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.tabBtn, subTab === 'current' && styles.tabBtnActive]} onPress={() => setSubTab('current')}>
           <Ionicons name="document-outline" size={16} color={subTab === 'current' ? '#0052FF' : '#94A3B8'} />
           <Text style={[styles.tabText, subTab === 'current' && styles.tabTextActive]}>Current Bill</Text>
@@ -886,63 +895,83 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
       <ScrollView style={styles.contentScroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         
-        {/* --- PREVIOUS BILLS --- */}
-        {subTab === 'previous' && (
+        {/* --- PREVIOUS BILLS / DRAFTS (same list UI, filtered by status) --- */}
+        {(subTab === 'previous' || subTab === 'drafts') && (
           <View>
-            <Text style={styles.pageTitle}>Previous Bills</Text>
-            <Text style={styles.pageSubtitle}>View, create and download the bills generated for this clinic</Text>
+            <Text style={styles.pageTitle}>{subTab === 'drafts' ? 'Draft Bills' : 'Previous Bills'}</Text>
+            <Text style={styles.pageSubtitle}>{subTab === 'drafts' ? 'Unfinished bills saved as drafts — open one to finish and save it' : 'View, create and download the bills generated for this clinic'}</Text>
 
-            {/* TIER 1 — revenue hero */}
-            <View style={styles.revHero}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.revLabel}>Collected this month</Text>
-                <Text style={styles.revValue}>{rsFmt(monthRevenue)}</Text>
-                <Text style={styles.revSub}>
-                  {rsFmt(allTimeRevenue)} all-time · {bills.length} bills{bills.length === 100 ? ' (last 100)' : ''}
-                </Text>
-              </View>
-              {trendPct !== null && (
-                <View style={styles.trendPill}>
-                  <Ionicons name={trendPct >= 0 ? 'arrow-up' : 'arrow-down'} size={12} color={trendPct >= 0 ? '#BBF7D0' : '#FCD34D'} />
-                  <Text style={[styles.trendText, { color: trendPct >= 0 ? '#BBF7D0' : '#FCD34D' }]}>{Math.abs(trendPct)}%</Text>
+            {subTab === 'drafts' ? (
+              <>
+                {/* TIER 1 — drafts hero */}
+                <View style={styles.revHero}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.revLabel}>Value in drafts</Text>
+                    <Text style={styles.revValue}>{rsFmt(draftTotal)}</Text>
+                    <Text style={styles.revSub}>
+                      {draftAll.length} draft{draftAll.length !== 1 ? 's' : ''} waiting to be finished
+                    </Text>
+                  </View>
                 </View>
-              )}
-            </View>
 
-            {/* TIER 2 — secondary stat chips */}
-            <View style={styles.statsRow}>
-              <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('outstanding')}>
-                <Text style={styles.miniStatLabel}>Outstanding</Text>
-                <Text style={[styles.miniStatValue, { color: '#D97706' }]}>{rsFmt(totalOutstanding)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('overdue')}>
-                <Text style={styles.miniStatLabel}>Overdue ({overdueBills.length})</Text>
-                <Text style={[styles.miniStatValue, { color: '#DC2626' }]}>{rsFmt(overdueSum)}</Text>
-              </TouchableOpacity>
-              <View style={styles.miniStat}>
-                <Text style={styles.miniStatLabel}>Discount given</Text>
-                <Text style={[styles.miniStatValue, { color: '#16A34A' }]}>{rsFmt(totalDiscount)}</Text>
-              </View>
-              <View style={styles.miniStat}>
-                <Text style={styles.miniStatLabel}>Collection rate</Text>
-                <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{collectionRate}%</Text>
-              </View>
-            </View>
+                {/* TIER 2 — drafts stat chips */}
+                <View style={styles.statsRow}>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Drafts</Text>
+                    <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{draftAll.length}</Text>
+                  </View>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Total value</Text>
+                    <Text style={[styles.miniStatValue, { color: '#0052FF' }]}>{rsFmt(draftTotal)}</Text>
+                  </View>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Avg / draft</Text>
+                    <Text style={[styles.miniStatValue, { color: '#7C3AED' }]}>{rsFmt(draftAvg)}</Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <>
+                {/* TIER 1 — revenue hero */}
+                <View style={styles.revHero}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.revLabel}>Collected this month</Text>
+                    <Text style={styles.revValue}>{rsFmt(monthRevenue)}</Text>
+                    <Text style={styles.revSub}>
+                      {rsFmt(allTimeRevenue)} all-time · {bills.length} bills{bills.length === 100 ? ' (last 100)' : ''}
+                    </Text>
+                  </View>
+                  {trendPct !== null && (
+                    <View style={styles.trendPill}>
+                      <Ionicons name={trendPct >= 0 ? 'arrow-up' : 'arrow-down'} size={12} color={trendPct >= 0 ? '#BBF7D0' : '#FCD34D'} />
+                      <Text style={[styles.trendText, { color: trendPct >= 0 ? '#BBF7D0' : '#FCD34D' }]}>{Math.abs(trendPct)}%</Text>
+                    </View>
+                  )}
+                </View>
 
-            {/* Overdue collections banner */}
-            {overdueBills.length > 0 && !bannerDismissed && billStatusFilter !== 'overdue' && (
-              <TouchableOpacity activeOpacity={0.85} style={styles.overdueBanner} onPress={() => setBillStatusFilter('overdue')}>
-                <Ionicons name="alert-circle" size={18} color="#DC2626" />
-                <Text style={styles.overdueBannerText}>
-                  {overdueBills.length} {overdueBills.length === 1 ? 'bill' : 'bills'} overdue · {rsFmt(overdueSum)}. Tap to filter.
-                </Text>
-                <TouchableOpacity onPress={() => setBannerDismissed(true)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color="#DC2626" />
-                </TouchableOpacity>
-              </TouchableOpacity>
+                {/* TIER 2 — secondary stat chips */}
+                <View style={styles.statsRow}>
+                  <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('outstanding')}>
+                    <Text style={styles.miniStatLabel}>Outstanding</Text>
+                    <Text style={[styles.miniStatValue, { color: '#D97706' }]}>{rsFmt(totalOutstanding)}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('overdue')}>
+                    <Text style={styles.miniStatLabel}>Overdue ({overdueBills.length})</Text>
+                    <Text style={[styles.miniStatValue, { color: '#DC2626' }]}>{rsFmt(overdueSum)}</Text>
+                  </TouchableOpacity>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Discount given</Text>
+                    <Text style={[styles.miniStatValue, { color: '#16A34A' }]}>{rsFmt(totalDiscount)}</Text>
+                  </View>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Collection rate</Text>
+                    <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{collectionRate}%</Text>
+                  </View>
+                </View>
+              </>
             )}
 
-            {/* Search + Export */}
+            {/* Search */}
             <View style={styles.searchRow}>
               <View style={[styles.billSearchWrap, { flex: 1, marginBottom: 0 }]}>
                 <Ionicons name="search-outline" size={18} color="#94A3B8" />
@@ -962,10 +991,6 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   </TouchableOpacity>
                 )}
               </View>
-              <TouchableOpacity style={styles.exportBtn} onPress={() => exportCsv(prevBills)} disabled={exporting}>
-                {exporting ? <ActivityIndicator size="small" color="#0052FF" /> : <Ionicons name="download-outline" size={18} color="#0052FF" />}
-                <Text style={styles.exportBtnText}>Export</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Date presets */}
@@ -999,7 +1024,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               <ActivityIndicator size="small" color="#0052FF" style={{ marginVertical: 30 }} />
             ) : prevBills.length === 0 ? (
               <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
-                {billSearch || dateRange !== 'all' ? 'No paid bills match your filters.' : 'No paid bills found yet.'}
+                {(() => { const noun = subTab === 'drafts' ? 'draft bills' : 'paid bills'; return billSearch || dateRange !== 'all' ? `No ${noun} match your filters.` : `No ${noun} found yet.`; })()}
               </Text>
             ) : !isWide ? (
               // ── Phone: stacked cards (no horizontal scroll) ──
@@ -1162,6 +1187,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
             {/* Patient Select Dropdown */}
             <View style={{ marginBottom: 20, zIndex: 10 }}>
               <Text style={styles.inputLabel}>Select Patient *</Text>
+              <View style={{ position: 'relative', zIndex: 20 }}>
               <TouchableOpacity style={styles.inputWrap} onPress={() => setShowPatientDropdown(!showPatientDropdown)}>
                 <Text style={styles.inputText}>{selectedPatient ? selectedPatient.name : 'Choose a patient...'}</Text>
                 <Ionicons name="chevron-down" size={16} color="#0A1551" />
@@ -1203,6 +1229,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   )}
                 </ScrollView>
               )}
+              </View>
             </View>
 
             {renderPatientInfo()}
@@ -1299,43 +1326,6 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                     />
                   </View>
 
-                  {/* DUE DATE */}
-                  <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.sumLabelText}>Payment due</Text>
-                    <View style={styles.dueRow}>
-                      {[{ k: 'today', l: 'Today' }, { k: '7d', l: '+7 days' }, { k: '15d', l: '+15 days' }, { k: '30d', l: '+30 days' }].map((d) => {
-                        const on = dueChoice === d.k;
-                        return (
-                          <TouchableOpacity key={d.k} style={[styles.dueChip, on && styles.dueChipActive]} onPress={() => setDueChoice(d.k)}>
-                            <Text style={[styles.dueChipText, on && styles.dueChipTextActive]}>{d.l}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* PAYMENT METHOD SELECTOR */}
-                  <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.sumLabelText}>Payment Method</Text>
-                    <View style={{ marginTop: 6, gap: 8 }}>
-                      {[
-                        { key: 'cash',      icon: 'cash-outline',           label: 'Cash' },
-                        { key: 'easypaisa', icon: 'phone-portrait-outline', label: 'EasyPaisa' },
-                        { key: 'jazzcash',  icon: 'wallet-outline',         label: 'JazzCash' },
-                        { key: 'card',      icon: 'card-outline',           label: 'Credit / Debit Card' },
-                      ].map(pm => (
-                        <TouchableOpacity
-                          key={pm.key}
-                          style={[styles.payMethodBtn, paymentMethod === pm.key && styles.payMethodBtnActive]}
-                          onPress={() => setPaymentMethod(pm.key)}
-                        >
-                          <Ionicons name={pm.icon} size={16} color={paymentMethod === pm.key ? '#0052FF' : '#475569'} />
-                          <Text style={[styles.payMethodText, paymentMethod === pm.key && styles.payMethodTextActive]}>{pm.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
                   <View style={styles.sumRow}>
                     <Text style={[styles.sumLabelText, {fontWeight: 'bold', color: '#0A1551'}]}>Payable Amount</Text>
                     <Text style={[styles.sumValText, {color: '#0052FF', fontSize: 16}]}>PKR {finalAmount.toLocaleString()}</Text>
@@ -1360,7 +1350,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                     <Ionicons name="save-outline" size={16} color="#0052FF" style={{ marginRight: 6 }} />
                     <Text style={styles.draftBtnText}>Save as Draft</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.createBtn} onPress={() => handleCreateBill(false)} disabled={saving}>
+                  <TouchableOpacity style={[styles.createBtn, paidVal <= 0 && { opacity: 0.5 }]} onPress={() => handleCreateBill(false)} disabled={saving || paidVal <= 0}>
                     {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.createBtnText}>{editingBillId ? 'Save Bill' : 'Create Bill'}</Text>}
                   </TouchableOpacity>
                 </View>
@@ -1498,11 +1488,11 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               <View style={{ flex: isWide ? 1 : undefined, width: isWide ? undefined : '100%' }}>
 
                 {/* Printer type */}
-                <Text style={styles.optSectionTitle}>Printer Type</Text>
+                <Text style={styles.optSectionTitle}>Select Printer</Text>
                 <View style={styles.printerTypeRow}>
                   {[
-                    { key: 'thermal', icon: 'receipt-outline', label: `Thermal (${thermalWidthMm}mm)`, sub: 'Roll / POS receipt' },
-                    { key: 'normal',  icon: 'print-outline',   label: 'Normal (A4)',    sub: 'Inkjet / laser printer' },
+                    { key: 'thermal', icon: 'receipt-outline', label: 'Thermal Printer', sub: `Roll / POS receipt · ${thermalWidthMm}mm` },
+                    { key: 'normal',  icon: 'print-outline',   label: 'Normal Printer (A4)', sub: 'Inkjet / laser printer' },
                   ].map(pt => (
                     <TouchableOpacity
                       key={pt.key}
@@ -1542,7 +1532,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 )}
 
                 {/* Action buttons */}
-                <Text style={styles.optSectionTitle}>Actions</Text>
+                <Text style={styles.optSectionTitle}>Print the Bill</Text>
 
                 {/* Thermal mode: Bluetooth ESC/POS print (the system dialog can't
                     reach a BT thermal printer, so we hide Print Receipt below). */}
@@ -1923,7 +1913,7 @@ const styles = StyleSheet.create({
   inputWrap: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 40, backgroundColor: '#FFF' },
   inputText: { fontSize: 13, color: '#0A1551' },
   
-  dropdownContainer: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, marginTop: 4, maxHeight: 220, overflow: 'hidden', zIndex: 999 },
+  dropdownContainer: { position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, maxHeight: 220, overflow: 'hidden', zIndex: 999, elevation: 12, shadowColor: '#0A1551', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12 },
   dropdownItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
 
   /* Bill Summary Box */

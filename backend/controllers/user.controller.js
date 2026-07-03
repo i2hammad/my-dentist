@@ -364,6 +364,7 @@ const getReferral = async (req, res) => {
       success: true,
       data: {
         code,
+        referredBy: profile.referredBy || null,
         pointsPerReferral: REFERRAL_POINTS,
         referredCount,
         referralPointsEarned: earned[0]?.total || 0,
@@ -376,25 +377,92 @@ const getReferral = async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
-// @route POST /api/users/referral/apply  body: { code } — link this patient to a referrer
+// @route POST /api/users/referral/apply  body: { code } — link this patient to a referrer (patient OR doctor)
 const applyReferral = async (req, res) => {
   try {
     const { code } = req.body;
     if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
-    const PatientProfile = require('../models/PatientProfile');
     const me = await PatientProfile.findOne({ userId: req.user._id });
     if (!me) return res.status(404).json({ success: false, message: 'Patient profile not found' });
     if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
 
-    const referrer = await PatientProfile.findOne({ referralCode: code.trim().toUpperCase() });
-    if (!referrer) return res.status(404).json({ success: false, message: 'Invalid referral code.' });
+    const clean = code.trim().toUpperCase();
+    // A patient can be referred by another patient OR by a doctor (doctor→patient referral).
+    const patientReferrer = await PatientProfile.findOne({ referralCode: clean });
+    const doctorReferrer = patientReferrer ? null : await DoctorProfile.findOne({ referralCode: clean });
+    if (!patientReferrer && !doctorReferrer) return res.status(404).json({ success: false, message: 'Invalid referral code.' });
+    if (patientReferrer && String(patientReferrer._id) === String(me._id)) {
+      return res.status(400).json({ success: false, message: "You can't use your own referral code." });
+    }
+
+    me.referredBy = (patientReferrer || doctorReferrer)._id;
+    me.referredByModel = patientReferrer ? 'PatientProfile' : 'DoctorProfile';
+    await me.save();
+    res.json({ success: true, message: 'Referral applied! You and your referrer get 100 points after your first completed treatment.' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// @route GET /api/users/doctor-referral — doctor's own code + independent patient/doctor referral stats
+const getDoctorReferral = async (req, res) => {
+  try {
+    const { ensureDoctorReferralCode, REFERRAL_POINTS } = require('../utils/referral');
+    const me = await DoctorProfile.findOne({ userId: req.user._id });
+    if (!me) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    const code = await ensureDoctorReferralCode(me);
+
+    // Patient Referral section — patients this doctor referred.
+    const patientReferredCount = await PatientProfile.countDocuments({ referredBy: me._id, referredByModel: 'DoctorProfile' });
+    const patientRewarded = await PatientProfile.countDocuments({ referredBy: me._id, referredByModel: 'DoctorProfile', referralRewarded: true });
+
+    // Doctor Referral section — doctors this doctor referred.
+    const doctorReferredCount = await DoctorProfile.countDocuments({ referredBy: me._id });
+    const doctorRewarded = await DoctorProfile.countDocuments({ referredBy: me._id, referralRewarded: true });
+
+    res.json({
+      success: true,
+      data: {
+        code,
+        pointsPerReferral: REFERRAL_POINTS,
+        // Doctor→Patient referrals — shown only in the Patient Referral section.
+        patient: {
+          referredCount: patientReferredCount,
+          pointsEarned: patientRewarded * REFERRAL_POINTS,
+        },
+        // Doctor→Doctor referrals — shown only in the Doctor Referral section.
+        doctor: {
+          referredCount: doctorReferredCount,
+          pointsEarned: doctorRewarded * REFERRAL_POINTS,
+          // True if THIS doctor was already referred by another doctor (hides the code-entry input).
+          referredByApplied: !!me.referredBy,
+        },
+        webLink: `https://my-dentist-sigma.vercel.app/?ref=${code}`,
+        androidLink: `https://play.google.com/store/apps/details?id=com.mydentistpk&ref=${code}`,
+      },
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// @route POST /api/users/doctor-referral/apply  body: { code } — link this doctor to a referring DOCTOR
+const applyDoctorReferral = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
+    const me = await DoctorProfile.findOne({ userId: req.user._id });
+    if (!me) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
+
+    // A doctor can only be referred by another doctor.
+    const referrer = await DoctorProfile.findOne({ referralCode: code.trim().toUpperCase() });
+    if (!referrer) return res.status(404).json({ success: false, message: 'Invalid doctor referral code.' });
     if (String(referrer._id) === String(me._id)) return res.status(400).json({ success: false, message: "You can't use your own referral code." });
 
     me.referredBy = referrer._id;
     await me.save();
-    res.json({ success: true, message: 'Referral applied! You and your friend get 100 points after your first completed treatment.' });
+    res.json({ success: true, message: 'Referral applied! Both doctors get 100 points after your first completed patient treatment.' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
 module.exports.getReferral = getReferral;
 module.exports.applyReferral = applyReferral;
+module.exports.getDoctorReferral = getDoctorReferral;
+module.exports.applyDoctorReferral = applyDoctorReferral;

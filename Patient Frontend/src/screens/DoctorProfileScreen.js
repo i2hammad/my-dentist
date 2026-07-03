@@ -216,7 +216,8 @@ export default function DoctorProfileScreen({ route, navigation }) {
     } catch (e) { /* ignore */ }
   }, [saved, doctor]);
 
-  const handleRedeem = async () => {
+  // Actually calls the redeem API and reveals the discount code.
+  const doRedeem = async () => {
     const pts = rewards.totalPoints || rewards.points || 0;
     if (pts <= 0) return Alert.alert('No Points', 'You have no reward points to redeem.');
     setRedeemLoading(true);
@@ -231,6 +232,22 @@ export default function DoctorProfileScreen({ route, navigation }) {
     } finally {
       setRedeemLoading(false);
     }
+  };
+
+  // Warn the patient before generating — the code must be saved immediately.
+  // Closing the app loses the code and resets the redeemed points to zero.
+  const handleRedeem = () => {
+    const pts = rewards.totalPoints || rewards.points || 0;
+    if (pts <= 0) return Alert.alert('No Points', 'You have no reward points to redeem.');
+    Alert.alert(
+      'Generate Redemption Code?',
+      `You are about to redeem ${pts} pts for a PKR ${pts} discount code.\n\nOnce generated, write it down or take a screenshot right away. If you close the app before giving the code to your doctor, the code will be lost and your points will be reset to zero.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Generate Code', onPress: doRedeem },
+      ],
+      { cancelable: true }
+    );
   };
 
   const TAB_ICONS = {

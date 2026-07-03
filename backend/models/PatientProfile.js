@@ -62,7 +62,8 @@ const patientProfileSchema = new mongoose.Schema(
     }],
     // ── Referral program ──
     referralCode: { type: String, unique: true, sparse: true }, // this patient's own code to share
-    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'PatientProfile', default: null }, // who referred them
+    referredBy: { type: mongoose.Schema.Types.ObjectId, refPath: 'referredByModel', default: null }, // who referred them (a patient OR a doctor)
+    referredByModel: { type: String, enum: ['PatientProfile', 'DoctorProfile'], default: 'PatientProfile' }, // which collection referredBy points at
     referralRewarded: { type: Boolean, default: false }, // 100/100 awarded after 1st completed treatment
     // Admin suspend/ban.
     isBlocked: { type: Boolean, default: false },

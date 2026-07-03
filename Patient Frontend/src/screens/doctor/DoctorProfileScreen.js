@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Platform, Alert, Image, Modal, FlatList, Dimensions
+  ActivityIndicator, Platform, Alert, Image, Modal, FlatList, Dimensions, Share
 } from 'react-native';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,8 +52,14 @@ export default function DoctorProfileScreen({ navigation }) {
     offDays: ['Sun'],
   });
 
+  // ── Referral program (one code, two independently-tracked sections) ──
+  const [referral, setReferral] = useState(null); // { code, pointsPerReferral, patient:{...}, doctor:{...}, webLink }
+  const [refCodeInput, setRefCodeInput] = useState('');
+  const [applyingRef, setApplyingRef] = useState(false);
+
   useEffect(() => {
     fetchProfile();
+    fetchDoctorReferral();
   }, []);
 
   const fetchProfile = async () => {
@@ -95,6 +101,69 @@ export default function DoctorProfileScreen({ navigation }) {
       console.log('Error fetching profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDoctorReferral = async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.get(`${API_BASE_URL}/api/users/doctor-referral`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data?.success) setReferral(res.data.data);
+    } catch (e) {
+      console.log('Error fetching doctor referral:', e?.response?.data?.message || e.message);
+    }
+  };
+
+  // Share the code with either patients or other doctors (same code, different framing).
+  const shareReferral = async (audience) => {
+    if (!referral?.code) {
+      Alert.alert('Please wait', 'Your referral code is still loading. Check your connection and try again in a moment.');
+      return;
+    }
+    const link = referral.webLink || '';
+    const message = audience === 'doctor'
+      ? `Join me on My Dentist! Sign up as a dentist with my referral code ${referral.code} — we both earn 100 points after your first completed patient treatment. ${link}`
+      : `Book your dental care on My Dentist and use my referral code ${referral.code} — we both earn 100 points after your first completed treatment. ${link}`;
+    try {
+      // On web, react-native Share is unreliable — use the Web Share API, else copy to clipboard.
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ title: 'My Dentist Referral', text: message });
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(message);
+          Alert.alert('Copied', 'Referral message copied to your clipboard — paste it anywhere to share.');
+        } else {
+          Alert.alert('Your Referral Code', `${referral.code}\n\n${message}`);
+        }
+      } else {
+        await Share.share({ message, title: 'My Dentist Referral' });
+      }
+    } catch (e) { /* user dismissed the share sheet */ }
+  };
+
+  // This doctor enters ANOTHER doctor's code (doctor→doctor referral).
+  const applyDoctorReferralCode = async () => {
+    const code = refCodeInput.trim().toUpperCase();
+    if (!code) return Alert.alert('Referral Code', 'Please enter a referral code.');
+    setApplyingRef(true);
+    try {
+      const token = await storage.getItem('userToken');
+      const res = await axios.post(
+        `${API_BASE_URL}/api/users/doctor-referral/apply`,
+        { code },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data?.success) {
+        Alert.alert('Referral Applied', res.data.message || 'Referral code applied successfully.');
+        setRefCodeInput('');
+        fetchDoctorReferral();
+      }
+    } catch (e) {
+      Alert.alert('Could Not Apply', e?.response?.data?.message || 'Invalid referral code. Please try again.');
+    } finally {
+      setApplyingRef(false);
     }
   };
 
@@ -386,6 +455,101 @@ export default function DoctorProfileScreen({ navigation }) {
           )}
         </View>
 
+        {/* ── Refer a Patient (doctor → patient referral) ── */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={[styles.sectionIconBg, { backgroundColor: '#EFF6FF' }]}>
+              <Ionicons name="person-add-outline" size={18} color="#0052FF" />
+            </View>
+            <Text style={styles.sectionTitle}>Refer a Patient</Text>
+          </View>
+          <Text style={styles.refDesc}>
+            Share your code with patients. When a patient you refer completes their first treatment with any dentist, you both earn {referral?.pointsPerReferral || 100} points.
+          </Text>
+
+          <View style={styles.refCodeBox}>
+            <Text style={styles.refCodeLabel}>YOUR REFERRAL CODE</Text>
+            <Text style={styles.refCodeValue}>{referral?.code || '••••••'}</Text>
+          </View>
+
+          <View style={styles.refStatsRow}>
+            <View style={styles.refStat}>
+              <Text style={styles.refStatNum}>{referral?.patient?.referredCount ?? 0}</Text>
+              <Text style={styles.refStatLabel}>Patients referred</Text>
+            </View>
+            <View style={styles.refStatDivider} />
+            <View style={styles.refStat}>
+              <Text style={[styles.refStatNum, { color: '#16A34A' }]}>{referral?.patient?.pointsEarned ?? 0}</Text>
+              <Text style={styles.refStatLabel}>Points earned</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.refShareBtn} onPress={() => shareReferral('patient')} activeOpacity={0.85}>
+            <Ionicons name="share-social-outline" size={16} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.refShareBtnText}>Share with Patients</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Refer a Doctor (doctor → doctor referral) ── */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={[styles.sectionIconBg, { backgroundColor: '#EDE9FE' }]}>
+              <Ionicons name="people-outline" size={18} color="#7C3AED" />
+            </View>
+            <Text style={[styles.sectionTitle, { color: '#7C3AED' }]}>Refer a Doctor</Text>
+          </View>
+          <Text style={styles.refDesc}>
+            Invite another dentist. When the doctor you refer completes their first patient treatment, you both earn {referral?.pointsPerReferral || 100} points.
+          </Text>
+
+          <View style={[styles.refCodeBox, { borderColor: '#DDD6FE', backgroundColor: '#F5F3FF' }]}>
+            <Text style={[styles.refCodeLabel, { color: '#7C3AED' }]}>YOUR REFERRAL CODE</Text>
+            <Text style={[styles.refCodeValue, { color: '#5B21B6' }]}>{referral?.code || '••••••'}</Text>
+          </View>
+
+          <View style={styles.refStatsRow}>
+            <View style={styles.refStat}>
+              <Text style={styles.refStatNum}>{referral?.doctor?.referredCount ?? 0}</Text>
+              <Text style={styles.refStatLabel}>Doctors referred</Text>
+            </View>
+            <View style={styles.refStatDivider} />
+            <View style={styles.refStat}>
+              <Text style={[styles.refStatNum, { color: '#16A34A' }]}>{referral?.doctor?.pointsEarned ?? 0}</Text>
+              <Text style={styles.refStatLabel}>Points earned</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={[styles.refShareBtn, { backgroundColor: '#7C3AED' }]} onPress={() => shareReferral('doctor')} activeOpacity={0.85}>
+            <Ionicons name="share-social-outline" size={16} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.refShareBtnText}>Share with Doctors</Text>
+          </TouchableOpacity>
+
+          {referral?.doctor?.referredByApplied ? (
+            <View style={styles.refAppliedRow}>
+              <Ionicons name="checkmark-circle" size={16} color="#16A34A" style={{ marginRight: 6 }} />
+              <Text style={styles.refAppliedText}>You joined using a dentist's referral code.</Text>
+            </View>
+          ) : (
+            <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 14 }}>
+              <Text style={styles.refApplyLabel}>Were you referred by a dentist? Enter their code:</Text>
+              <View style={styles.refApplyRow}>
+                <TextInput
+                  style={styles.refApplyInput}
+                  value={refCodeInput}
+                  onChangeText={(t) => setRefCodeInput(t.toUpperCase())}
+                  placeholder="e.g. DR7F3A2B"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="characters"
+                  maxLength={12}
+                />
+                <TouchableOpacity style={styles.refApplyBtn} onPress={applyDoctorReferralCode} disabled={applyingRef}>
+                  {applyingRef ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.refApplyBtnText}>Apply</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* Support & Help (inside the scroll so all profile details stay reachable) */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
@@ -598,6 +762,25 @@ const styles = StyleSheet.create({
   supportIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   supportLabel: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   supportValue: { fontSize: 13, color: '#64748B', marginTop: 1 },
+  // ── Referral cards ──
+  refDesc: { fontSize: 13, color: '#64748B', lineHeight: 19, marginBottom: 16, marginTop: -4 },
+  refCodeBox: { borderWidth: 1, borderColor: '#BFDBFE', borderStyle: 'dashed', backgroundColor: '#EFF6FF', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 14 },
+  refCodeLabel: { fontSize: 10, fontWeight: '800', color: '#0052FF', letterSpacing: 1, marginBottom: 4 },
+  refCodeValue: { fontSize: 22, fontWeight: '900', color: '#0A1551', letterSpacing: 3 },
+  refStatsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9', borderRadius: 12, paddingVertical: 12, marginBottom: 14 },
+  refStat: { flex: 1, alignItems: 'center' },
+  refStatNum: { fontSize: 20, fontWeight: '900', color: '#0A1551' },
+  refStatLabel: { fontSize: 11, color: '#64748B', fontWeight: '600', marginTop: 2 },
+  refStatDivider: { width: 1, height: 30, backgroundColor: '#E2E8F0' },
+  refShareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 12 },
+  refShareBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  refAppliedRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  refAppliedText: { fontSize: 12.5, color: '#16A34A', fontWeight: '600', flex: 1 },
+  refApplyLabel: { fontSize: 12.5, fontWeight: '700', color: '#334155', marginBottom: 8 },
+  refApplyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  refApplyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 44, fontSize: 14, fontWeight: '700', color: '#0F172A', letterSpacing: 1, backgroundColor: '#FFF' },
+  refApplyBtn: { backgroundColor: '#7C3AED', borderRadius: 10, height: 44, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center' },
+  refApplyBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
   timingLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginTop: 14, marginBottom: 8 },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   timeInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#FFFFFF' },

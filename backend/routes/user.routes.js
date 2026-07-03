@@ -13,16 +13,22 @@ const {
   upload,
   updateDoctorProfile,
   getReferral,
-  applyReferral
+  applyReferral,
+  getDoctorReferral,
+  applyDoctorReferral
 } = require('../controllers/user.controller');
 
 const AppSettings = require('../models/AppSettings');
 
 const router = express.Router();
 
-// Referral program
+// Referral program (patient)
 router.get('/referral', protect, getReferral);
 router.post('/referral/apply', protect, applyReferral);
+
+// Referral program (doctor) — one code, two independently-tracked sections
+router.get('/doctor-referral', protect, authorize('doctor'), getDoctorReferral);
+router.post('/doctor-referral/apply', protect, authorize('doctor'), applyDoctorReferral);
 
 // All routes below require authentication
 router.use(protect);

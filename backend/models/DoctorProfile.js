@@ -164,6 +164,13 @@ const doctorProfileSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // ── Referral program (doctor side) ──
+    // The doctor's own shareable code. Patients OR other doctors can redeem it.
+    referralCode: { type: String, unique: true, sparse: true },
+    // The DOCTOR who referred this doctor (doctor→doctor only).
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'DoctorProfile', default: null },
+    // 100/100 doctor→doctor bonus paid after this doctor's first completed treatment.
+    referralRewarded: { type: Boolean, default: false },
     isPopular: {
       type: Boolean,
       default: false,

@@ -458,12 +458,18 @@ const completeAppointment = async (req, res) => {
       const { addDoctorPoints } = require('../utils/popular');
       await addDoctorPoints(appointment.doctorId._id, doctorPts);
 
-      // Referral bonus: 100/100 to the patient + their referrer after this
-      // patient's FIRST completed treatment.
+      // Referral bonus: 100/100 to the patient + their referrer (patient OR doctor)
+      // after this patient's FIRST completed treatment.
       const PatientProfile = require('../models/PatientProfile');
       const fullPatient = await PatientProfile.findById(appointment.patientId._id);
-      const { rewardReferralOnFirstTreatment } = require('../utils/referral');
+      const { rewardReferralOnFirstTreatment, rewardDoctorReferralOnFirstTreatment } = require('../utils/referral');
       await rewardReferralOnFirstTreatment(fullPatient);
+
+      // Doctor→doctor referral: if the doctor who completed this treatment was
+      // referred by another doctor, pay both 100 pts on this first completion.
+      const DoctorProfile = require('../models/DoctorProfile');
+      const fullDoctor = await DoctorProfile.findById(appointment.doctorId._id);
+      await rewardDoctorReferralOnFirstTreatment(fullDoctor);
     } catch (e) {
       console.error('Award points error (non-fatal):', e.message);
     }

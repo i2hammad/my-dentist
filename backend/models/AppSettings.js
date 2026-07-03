@@ -16,6 +16,12 @@ const appSettingsSchema = new mongoose.Schema(
       bankName:        { type: String, default: '' },
       bankTitle:       { type: String, default: '' },
     },
+    // Which patient payment-method types are available in the app (admin-toggleable).
+    enabledPaymentMethods: {
+      type: [String],
+      enum: ['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank'],
+      default: ['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank'],
+    },
     supportEmail: { type: String, default: '' },
     maintenanceMode: { type: Boolean, default: false },
     // Popular badge thresholds

@@ -10,6 +10,7 @@ const TYPES = [
   { id: 'mastercard', label: 'Mastercard', icon: 'card', card: true },
   { id: 'easypaisa', label: 'EasyPaisa', icon: 'phone-portrait', card: false },
   { id: 'jazzcash', label: 'JazzCash', icon: 'phone-portrait', card: false },
+  { id: 'bank', label: 'Bank Account', icon: 'business', card: false },
 ];
 
 const labelFor = (id) => (TYPES.find((t) => t.id === id)?.label || id);
@@ -26,8 +27,14 @@ export default function PaymentMethods() {
   const [holder, setHolder] = useState('');
   const [number, setNumber] = useState('');
   const [expiry, setExpiry] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [iban, setIban] = useState('');
+  // Which method types the admin has enabled (defaults to all until settings load).
+  const [enabled, setEnabled] = useState(['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank']);
 
-  const isCard = TYPES.find((t) => t.id === type)?.card;
+  const isCard = !!TYPES.find((t) => t.id === type)?.card;
+  const isBank = type === 'bank';
+  const visibleTypes = TYPES.filter((t) => enabled.includes(t.id));
 
   const load = async () => {
     try {
@@ -39,11 +46,28 @@ export default function PaymentMethods() {
   };
   useEffect(() => { load(); }, []);
 
-  const resetForm = () => { setType('visa'); setHolder(''); setNumber(''); setExpiry(''); };
+  // Fetch admin-enabled payment types once.
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        if (!token) return;
+        const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, { headers: { Authorization: `Bearer ${token}` } });
+        const list = res.data?.data?.enabledPaymentMethods;
+        if (Array.isArray(list) && list.length) setEnabled(list);
+      } catch { /* keep defaults */ }
+    })();
+  }, []);
+
+  const resetForm = () => {
+    setType(TYPES.find((t) => enabled.includes(t.id))?.id || 'visa');
+    setHolder(''); setNumber(''); setExpiry(''); setBankName(''); setIban('');
+  };
 
   const save = async () => {
     const num = number.replace(/\s+/g, '');
-    if (!holder.trim()) return Alert.alert('Required', isCard ? "Enter the cardholder's name." : 'Enter the account title.');
+    if (!holder.trim()) return Alert.alert('Required', isCard ? "Enter the cardholder's name." : isBank ? 'Enter the title of account.' : 'Enter the account title.');
+    if (isBank && !bankName.trim()) return Alert.alert('Required', 'Enter the bank name.');
     if (!num) return Alert.alert('Required', isCard ? 'Enter the card number.' : 'Enter the account number.');
     if (isCard) {
       if (num.length < 12) return Alert.alert('Invalid', 'Enter a valid card number.');
@@ -59,6 +83,10 @@ export default function PaymentMethods() {
         ...(isCard ? {
           lastFourDigits: num.slice(-4),
           expiryDate: expiry.trim(),
+        } : {}),
+        ...(isBank ? {
+          bankName: bankName.trim(),
+          iban: iban.trim(),
         } : {}),
       };
       const res = await axios.post(`${API_BASE_URL}/api/payments/methods`, payload, { headers: { Authorization: `Bearer ${token}` } });
@@ -111,17 +139,18 @@ export default function PaymentMethods() {
       ) : (
         methods.map((m) => {
           const card = TYPES.find((t) => t.id === m.type)?.card;
+          const bank = m.type === 'bank';
           return (
             <View key={m._id} style={styles.methodRow}>
               <View style={styles.methodIcon}>
-                <Ionicons name={card ? 'card' : 'phone-portrait'} size={18} color="#0052FF" />
+                <Ionicons name={bank ? 'business' : card ? 'card' : 'phone-portrait'} size={18} color="#0052FF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.methodLabel}>
-                  {labelFor(m.type)}{m.isDefault ? '  •  Default' : ''}
+                  {(bank && m.bankName) ? m.bankName : labelFor(m.type)}{m.isDefault ? '  •  Default' : ''}
                 </Text>
                 <Text style={styles.methodSub}>
-                  {card ? `•••• ${m.lastFourDigits || '----'}${m.expiryDate ? `  ·  ${m.expiryDate}` : ''}` : m.accountNumber}
+                  {card ? `•••• ${m.lastFourDigits || '----'}${m.expiryDate ? `  ·  ${m.expiryDate}` : ''}` : (m.accountNumber || m.iban || '')}
                   {m.cardHolderName ? `  ·  ${m.cardHolderName}` : ''}
                 </Text>
               </View>
@@ -144,7 +173,7 @@ export default function PaymentMethods() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.fieldLabel}>Method Type</Text>
               <View style={styles.typeRow}>
-                {TYPES.map((t) => (
+                {visibleTypes.map((t) => (
                   <TouchableOpacity key={t.id} style={[styles.typeBtn, type === t.id && styles.typeBtnActive]} onPress={() => setType(t.id)}>
                     <Ionicons name={`${t.icon}-outline`} size={15} color={type === t.id ? '#FFF' : '#0052FF'} />
                     <Text style={[styles.typeBtnText, type === t.id && { color: '#FFF' }]}>{t.label}</Text>
@@ -152,20 +181,27 @@ export default function PaymentMethods() {
                 ))}
               </View>
 
-              <Text style={styles.fieldLabel}>{isCard ? 'Cardholder Name' : 'Account Title'}</Text>
+              <Text style={styles.fieldLabel}>{isCard ? 'Cardholder Name' : isBank ? 'Title of Account' : 'Account Title'}</Text>
               <TextInput
                 style={styles.input}
-                placeholder={isCard ? 'Name on card' : 'Account holder name'}
+                placeholder={isCard ? 'Name on card' : isBank ? 'Account holder / company name' : 'Account holder name'}
                 placeholderTextColor="#94A3B8"
                 value={holder}
                 onChangeText={setHolder}
                 autoCapitalize="words"
               />
 
-              <Text style={styles.fieldLabel}>{isCard ? 'Card Number' : 'Mobile Account Number'}</Text>
+              {isBank && (
+                <>
+                  <Text style={styles.fieldLabel}>Bank Name</Text>
+                  <TextInput style={styles.input} placeholder="HBL, Meezan, etc." placeholderTextColor="#94A3B8" value={bankName} onChangeText={setBankName} autoCapitalize="words" />
+                </>
+              )}
+
+              <Text style={styles.fieldLabel}>{isCard ? 'Card Number' : isBank ? 'Account Number' : 'Mobile Account Number'}</Text>
               <TextInput
                 style={styles.input}
-                placeholder={isCard ? '4111 2222 3333 4444' : '0300 1234567'}
+                placeholder={isCard ? '4111 2222 3333 4444' : isBank ? '0001234567890' : '0300 1234567'}
                 placeholderTextColor="#94A3B8"
                 value={number}
                 onChangeText={(v) => setNumber(isCard ? formatNumber(v) : v)}
@@ -179,12 +215,19 @@ export default function PaymentMethods() {
                 </>
               )}
 
+              {isBank && (
+                <>
+                  <Text style={styles.fieldLabel}>IBAN <Text style={{ color: '#94A3B8', fontWeight: '500' }}>(optional)</Text></Text>
+                  <TextInput style={styles.input} placeholder="PK36 XXXX 0000 0011 2345 6702" placeholderTextColor="#94A3B8" value={iban} onChangeText={(v) => setIban(v.toUpperCase())} autoCapitalize="characters" />
+                </>
+              )}
+
               <TouchableOpacity style={[styles.saveBtn, busy && { opacity: 0.7 }]} disabled={busy} onPress={save}>
                 {busy ? <ActivityIndicator color="#FFF" size="small" /> : (
                   <><Ionicons name="save-outline" size={18} color="#FFF" style={{ marginRight: 8 }} /><Text style={styles.saveBtnText}>Save Method</Text></>
                 )}
               </TouchableOpacity>
-              <Text style={styles.note}>We store only a reference (last 4 digits) — never your full card or CVV.</Text>
+              <Text style={styles.note}>{isCard ? 'We store only a reference (last 4 digits) — never your full card or CVV.' : 'Your details are stored securely for faster checkout.'}</Text>
             </ScrollView>
           </View>
         </View>

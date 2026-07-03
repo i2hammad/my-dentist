@@ -73,9 +73,38 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
     act(rr?.requested ? 'updated' : 'confirmed', (h) => axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/confirm`, {}, { headers: h }), optimistic);
   };
 
-  const complete = () => Alert.alert('Mark as Completed', 'Mark this visit as completed? This cannot be undone.', [
+  // Mark completed, then jump straight to the Bills tab with a draft bill prefilled
+  // from this appointment (patient + treatments) so the doctor can price and save it.
+  const completeAndBill = async () => {
+    setBusy(true);
+    try {
+      const res = await axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/complete`, {}, { headers: await headers() });
+      if (res.data?.success) {
+        setAppt((a) => ({ ...a, status: 'completed' }));
+        const pat = appt.patientId || {};
+        navigation.navigate('DoctorTabs', {
+          screen: 'DoctorBills',
+          params: {
+            billPrefill: {
+              appointmentId: appt._id,
+              patientId: pat._id || pat,
+              patientName: pat.fullName || 'Patient',
+              patientPhone: pat.mobileNumber || '',
+              treatmentType: appt.treatmentType || '',
+            },
+          },
+        });
+      } else {
+        Alert.alert('Error', res.data?.message || 'Could not complete the appointment.');
+      }
+    } catch (e) {
+      Alert.alert('Error', e.response?.data?.message || 'Could not complete the appointment.');
+    } finally { setBusy(false); }
+  };
+
+  const complete = () => Alert.alert('Mark as Completed', 'Mark this visit as completed? A draft bill will open with this appointment’s treatments.', [
     { text: 'No', style: 'cancel' },
-    { text: 'Yes, Complete', onPress: () => act('completed', (h) => axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/complete`, {}, { headers: h }), { status: 'completed' }) },
+    { text: 'Yes, Complete', onPress: completeAndBill },
   ]);
 
   const cancel = () => Alert.alert('Cancel Appointment', 'Cancel this appointment?', [

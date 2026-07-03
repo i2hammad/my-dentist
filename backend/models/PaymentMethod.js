@@ -10,7 +10,7 @@ const paymentMethodSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: {
-        values: ['visa', 'mastercard', 'easypaisa', 'jazzcash'],
+        values: ['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank'],
         message: '{VALUE} is not a supported payment method',
       },
       required: [true, 'Payment method type is required'],
@@ -32,6 +32,17 @@ const paymentMethodSchema = new mongoose.Schema(
     accountNumber: {
       type: String,
       default: null,
+    },
+    // Bank-account type: cardHolderName = title of account, accountNumber = account #.
+    bankName: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    iban: {
+      type: String,
+      default: null,
+      trim: true,
     },
     isDefault: {
       type: Boolean,

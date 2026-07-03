@@ -7,6 +7,14 @@ const rewardSchema = new mongoose.Schema(
       ref: 'PatientProfile',
       required: [true, 'Patient ID is required'],
     },
+    // Links a review/visit reward to the doctor it was earned from. Used to ensure
+    // review points are granted only ONCE per patient per doctor (a delete + re-review
+    // must not farm points again).
+    doctorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DoctorProfile',
+      default: null,
+    },
     type: {
       type: String,
       enum: {

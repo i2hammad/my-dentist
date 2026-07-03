@@ -135,11 +135,13 @@ export default function DoctorPatientDetailScreen({ route, navigation }) {
       `Paid: ${rs(b.paidAmount)}`,
       `Status: ${(b.status || 'unpaid').toUpperCase()}`,
     ].filter(Boolean).join('\n');
+    // A paid bill is final — no editing once it's settled.
+    const isPaid = b.status === 'paid';
     const buttons = [
       { text: 'Close', style: 'cancel' },
-      { text: 'Edit', onPress: () => editBill(b) },
-      { text: 'Save / Share PDF', onPress: () => shareBillPdf(b) },
     ];
+    if (!isPaid) buttons.push({ text: 'Edit', onPress: () => editBill(b) });
+    buttons.push({ text: 'Save / Share PDF', onPress: () => shareBillPdf(b) });
     if (!isWeb) buttons.push({ text: 'Print to Thermal Printer', onPress: () => setBtBill(billToInvoice(b)) });
     showDialog({ title: `Bill #${b.invoiceNumber || 'N/A'}`, message: lines, buttons });
   };

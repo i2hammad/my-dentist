@@ -37,10 +37,21 @@ async function recomputePopular(doctor) {
  * Add points to a doctor and recompute their popular status.
  */
 async function addDoctorPoints(doctorId, points) {
-  const doctor = await DoctorProfile.findById(doctorId);
+  // Atomic $inc so the points ALWAYS persist — a load-modify-.save() would throw
+  // (and silently lose the points) if the DoctorProfile has any unrelated validation
+  // gap. Popular status is then recomputed best-effort on the already-saved doc.
+  const doctor = await DoctorProfile.findByIdAndUpdate(
+    doctorId,
+    { $inc: { rewardPoints: points } },
+    { new: true }
+  );
   if (!doctor) return null;
-  doctor.rewardPoints = (doctor.rewardPoints || 0) + points;
-  return recomputePopular(doctor);
+  try {
+    return await recomputePopular(doctor);
+  } catch (e) {
+    console.error('recomputePopular failed (points already saved):', e.message);
+    return doctor;
+  }
 }
 
 module.exports = { recomputePopular, addDoctorPoints, getThreshold };

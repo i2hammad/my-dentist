@@ -13,8 +13,11 @@ const TYPE_META = {
   mastercard: { icon: 'card', color: '#374151', kind: 'card' },
   easypaisa:  { icon: 'phone-portrait', color: '#16A34A', kind: 'wallet' },
   jazzcash:   { icon: 'phone-portrait', color: '#DC2626', kind: 'wallet' },
+  bank:       { icon: 'business', color: '#0052FF', kind: 'wallet' },
 };
-const labelOf = (m) => `${String(m.type).toUpperCase()}${m.lastFourDigits ? ` ••••${m.lastFourDigits}` : ''}`;
+const labelOf = (m) => m.type === 'bank'
+  ? (m.bankName || 'Bank Account')
+  : `${String(m.type).toUpperCase()}${m.lastFourDigits ? ` ••••${m.lastFourDigits}` : ''}`;
 
 // Bottom-sheet for choosing how to pay a bill: a saved card/wallet, or cash.
 // onConfirm receives { paymentMethodId|null, paymentType, paymentMethodLabel }.
@@ -29,8 +32,14 @@ export default function PaymentSheet({ visible, bill, onClose, onConfirm }) {
     setLoading(true);
     try {
       const token = await storage.getItem('userToken');
-      const res = await axios.get(`${API_BASE_URL}/api/payments/methods`, { headers: { Authorization: `Bearer ${token}` } });
-      const list = res.data?.success ? (res.data.data || []) : [];
+      const [mRes, sRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/payments/methods`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_BASE_URL}/api/users/platform-settings`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
+      ]);
+      let list = mRes.data?.success ? (mRes.data.data || []) : [];
+      // Only offer saved methods whose type the admin still has enabled.
+      const en = sRes?.data?.data?.enabledPaymentMethods;
+      if (Array.isArray(en) && en.length) list = list.filter((m) => en.includes(m.type));
       setMethods(list);
       // Default selection: the default card, else cash.
       const def = list.find((m) => m.isDefault) || list[0];

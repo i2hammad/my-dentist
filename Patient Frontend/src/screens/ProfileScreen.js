@@ -564,6 +564,12 @@ export default function ProfileScreen({ navigation }) {
                   {detectingLoc ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="locate" size={16} color="#FFFFFF" />}
                   <Text style={styles.preciseLocationTxt}>{detectingLoc ? 'Detecting your location…' : 'Use My Precise Location'}</Text>
                 </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, paddingHorizontal: 2 }}>
+                  <Ionicons name="information-circle-outline" size={14} color="#94A3B8" style={{ marginRight: 6, marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: 11.5, color: '#94A3B8', fontWeight: '500', lineHeight: 16 }}>
+                    Tap “Use My Precise Location” so nearby doctors can find you — turn on your device location first.
+                  </Text>
+                </View>
               </View>
 
             </View>

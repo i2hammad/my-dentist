@@ -28,8 +28,8 @@ router.post(
     body('type')
       .notEmpty()
       .withMessage('Payment type is required')
-      .isIn(['credit_card', 'debit_card', 'bank_account', 'easypaisa', 'jazzcash'])
-      .withMessage('Invalid payment type. Must be one of: credit_card, debit_card, bank_account, easypaisa, jazzcash'),
+      .isIn(['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank'])
+      .withMessage('Invalid payment type. Must be one of: visa, mastercard, easypaisa, jazzcash, bank'),
     body('lastFourDigits')
       .optional()
       .isLength({ min: 4, max: 4 })
@@ -44,6 +44,16 @@ router.post(
       .optional()
       .isLength({ min: 5 })
       .withMessage('Account number must be at least 5 characters'),
+    body('bankName')
+      .optional()
+      .isString()
+      .isLength({ max: 100 })
+      .withMessage('Bank name is too long'),
+    body('iban')
+      .optional()
+      .isString()
+      .isLength({ max: 40 })
+      .withMessage('IBAN is too long'),
   ],
   validate,
   addPaymentMethod

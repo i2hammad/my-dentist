@@ -26,6 +26,7 @@ export default function DoctorBillsScreen({ route }) {
   const [profile, setProfile] = useState(null);
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
   const editBillId = route?.params?.editBillId || null;
+  const billPrefill = route?.params?.billPrefill || null;
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -62,6 +63,7 @@ export default function DoctorBillsScreen({ route }) {
           isProfileComplete={isProfileComplete}
           missingFields={missingFields}
           editBillId={editBillId}
+          billPrefill={billPrefill}
         />
       </View>
     </SafeAreaView>

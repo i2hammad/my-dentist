@@ -115,7 +115,7 @@ export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'therm
     </html>`;
 }
 
-export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [], editBillId = null }) {
+export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [], editBillId = null, billPrefill = null }) {
   const [subTab, setSubTab] = useState('previous'); // previous, current, print
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -409,7 +409,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
     const pts = Object.values(patientMap);
     setPatients(pts);
-    if (pts.length > 0 && !editBillId) {
+    if (pts.length > 0 && !editBillId && !billPrefill) {
       const first = pts[0];
       setSelectedPatient(first);
       // Pre-load treatments from the first patient's appointments
@@ -419,6 +419,18 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       }
     }
   }, [appointments]);
+
+  // Prefill a fresh draft bill from an appointment (after "Mark Visit as Completed"):
+  // select that patient, load the appointment's treatments (price blank), open Current Bill.
+  useEffect(() => {
+    if (!billPrefill || !billPrefill.patientId) return;
+    setEditingBillId(null);
+    setSelectedPatient({ id: billPrefill.patientId, name: billPrefill.patientName || 'Patient', phone: billPrefill.patientPhone || '' });
+    const names = String(billPrefill.treatmentType || '').split(',').map((t) => t.trim()).filter(Boolean);
+    setItems(names.length ? names.map((name) => ({ name, price: '' })) : [{ name: '', price: '' }]);
+    setTreatmentMode('edit');
+    setSubTab('current');
+  }, [billPrefill?.appointmentId]);
 
   // Edit redirect from Patient Details: load the bill into the form and open Current Bill.
   useEffect(() => {

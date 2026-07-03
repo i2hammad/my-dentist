@@ -173,6 +173,15 @@ function AppTab({ isSuper }) {
   const set = (k) => (v) => setS((x) => ({ ...x, [k]: v }));
   const setPay = (k) => (v) => setS((x) => ({ ...x, payments: { ...x.payments, [k]: v } }));
 
+  // Which patient payment types are enabled (defaults to all when unset on old settings).
+  const PM_TYPES = [['visa', 'Visa'], ['mastercard', 'Mastercard'], ['easypaisa', 'EasyPaisa'], ['jazzcash', 'JazzCash'], ['bank', 'Bank Account']];
+  const ALL_PM = PM_TYPES.map(([k]) => k);
+  const enabledPM = Array.isArray(s.enabledPaymentMethods) ? s.enabledPaymentMethods : ALL_PM;
+  const togglePM = (key) => (checked) => setS((x) => {
+    const cur = Array.isArray(x.enabledPaymentMethods) ? x.enabledPaymentMethods : ALL_PM;
+    return { ...x, enabledPaymentMethods: checked ? [...new Set([...cur, key])] : cur.filter((k) => k !== key) };
+  });
+
   const save = async () => {
     setBusy(true);
     try {
@@ -183,6 +192,7 @@ function AppTab({ isSuper }) {
         defaultConsultationFee: Number(s.defaultConsultationFee),
         commissionRate: Number(s.commissionRate),
         supportEmail: s.supportEmail, payments: s.payments,
+        enabledPaymentMethods: enabledPM,
         maintenanceMode: !!s.maintenanceMode,
       });
       toast('Settings saved');
@@ -231,6 +241,16 @@ function AppTab({ isSuper }) {
         <div className="field-row">
           <Field label="Bank Title of Account" value={s.payments?.bankTitle || ''} onChange={setPay('bankTitle')} />
           <div />
+        </div>
+        <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Patient Payment Methods</h4>
+        <p className="muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 10 }}>Turn each method on/off in the patient app (Add Payment Method &amp; bill checkout).</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 24px', marginBottom: 16 }}>
+          {PM_TYPES.map(([key, label]) => (
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: isSuper ? 'pointer' : 'default' }}>
+              <input type="checkbox" checked={enabledPM.includes(key)} onChange={(e) => togglePM(key)(e.target.checked)} />
+              <span style={{ fontWeight: 600 }}>{label}</span>
+            </label>
+          ))}
         </div>
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Maintenance</h4>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: isSuper ? 'pointer' : 'default', marginBottom: 6 }}>

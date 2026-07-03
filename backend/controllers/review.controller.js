@@ -198,21 +198,37 @@ const createReview = async (req, res) => {
       helpfulBy: []
     });
 
-    // Create reward for submitting a review (patient earns points)
-    const reward = await Reward.create({
+    // Award review points only ONCE per patient+doctor — even if the patient
+    // deleted an earlier review of this doctor and is now re-reviewing. The prior
+    // reward record is the proof of claim (it is intentionally kept when a review is
+    // deleted), so a delete-then-re-review can never farm points again.
+    const alreadyRewarded = await Reward.findOne({
       patientId: patientProfile._id,
+      doctorId,
       type: 'review',
-      points: 50,
-      description: 'Points earned for submitting a review'
     });
 
-    // Doctor also earns points for receiving a review — feeds the green
-    // "popular" badge at 20k points.
-    try {
-      const { addDoctorPoints } = require('../utils/popular');
-      await addDoctorPoints(doctorProfile._id, 50);
-    } catch (e) {
-      console.error('Doctor review points error (non-fatal):', e.message);
+    let rewardPointsEarned = 0;
+    if (!alreadyRewarded) {
+      // Patient earns points for submitting a review.
+      await Reward.create({
+        patientId: patientProfile._id,
+        doctorId,
+        type: 'review',
+        points: 50,
+        description: 'Points earned for submitting a review',
+      });
+
+      // Doctor also earns points for receiving a review — feeds the green
+      // "popular" badge at 20k points.
+      try {
+        const { addDoctorPoints } = require('../utils/popular');
+        await addDoctorPoints(doctorProfile._id, 50);
+      } catch (e) {
+        console.error('Doctor review points error (non-fatal):', e.message);
+      }
+
+      rewardPointsEarned = 50;
     }
 
     // Create notification for the doctor
@@ -229,7 +245,7 @@ const createReview = async (req, res) => {
       message: 'Review submitted successfully',
       data: {
         review,
-        rewardPointsEarned: 50
+        rewardPointsEarned
       }
     });
   } catch (error) {
@@ -325,11 +341,11 @@ const deleteReview = async (req, res) => {
       });
     }
 
-    // Remove associated reward
-    await Reward.findOneAndDelete({
-      relatedModel: 'Review',
-      relatedId: review._id
-    });
+    // NOTE: the review reward is intentionally KEPT when a review is deleted.
+    // Review points are earned once per doctor; keeping the reward record is what
+    // stops a delete-then-re-review from farming points again (createReview checks
+    // for it). The previous query here referenced fields that don't exist on the
+    // Reward schema, so it never actually removed anything anyway.
 
     await Review.findByIdAndDelete(review._id);
 

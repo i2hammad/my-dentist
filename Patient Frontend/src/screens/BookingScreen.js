@@ -146,7 +146,6 @@ export default function BookingScreen({ route, navigation }) {
       });
 
       Alert.alert('Appointment Booked!', 'Your appointment has been booked successfully. The doctor will confirm shortly.', [
-        { text: 'View Appointments', onPress: () => navigation.navigate('Campaigns') },
         { text: 'OK' },
       ]);
     } catch (error) {

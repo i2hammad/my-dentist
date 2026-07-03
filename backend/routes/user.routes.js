@@ -48,6 +48,9 @@ router.get('/platform-settings', async (req, res) => {
           jazzcashNumber:   s.payments?.jazzcashNumber   || '',
           jazzcashTitle:    s.payments?.jazzcashTitle    || '',
         },
+        enabledPaymentMethods: (s.enabledPaymentMethods && s.enabledPaymentMethods.length)
+          ? s.enabledPaymentMethods
+          : ['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank'],
         commissionRate: s.commissionRate ?? 10,
         popularPointsThreshold: s.popularPointsThreshold ?? 20000,
       },

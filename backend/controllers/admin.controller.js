@@ -661,7 +661,8 @@ exports.setPopular = async (req, res) => {
 
     if (typeof addPoints === 'number') {
       doctor.rewardPoints = Math.max(0, (doctor.rewardPoints || 0) + addPoints);
-      await recomputePopular(doctor); // may auto-grant/remove green
+      await doctor.save();            // always persist the points (recomputePopular skips saving for 'paid' badges)
+      await recomputePopular(doctor); // then auto-grant/remove the green badge
     } else if (action === 'grantPaid') {
       doctor.isPopular = true;
       doctor.popularType = 'paid';

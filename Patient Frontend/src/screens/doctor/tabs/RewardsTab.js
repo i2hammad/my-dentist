@@ -22,6 +22,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
   });
 
   const [popularPointsThreshold, setPopularPointsThreshold] = useState(20000);
+  const [livePoints, setLivePoints] = useState(null); // freshest rewardPoints from server (incl. admin-granted)
 
 
   // Bills is now its own bottom-tab screen (no longer a tab inside this screen),
@@ -57,7 +58,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
 
   useEffect(() => {
     calculateEarnings();
-  }, [bills]);
+  }, [bills, livePoints, profile?.rewardPoints]);
 
   useEffect(() => {
     (async () => {
@@ -69,6 +70,13 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
         if (res.data?.success) {
           if (res.data.data.popularPointsThreshold) setPopularPointsThreshold(res.data.data.popularPointsThreshold);
         }
+        // Pull the freshest reward points from the server (includes admin-granted points),
+        // so the display is correct even if the cached profile prop is stale.
+        try {
+          const meRes = await axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+          const rp = meRes.data?.data?.profile?.rewardPoints;
+          if (typeof rp === 'number') setLivePoints(rp);
+        } catch (_) {}
       } catch (_) {}
     })();
   }, []);
@@ -77,8 +85,8 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
     try {
       const totalAmount = bills.reduce((sum, b) => sum + (b.amount || 0), 0);
       // Points are the doctor's real accumulated reward points (earned from
-      // completed visits & reviews), not a guess from bill totals.
-      const calcPoints = profile?.rewardPoints || 0;
+      // completed visits & reviews + admin-granted), not a guess from bill totals.
+      const calcPoints = livePoints != null ? livePoints : (profile?.rewardPoints || 0);
 
       // This month logic
       const currentMonth = new Date().getMonth();
@@ -111,7 +119,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
   };
 
   const doctorName = profile?.fullName || '';
-  const points = profile?.rewardPoints || 0;
+  const points = livePoints != null ? livePoints : (profile?.rewardPoints || 0);
   const isPopular = profile?.isPopular;
 
   // Pay PKR 100,000 → admin manually grants the blue paid badge.

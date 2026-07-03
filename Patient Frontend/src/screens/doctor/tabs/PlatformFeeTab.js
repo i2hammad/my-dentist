@@ -204,6 +204,26 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
           </View>
         </View>
 
+        {/* After payment → WhatsApp the screenshot as proof. Admin verifies & deducts the commission. */}
+        <View style={styles.proofBox}>
+          <View style={styles.proofNoteRow}>
+            <Ionicons name="information-circle-outline" size={15} color="#0369A1" style={{ marginRight: 6, marginTop: 1 }} />
+            <Text style={styles.proofNote}>
+              After payment, WhatsApp the screenshot to My Dentist as proof. Your commission will be verified and deducted from your account.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.proofWaBtn}
+            activeOpacity={0.85}
+            onPress={() => openWhatsApp(
+              `Hello, I'm Dr. ${profile?.fullName || 'Doctor'}. I have paid my ${commissionRate}% platform commission${duePlatformFee > 0 ? ` (${fmt(duePlatformFee)})` : ''} to My Dentist. I'm attaching the payment screenshot as proof — please verify and deduct it from my account. Thank you.`
+            )}
+          >
+            <Ionicons name="logo-whatsapp" size={18} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.proofWaBtnText}>Sent Payment? Send Screenshot on WhatsApp</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Bank / IBAN */}
         {(platformPayments.bankAccount || platformPayments.bankName) ? (
           <View style={styles.acctRow}>
@@ -526,6 +546,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: 20,
   },
   claimBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+
+  // Pay-commission → send WhatsApp screenshot proof
+  proofBox: { marginTop: 2, marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  proofNoteRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 10, padding: 10, marginBottom: 12 },
+  proofNote: { flex: 1, fontSize: 11.5, color: '#0369A1', lineHeight: 16, fontWeight: '500' },
+  proofWaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#25D366', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 16 },
+  proofWaBtnText: { color: '#FFF', fontSize: 13.5, fontWeight: '800' },
 
   // How it works
   infoCard: {

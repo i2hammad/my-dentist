@@ -266,21 +266,6 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     } catch { /* user dismissed */ }
   };
 
-  // Reuse a past bill as a starting point for a NEW bill (no editingBillId so it POSTs).
-  const duplicateBill = (bill) => {
-    const restored = Array.isArray(bill.treatments) && bill.treatments.length
-      ? bill.treatments.map((t) => ({ name: t.name || '', price: t.price ? String(t.price) : '' }))
-      : [{ name: bill.treatmentName || '', price: '' }];
-    setEditingBillId(null);
-    setItems(restored);
-    setDiscount('0');
-    setPaidAmount('0');
-    const p = bill.patientId;
-    if (p && (p._id || p)) setSelectedPatient({ id: p._id || p, name: p.fullName || 'Patient', phone: p.mobileNumber || '' });
-    setTreatmentMode('edit');
-    setSubTab('current');
-  };
-
   // Export the currently filtered bills to a CSV and share/download it.
   const exportCsv = async (rows) => {
     if (!rows || !rows.length) { Alert.alert('Nothing to export', 'No bills match the current filters.'); return; }
@@ -345,15 +330,17 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   // Per-bill action descriptors — rendered as labeled buttons (phone) and icon
   // buttons (web table) so the two views never drift.
   const billActionList = (inv) => {
+    // Drafts are not real bills yet — only allow Edit (no View / Receipt / Share).
+    if (inv.status === 'draft') {
+      return [{ key: 'edit', icon: 'create-outline', label: 'Edit', onPress: () => editDraft(inv) }];
+    }
     const acts = [
       { key: 'view', icon: 'eye-outline', label: 'View', onPress: () => previewBillRow(inv) },
       { key: 'receipt', icon: 'download-outline', label: 'Receipt', onPress: () => downloadBillRow(inv) },
     ];
     if (inv.status === 'unpaid') acts.push({ key: 'paid', icon: 'checkmark-circle-outline', label: 'Mark Paid', color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', busy: busyId === inv._id, onPress: () => markPaid(inv) });
     if (inv.status === 'payment_pending') acts.push({ key: 'confirm', icon: 'checkmark-circle-outline', label: 'Confirm', color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', onPress: () => confirmPayment(inv) });
-    if (inv.status === 'draft') acts.push({ key: 'edit', icon: 'create-outline', label: 'Edit', onPress: () => editDraft(inv) });
     acts.push({ key: 'share', icon: 'share-social-outline', label: 'Share', onPress: () => shareBill(inv) });
-    if (inv.status !== 'draft') acts.push({ key: 'dup', icon: 'copy-outline', label: 'Duplicate', onPress: () => duplicateBill(inv) });
     return acts;
   };
   const renderBillActions = (inv, { compact = false } = {}) => (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
-  Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable, StatusBar
+  Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable, StatusBar, Clipboard
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -104,6 +104,12 @@ export default function DoctorProfileScreen({ route, navigation }) {
   // Payment Modal States
   const [checkoutBill, setCheckoutBill] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  // My Dentist platform payment accounts (same as the doctor app's commission section).
+  const [platformPayments, setPlatformPayments] = useState({
+    bankAccount: '', bankName: '', bankTitle: '',
+    easypaisaNumber: '', easypaisaTitle: '',
+    jazzcashNumber: '', jazzcashTitle: '',
+  });
   const [showAddMethodModal, setShowAddMethodModal] = useState(false);
   const [newMethodType, setNewMethodType] = useState('visa');
   const [newAccountNumber, setNewAccountNumber] = useState('');
@@ -134,6 +140,17 @@ export default function DoctorProfileScreen({ route, navigation }) {
       setActiveTab(route.params.initialTab);
     }
   }, [route.params?.initialTab]);
+
+  // Load My Dentist's platform payment accounts (the same ones shown in the doctor app).
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.data?.success && res.data.data?.payments) setPlatformPayments(res.data.data.payments);
+      } catch (_) {}
+    })();
+  }, []);
 
   // Check if patient has a completed appointment with this doctor
   useEffect(() => {
@@ -2755,39 +2772,65 @@ export default function DoctorProfileScreen({ route, navigation }) {
                   <Ionicons name="checkmark-circle" size={20} color="#0052FF" />
                 </TouchableOpacity>
 
-                {/* Disabled Methods: Online Gateways */}
-                <View style={styles.disabledMethodRow}>
-                  <View style={styles.methodLeft}>
-                    <Ionicons name="phone-portrait-outline" size={20} color="#94A3B8" />
-                    <View style={{ marginLeft: 12 }}>
-                      <Text style={styles.methodNameDisabled}>EasyPaisa Wallet</Text>
-                      <Text style={styles.methodSubDisabled}>Pay instantly using local mobile account</Text>
+                {/* Pay to My Dentist directly — the same accounts shown in the doctor app */}
+                {(platformPayments.easypaisaNumber || platformPayments.jazzcashNumber || platformPayments.bankAccount || platformPayments.bankName) ? (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: '#F1F5F9' }} />
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 0.5, marginHorizontal: 10 }}>OR PAY TO MY DENTIST</Text>
+                      <View style={{ flex: 1, height: 1, backgroundColor: '#F1F5F9' }} />
                     </View>
-                  </View>
-                  <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
-                </View>
 
-                <View style={styles.disabledMethodRow}>
-                  <View style={styles.methodLeft}>
-                    <Ionicons name="wallet-outline" size={20} color="#94A3B8" />
-                    <View style={{ marginLeft: 12 }}>
-                      <Text style={styles.methodNameDisabled}>JazzCash Wallet</Text>
-                      <Text style={styles.methodSubDisabled}>Pay instantly using local mobile account</Text>
-                    </View>
-                  </View>
-                  <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
-                </View>
+                    {platformPayments.easypaisaNumber ? (
+                      <View style={styles.payAcctRow}>
+                        <View style={[styles.payAcctIcon, { backgroundColor: '#F0FDF4' }]}><Ionicons name="phone-portrait-outline" size={20} color="#16A34A" /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.payAcctName}>EasyPaisa</Text>
+                          {platformPayments.easypaisaTitle ? <Text style={styles.payAcctHolder}>{platformPayments.easypaisaTitle}</Text> : null}
+                          <Text style={styles.payAcctNumber}>{platformPayments.easypaisaNumber}</Text>
+                        </View>
+                        <TouchableOpacity style={[styles.payAcctCopy, { backgroundColor: '#F0FDF4' }]} onPress={() => { Clipboard.setString(platformPayments.easypaisaNumber); Alert.alert('Copied', 'EasyPaisa number copied!'); }}>
+                          <Ionicons name="copy-outline" size={14} color="#16A34A" />
+                          <Text style={[styles.payAcctCopyTxt, { color: '#16A34A' }]}>Copy</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
 
-                <View style={styles.disabledMethodRow}>
-                  <View style={styles.methodLeft}>
-                    <Ionicons name="card-outline" size={20} color="#94A3B8" />
-                    <View style={{ marginLeft: 12 }}>
-                      <Text style={styles.methodNameDisabled}>Credit / Debit Card</Text>
-                      <Text style={styles.methodSubDisabled}>Visa, MasterCard, UnionPay, PayPak</Text>
-                    </View>
-                  </View>
-                  <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
-                </View>
+                    {platformPayments.jazzcashNumber ? (
+                      <View style={styles.payAcctRow}>
+                        <View style={[styles.payAcctIcon, { backgroundColor: '#FFFBEB' }]}><Ionicons name="wallet-outline" size={20} color="#92400E" /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.payAcctName}>JazzCash</Text>
+                          {platformPayments.jazzcashTitle ? <Text style={styles.payAcctHolder}>{platformPayments.jazzcashTitle}</Text> : null}
+                          <Text style={styles.payAcctNumber}>{platformPayments.jazzcashNumber}</Text>
+                        </View>
+                        <TouchableOpacity style={[styles.payAcctCopy, { backgroundColor: '#FFFBEB' }]} onPress={() => { Clipboard.setString(platformPayments.jazzcashNumber); Alert.alert('Copied', 'JazzCash number copied!'); }}>
+                          <Ionicons name="copy-outline" size={14} color="#92400E" />
+                          <Text style={[styles.payAcctCopyTxt, { color: '#92400E' }]}>Copy</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    {(platformPayments.bankAccount || platformPayments.bankName) ? (
+                      <View style={styles.payAcctRow}>
+                        <View style={[styles.payAcctIcon, { backgroundColor: '#EEF3FF' }]}><Ionicons name="card-outline" size={20} color="#1A3FAA" /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.payAcctName}>{platformPayments.bankName || 'Bank'}</Text>
+                          {platformPayments.bankTitle ? <Text style={styles.payAcctHolder}>{platformPayments.bankTitle}</Text> : null}
+                          <Text style={styles.payAcctNumber}>{platformPayments.bankAccount}</Text>
+                        </View>
+                        <TouchableOpacity style={[styles.payAcctCopy, { backgroundColor: '#EEF3FF' }]} onPress={() => { Clipboard.setString(platformPayments.bankAccount); Alert.alert('Copied', 'Account / IBAN copied!'); }}>
+                          <Ionicons name="copy-outline" size={14} color="#1A3FAA" />
+                          <Text style={[styles.payAcctCopyTxt, { color: '#1A3FAA' }]}>Copy</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2, marginBottom: 2, lineHeight: 15 }}>
+                      Transfer to any account above, then tap the button below and share the payment screenshot with your doctor.
+                    </Text>
+                  </>
+                ) : null}
 
                 {/* Confirm Button */}
                 <TouchableOpacity
@@ -3242,7 +3285,16 @@ const styles = StyleSheet.create({
   methodSubDisabled: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
   comingSoonBadge: { backgroundColor: '#F1F5F9', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   comingSoonText: { fontSize: 9, color: '#64748B', fontWeight: '700' },
-  
+
+  // My Dentist platform payment accounts (patient checkout — mirrors the doctor app)
+  payAcctRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#EEF2F7', backgroundColor: '#FFFFFF', marginBottom: 10, gap: 12 },
+  payAcctIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  payAcctName: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  payAcctHolder: { fontSize: 11.5, color: '#64748B', marginTop: 1 },
+  payAcctNumber: { fontSize: 13, fontWeight: '700', color: '#0A1551', marginTop: 2 },
+  payAcctCopy: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
+  payAcctCopyTxt: { fontSize: 12, fontWeight: '700' },
+
   // Buttons
   confirmPayBtn: { backgroundColor: '#16A34A', borderRadius: 12, paddingVertical: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 15 },
   confirmPayBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },

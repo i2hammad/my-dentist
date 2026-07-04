@@ -52,12 +52,15 @@ export default function DentistDetail() {
     }
   };
   const setCommission = async () => {
-    const val = window.prompt(`Set outstanding commission dues (PKR) for ${doc.fullName}. Auto-blocks at 50,000.`, String(doc.commissionDue || 0));
+    const val = window.prompt(`Set outstanding commission dues (PKR) for ${doc.fullName}.\nSetting any amount above 0 will automatically BLOCK the doctor until the dues are cleared.`, String(doc.commissionDue || 0));
     if (val == null) return;
     const num = Number(val);
     if (isNaN(num) || num < 0) return toast('Enter a valid amount', 'error');
-    try { await api.patch(`/api/admin/dentists/${id}/commission`, { commissionDue: num }); toast('Commission updated'); load(); }
-    catch { toast('Failed', 'error'); }
+    try {
+      await api.patch(`/api/admin/dentists/${id}/commission`, { commissionDue: num });
+      toast(num > 0 ? `Outstanding set to Rs. ${num.toLocaleString()} — doctor blocked` : 'Outstanding cleared');
+      load();
+    } catch { toast('Failed', 'error'); }
   };
   const addDues = async () => {
     const earned = d.earnings?.commissionEarned || 0;
@@ -112,6 +115,7 @@ export default function DentistDetail() {
           <button className="btn ghost" onClick={viewAs}><Eye size={16} style={{ verticalAlign: -2, marginRight: 6 }} />View as</button>
           {doc.approvalStatus !== 'approved' && <button className="btn primary" onClick={approve}><Check size={16} weight="bold" style={{ verticalAlign: -2, marginRight: 6 }} />Approve</button>}
           {doc.approvalStatus === 'pending' && <button className="btn ghost" onClick={reject}>Reject</button>}
+          <button className="btn ghost" onClick={setCommission}>Set Outstanding</button>
           <button className="btn ghost" onClick={addDues}>+ Add Dues</button>
           {doc.commissionDue > 0 && <button className="btn primary" onClick={clearDues}>Clear Dues (Rs. {doc.commissionDue.toLocaleString()})</button>}
           <button className={`btn ${doc.isBlocked ? 'primary' : 'ghost'}`} onClick={toggleBlock}>{doc.isBlocked ? 'Unblock' : 'Block'}</button>
@@ -284,11 +288,12 @@ export default function DentistDetail() {
               <CommRow k="Cleared / paid to date" v={money(d.earnings.commissionPaid)} green />
               <CommRow k="Outstanding dues" v={money(d.earnings.commissionDue)} red={d.earnings.commissionDue > 0} bold />
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <button className="btn ghost" style={{ flex: 1 }} onClick={setCommission}>Set Outstanding</button>
                 <button className="btn ghost" style={{ flex: 1 }} onClick={syncDues}>↻ Sync from Bills</button>
                 <button className="btn ghost" style={{ flex: 1 }} onClick={addDues}>+ Add Dues</button>
                 <button className="btn primary" style={{ flex: 1 }} disabled={!(doc.commissionDue > 0)} onClick={clearDues}>Clear Dues</button>
               </div>
-              {doc.commissionDue >= 50000 && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠ Dues at/above PKR 50,000 auto-block the doctor.</p>}
+              <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠ "Set Outstanding" blocks the doctor on any amount above 0. "Add Dues" auto-blocks once the total reaches PKR 50,000. Clearing dues unblocks a doctor blocked for dues.</p>
 
               {/* Commission payment history */}
               {d.commissionLog?.length > 0 && (

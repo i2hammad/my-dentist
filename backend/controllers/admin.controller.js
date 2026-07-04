@@ -714,11 +714,16 @@ exports.setCommission = async (req, res) => {
       logType = 'add'; delta = doc.commissionDue - before;
     }
 
-    // Auto-block at threshold; clearing dues below threshold does NOT auto-unblock
-    // (admin must explicitly unblock after verifying payment).
-    if ((doc.commissionDue || 0) >= COMMISSION_BLOCK_THRESHOLD && !doc.isBlocked) {
+    // Auto-block when the doctor owes commission. Explicitly SETTING an outstanding
+    // amount blocks on ANY positive value; incremental "Add Dues" blocks once the
+    // running total reaches the threshold (avoids over-blocking on tiny increments).
+    // Clearing dues does NOT auto-unblock (admin unblocks after verifying payment).
+    const shouldBlock = logType === 'set'
+      ? (doc.commissionDue || 0) > 0
+      : (doc.commissionDue || 0) >= COMMISSION_BLOCK_THRESHOLD;
+    if (shouldBlock && !doc.isBlocked) {
       doc.isBlocked = true;
-      doc.blockReason = `Outstanding commission dues of PKR ${doc.commissionDue.toLocaleString()} exceeded the limit. Clear dues and contact admin to unblock.`;
+      doc.blockReason = `Outstanding commission dues of PKR ${doc.commissionDue.toLocaleString()}. Clear dues and contact admin to unblock.`;
     }
     await doc.save();
     await logCommission(req, doc, { type: logType, amount: delta });

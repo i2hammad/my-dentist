@@ -42,14 +42,15 @@ const EMPTY_PAYOUT = { bankName: '', accountTitle: '', accountNumber: '' };
 
 export default function PlatformFeeTab({ profile, bills = [] }) {
   const [commissionRate, setCommissionRate] = useState(10);
+  // Admin-managed commission figures (the source of truth, always in sync with the Admin Panel).
+  const [liveCommission, setLiveCommission] = useState({ due: null, paid: null });
 
-  // Derived live from bills — updates the moment a bill is marked paid
-  const paidBills = bills.filter(b => b.status === 'paid');
-  const duePlatformFee = Math.round(
-    paidBills.reduce((sum, b) => sum + (b.finalAmount || b.amount || 0), 0) * commissionRate / 100
-  );
+  // Outstanding dues + cleared amount come from the admin-managed DoctorProfile
+  // fields (commissionDue / commissionPaid), NOT a local bill calculation — so the
+  // doctor app always shows the SAME figures as the Admin Panel and reflects "Clear Dues".
+  const outstandingDue = liveCommission.due != null ? liveCommission.due : (profile?.commissionDue || 0);
+  const paidCommission = liveCommission.paid != null ? liveCommission.paid : (profile?.commissionPaid || 0);
   const totalRedeemedAmount = bills.reduce((sum, b) => sum + (b.discountFromRewards || 0), 0);
-  const remainingPlatformFee = Math.max(0, duePlatformFee - totalRedeemedAmount);
 
   // Admin payment accounts
   const [platformPayments, setPlatformPayments] = useState({
@@ -83,6 +84,12 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
           setPlatformPayments(res.data.data.payments);
           if (res.data.data.commissionRate) setCommissionRate(res.data.data.commissionRate);
         }
+        // Pull the freshest admin-managed commission dues so figures match the Admin Panel.
+        try {
+          const meRes = await axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+          const prof = meRes.data?.data?.profile;
+          if (prof) setLiveCommission({ due: prof.commissionDue || 0, paid: prof.commissionPaid || 0 });
+        } catch (_) {}
       } catch (_) {}
     })();
   }, []);
@@ -167,19 +174,19 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
           icon="warning-outline"
           iconBg="#FEF3C7"
           iconColor="#D97706"
-          label="Due Platform Fee"
-          value={fmt(duePlatformFee)}
-          valueColor={duePlatformFee > 0 ? '#D97706' : '#16A34A'}
-          note={`${commissionRate}% commission owed to My Dentist platform`}
+          label="Outstanding Platform Fee"
+          value={fmt(outstandingDue)}
+          valueColor={outstandingDue > 0 ? '#D97706' : '#16A34A'}
+          note="Outstanding commission as recorded by My Dentist"
         />
         <StatCard
-          icon="cash-outline"
+          icon="checkmark-circle-outline"
           iconBg="#EFF6FF"
           iconColor="#0052FF"
-          label="Remaining Platform Fee"
-          value={fmt(remainingPlatformFee)}
-          valueColor={remainingPlatformFee > 0 ? '#0052FF' : '#16A34A'}
-          note="Due platform fee after deducting patient redemptions"
+          label="Commission Paid"
+          value={fmt(paidCommission)}
+          valueColor="#0052FF"
+          note="Commission cleared / verified by My Dentist"
         />
       </View>
 
@@ -187,9 +194,9 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
       <View style={styles.breakdownCard}>
         <Text style={styles.breakdownTitle}>Fee Breakdown</Text>
         <Row label="Patient Redeemed Amount" value={`- ${fmt(totalRedeemedAmount)}`} valueColor="#16A34A" />
-        <Row label="Due Platform Fee" value={fmt(duePlatformFee)} valueColor="#D97706" />
+        <Row label="Commission Paid / Cleared" value={fmt(paidCommission)} valueColor="#16A34A" />
         <View style={styles.divider} />
-        <Row label="Remaining Platform Fee" value={fmt(remainingPlatformFee)} valueColor={remainingPlatformFee > 0 ? '#0052FF' : '#16A34A'} bold />
+        <Row label="Outstanding Platform Fee" value={fmt(outstandingDue)} valueColor={outstandingDue > 0 ? '#D97706' : '#16A34A'} bold />
       </View>
 
       {/* ── Pay 10% Commission to My Dentist ── */}
@@ -216,7 +223,7 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
             style={styles.proofWaBtn}
             activeOpacity={0.85}
             onPress={() => openWhatsApp(
-              `Hello, I'm Dr. ${profile?.fullName || 'Doctor'}. I have paid my ${commissionRate}% platform commission${duePlatformFee > 0 ? ` (${fmt(duePlatformFee)})` : ''} to My Dentist. I'm attaching the payment screenshot as proof — please verify and deduct it from my account. Thank you.`
+              `Hello, I'm Dr. ${profile?.fullName || 'Doctor'}. I have paid my platform commission${outstandingDue > 0 ? ` (${fmt(outstandingDue)})` : ''} to My Dentist. I'm attaching the payment screenshot as proof — please verify and deduct it from my account. Thank you.`
             )}
           >
             <Ionicons name="logo-whatsapp" size={18} color="#FFF" style={{ marginRight: 8 }} />

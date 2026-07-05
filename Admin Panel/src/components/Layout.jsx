@@ -4,7 +4,7 @@ import {
   SquaresFour, ShieldCheck, Tooth, Users, Heartbeat,
   Image, Star, CalendarBlank, Receipt, Gift, SignOut, Bell, MagnifyingGlass,
   Gear, CaretDown, UserCircle, Megaphone, Sparkle, List, X,
-  ChartLine, PaperPlaneTilt, ClockCounterClockwise, Percent, SealCheck,
+  ChartLine, PaperPlaneTilt, ClockCounterClockwise, Percent, SealCheck, Buildings,
 } from '@phosphor-icons/react';
 import { useAuth } from '../lib/auth.jsx';
 import api, { imgUrl } from '../lib/api';
@@ -17,6 +17,7 @@ const NAV = [
   { to: '/verification', label: 'Verification', Icon: SealCheck },
   { to: '/patients', label: 'Patients', Icon: Users },
   { to: '/treatments', label: 'Treatments', Icon: Heartbeat },
+  { to: '/facilities', label: 'Facilities', Icon: Buildings },
   { to: '/gallery', label: 'Gallery', Icon: Image },
   { to: '/reviews', label: 'Reviews & Ratings', Icon: Star },
   { to: '/appointments', label: 'Appointments', Icon: CalendarBlank },

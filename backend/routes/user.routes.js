@@ -59,6 +59,12 @@ router.get('/platform-settings', async (req, res) => {
           : ['visa', 'mastercard', 'easypaisa', 'jazzcash', 'bank'],
         commissionRate: s.commissionRate ?? 10,
         popularPointsThreshold: s.popularPointsThreshold ?? 20000,
+        // Admin-managed clinic facilities catalogue + tier score ranges.
+        facilityCategories: (s.facilityCategories && s.facilityCategories.length) ? s.facilityCategories : AppSettings.DEFAULT_FACILITY_CATEGORIES,
+        clinicTierThresholds: {
+          modern: s.clinicTierThresholds?.modern ?? 16,
+          elite:  s.clinicTierThresholds?.elite  ?? 31,
+        },
       },
     });
   } catch (e) {

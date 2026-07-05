@@ -630,8 +630,14 @@ const getOrCreateSettings = async () => {
 
 // @route GET /api/admin/settings
 exports.getSettings = async (req, res) => {
-  try { ok(res, await getOrCreateSettings()); }
-  catch (e) { fail(res, 500, e.message); }
+  try {
+    const s = await getOrCreateSettings();
+    const obj = s.toObject();
+    // Backfill facilities/tiers for settings docs created before these fields existed.
+    if (!obj.facilityCategories?.length) obj.facilityCategories = AppSettings.DEFAULT_FACILITY_CATEGORIES;
+    if (!obj.clinicTierThresholds) obj.clinicTierThresholds = { modern: 16, elite: 31 };
+    ok(res, obj);
+  } catch (e) { fail(res, 500, e.message); }
 };
 
 // @route PATCH /api/admin/settings  (super_admin only)
@@ -640,7 +646,7 @@ exports.updateSettings = async (req, res) => {
     const me = await AdminProfile.findOne({ userId: req.user._id });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can change app settings');
     const s = await getOrCreateSettings();
-    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'popularPointsThreshold', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'enabledPaymentMethods', 'commissionRate', 'campaignRotationInterval', 'doctorCampaignRotationInterval'];
+    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'popularPointsThreshold', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'enabledPaymentMethods', 'commissionRate', 'campaignRotationInterval', 'doctorCampaignRotationInterval', 'facilityCategories', 'clinicTierThresholds'];
     for (const k of allowed) if (k in req.body) s[k] = req.body[k];
     await s.save();
     ok(res, s);

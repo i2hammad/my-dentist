@@ -10,6 +10,7 @@ import Verification from './pages/Verification.jsx';
 import Patients from './pages/Patients.jsx';
 import PatientDetail from './pages/PatientDetail.jsx';
 import Treatments from './pages/Treatments.jsx';
+import Facilities from './pages/Facilities.jsx';
 import Gallery from './pages/Gallery.jsx';
 import Reviews from './pages/Reviews.jsx';
 import Appointments from './pages/Appointments.jsx';
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="patients" element={<Patients />} />
         <Route path="patients/:id" element={<PatientDetail />} />
         <Route path="treatments" element={<Treatments />} />
+        <Route path="facilities" element={<Facilities />} />
         <Route path="gallery" element={<Gallery />} />
         <Route path="reviews" element={<Reviews />} />
         <Route path="appointments" element={<Appointments />} />

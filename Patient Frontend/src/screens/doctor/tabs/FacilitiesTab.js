@@ -16,6 +16,9 @@ export default function FacilitiesTab({ profile }) {
   const [services, setServices] = useState([]);
   const [savingServices, setSavingServices] = useState(false);
   const [showFacilityPicker, setShowFacilityPicker] = useState(false);
+  // Facility catalogue + tier score ranges — admin-managed (falls back to bundled config).
+  const [categories, setCategories] = useState(FACILITY_CATEGORIES);
+  const [tierThresholds, setTierThresholds] = useState(null);
 
   useEffect(() => {
     const list = (profile?.services && profile.services.length > 0)
@@ -23,6 +26,19 @@ export default function FacilitiesTab({ profile }) {
       : [];
     setServices(list);
   }, [profile?._id]);
+
+  // Pull the admin-managed facility catalogue so the picker matches the Admin app.
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, { headers: { Authorization: `Bearer ${token}` } });
+        const cats = res.data?.data?.facilityCategories;
+        if (Array.isArray(cats) && cats.length) setCategories(cats);
+        if (res.data?.data?.clinicTierThresholds) setTierThresholds(res.data.data.clinicTierThresholds);
+      } catch (_) {}
+    })();
+  }, []);
 
   const persistServices = async (list) => {
     setSavingServices(true);
@@ -54,7 +70,7 @@ export default function FacilitiesTab({ profile }) {
   };
 
   const facilityScore = services.length;
-  const grade = getClinicTier(facilityScore);
+  const grade = getClinicTier(facilityScore, tierThresholds);
   const gradeIcon = grade.tier === 'elite' ? 'ribbon' : grade.tier === 'modern' ? 'business' : 'shield-checkmark';
   const gradeBlurb = grade.tier === 'elite'
     ? 'This clinic offers excellent facilities and premium care.'
@@ -162,7 +178,7 @@ export default function FacilitiesTab({ profile }) {
             </View>
             <Text style={styles.fpSub}>Tap to add or remove. {services.length} selected.</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {FACILITY_CATEGORIES.map(cat => (
+              {categories.map(cat => (
                 <View key={cat.key} style={{ marginBottom: 16 }}>
                   <View style={styles.fpCatHead}>
                     <View style={[styles.fpCatIcon, { backgroundColor: cat.bgColor }]}><Ionicons name={cat.icon} size={14} color={cat.color} /></View>

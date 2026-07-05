@@ -17,46 +17,75 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-// Points earned per paid bill (matching the earn rules shown in RewardsTab)
+// Points earned per paid bill / per received review (matches the earn rules in RewardsTab)
 const PTS_PER_BILL = 50;
+const PTS_PER_REVIEW = 50;
 
-function groupBillsByMonth(bills) {
+// Build monthly point-event groups from paid bills + received patient reviews.
+function buildMonthGroups(bills, reviews) {
   const map = {};
-  bills.forEach((b) => {
+  const ensure = (d) => {
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!map[key]) map[key] = { key, year: d.getFullYear(), month: d.getMonth(), events: [] };
+    return map[key];
+  };
+  (bills || []).forEach((b) => {
     if (b.status !== 'paid') return;
     const d = new Date(b.createdAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (!map[key]) {
-      map[key] = { year: d.getFullYear(), month: d.getMonth(), bills: [] };
-    }
-    map[key].bills.push(b);
+    ensure(d).events.push({
+      id: 'b_' + (b._id || `${d.getTime()}`), type: 'visit', points: PTS_PER_BILL, date: d,
+      title: b.patientId?.fullName || 'Patient',
+      sub: b.treatmentName || 'Treatment',
+      amount: b.finalAmount || b.amount || 0,
+    });
   });
-  // Sort newest first
-  return Object.entries(map)
-    .sort(([a], [b]) => (a < b ? 1 : -1))
-    .map(([key, val]) => ({ key, ...val, points: val.bills.length * PTS_PER_BILL }));
+  (reviews || []).forEach((r) => {
+    const d = new Date(r.createdAt);
+    ensure(d).events.push({
+      id: 'r_' + (r._id || `${d.getTime()}`), type: 'review', points: PTS_PER_REVIEW, date: d,
+      title: 'You received 50 points from a patient review',
+      sub: r.patientId?.fullName ? `Review by ${r.patientId.fullName}` : 'Patient review',
+    });
+  });
+  return Object.values(map)
+    .map((g) => ({
+      ...g,
+      events: g.events.sort((a, b) => b.date - a.date),
+      points: g.events.reduce((s, e) => s + e.points, 0),
+      paidVisits: g.events.filter((e) => e.type === 'visit').length,
+      reviewCount: g.events.filter((e) => e.type === 'review').length,
+      collected: g.events.reduce((s, e) => s + (e.amount || 0), 0),
+    }))
+    .sort((a, b) => (a.key < b.key ? 1 : -1));
 }
 
 export default function PointsHistoryScreen({ navigation, route }) {
   const totalPoints = route?.params?.totalPoints || 0;
 
   const [bills, setBills] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
         const token = await storage.getItem('userToken');
-        const res = await axios.get(`${API_BASE_URL}/api/bills/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.data?.success) setBills(res.data.data);
+        const auth = { headers: { Authorization: `Bearer ${token}` } };
+        // Resolve this doctor's profile id so we can pull the reviews they've received.
+        const meRes = await axios.get(`${API_BASE_URL}/api/users/me`, auth).catch(() => null);
+        const docId = meRes?.data?.data?.profile?._id;
+        const [billsRes, reviewsRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/api/bills/my`, auth).catch(() => null),
+          docId ? axios.get(`${API_BASE_URL}/api/reviews/doctor/${docId}?limit=100`, auth).catch(() => null) : Promise.resolve(null),
+        ]);
+        if (billsRes?.data?.success) setBills(billsRes.data.data);
+        if (reviewsRes?.data?.success) setReviews(reviewsRes.data.data || []);
       } catch (_) {}
       finally { setLoading(false); }
     })();
   }, []);
 
-  const monthGroups = groupBillsByMonth(bills);
+  const monthGroups = buildMonthGroups(bills, reviews);
   const now = new Date();
   const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const thisMonthGroup = monthGroups.find((g) => g.key === thisMonthKey);
@@ -106,8 +135,8 @@ export default function PointsHistoryScreen({ navigation, route }) {
               This month you earned{' '}
               <Text style={styles.thisMonthPts}>{thisMonthPts.toLocaleString()} points</Text>
               {thisMonthGroup
-                ? ` from ${thisMonthGroup.bills.length} completed visit${thisMonthGroup.bills.length !== 1 ? 's' : ''}.`
-                : ' — no paid visits yet this month.'}
+                ? ` from ${thisMonthGroup.paidVisits} paid visit${thisMonthGroup.paidVisits !== 1 ? 's' : ''}${thisMonthGroup.reviewCount ? ` and ${thisMonthGroup.reviewCount} patient review${thisMonthGroup.reviewCount !== 1 ? 's' : ''}` : ''}.`
+                : ' — no points activity yet this month.'}
             </Text>
           </View>
 
@@ -119,8 +148,12 @@ export default function PointsHistoryScreen({ navigation, route }) {
               <Text style={styles.ruleText}>Each paid patient visit = <Text style={styles.rulePts}>+{PTS_PER_BILL} pts</Text></Text>
             </View>
             <View style={styles.ruleRow}>
+              <Ionicons name="star" size={16} color="#D97706" style={{ marginRight: 8 }} />
+              <Text style={styles.ruleText}>Each patient review = <Text style={[styles.rulePts, { color: '#D97706' }]}>+{PTS_PER_REVIEW} pts</Text></Text>
+            </View>
+            <View style={styles.ruleRow}>
               <Ionicons name="information-circle-outline" size={16} color="#64748B" style={{ marginRight: 8 }} />
-              <Text style={styles.ruleText}>Review & referral points are included in your total but shown separately by the backend.</Text>
+              <Text style={styles.ruleText}>Referral bonuses are also included in your total.</Text>
             </View>
           </View>
 
@@ -130,8 +163,8 @@ export default function PointsHistoryScreen({ navigation, route }) {
           {monthGroups.length === 0 ? (
             <View style={styles.emptyCard}>
               <Ionicons name="time-outline" size={36} color="#CBD5E1" style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyText}>No paid visits recorded yet.</Text>
-              <Text style={styles.emptySub}>Points will appear here once patients complete and pay for their visits.</Text>
+              <Text style={styles.emptyText}>No points activity yet.</Text>
+              <Text style={styles.emptySub}>Points will appear here once patients pay for visits or leave you a review.</Text>
             </View>
           ) : (
             monthGroups.map((g) => {
@@ -159,41 +192,39 @@ export default function PointsHistoryScreen({ navigation, route }) {
                   {/* Stats row */}
                   <View style={styles.monthStats}>
                     <View style={styles.monthStat}>
-                      <Text style={styles.monthStatVal}>{g.bills.length}</Text>
+                      <Text style={styles.monthStatVal}>{g.paidVisits}</Text>
                       <Text style={styles.monthStatLabel}>Paid Visits</Text>
                     </View>
                     <View style={styles.monthStatDiv} />
                     <View style={styles.monthStat}>
-                      <Text style={styles.monthStatVal}>{PTS_PER_BILL} pts</Text>
-                      <Text style={styles.monthStatLabel}>Per Visit</Text>
+                      <Text style={[styles.monthStatVal, { color: '#D97706' }]}>{g.reviewCount}</Text>
+                      <Text style={styles.monthStatLabel}>Reviews</Text>
                     </View>
                     <View style={styles.monthStatDiv} />
                     <View style={styles.monthStat}>
                       <Text style={[styles.monthStatVal, { color: '#16A34A' }]}>
-                        Rs. {g.bills.reduce((s, b) => s + (b.finalAmount || b.amount || 0), 0).toLocaleString()}
+                        Rs. {g.collected.toLocaleString()}
                       </Text>
                       <Text style={styles.monthStatLabel}>Total Collected</Text>
                     </View>
                   </View>
 
-                  {/* Individual bills */}
-                  {g.bills.map((b, i) => {
-                    const d = new Date(b.createdAt);
-                    const dateStr = d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
+                  {/* Individual point events (paid visits + patient reviews) */}
+                  {g.events.map((e, i) => {
+                    const dateStr = e.date.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
+                    const isReview = e.type === 'review';
                     return (
-                      <View key={b._id || i} style={[styles.billRow, i === 0 && styles.billRowFirst]}>
-                        <View style={styles.billIconWrap}>
-                          <Ionicons name="medical-outline" size={14} color="#0052FF" />
+                      <View key={e.id} style={[styles.billRow, i === 0 && styles.billRowFirst]}>
+                        <View style={[styles.billIconWrap, isReview && { backgroundColor: '#FEF3C7' }]}>
+                          <Ionicons name={isReview ? 'star' : 'medical-outline'} size={14} color={isReview ? '#D97706' : '#0052FF'} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.billPatient} numberOfLines={1}>
-                            {b.patientId?.fullName || 'Patient'}
-                          </Text>
-                          <Text style={styles.billDate}>{dateStr} · {b.treatmentName || 'Treatment'}</Text>
+                          <Text style={styles.billPatient} numberOfLines={2}>{e.title}</Text>
+                          <Text style={styles.billDate}>{dateStr} · {e.sub}</Text>
                         </View>
                         <View style={styles.billRight}>
-                          <Text style={styles.billPts}>+{PTS_PER_BILL} pts</Text>
-                          <Text style={styles.billAmt}>Rs. {(b.finalAmount || b.amount || 0).toLocaleString()}</Text>
+                          <Text style={styles.billPts}>+{e.points} pts</Text>
+                          {e.amount ? <Text style={styles.billAmt}>Rs. {e.amount.toLocaleString()}</Text> : null}
                         </View>
                       </View>
                     );

@@ -54,7 +54,8 @@ export default function App() {
         <Route path="appointments" element={<Appointments />} />
         <Route path="bills" element={<Bills />} />
         <Route path="rewards" element={<Rewards />} />
-        <Route path="commission" element={<Commission />} />
+        <Route path="platform-fee" element={<Commission />} />
+        <Route path="commission" element={<Navigate to="/platform-fee" replace />} />
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="patient-campaigns" element={<PatientCampaigns />} />
         <Route path="broadcast" element={<Broadcast />} />

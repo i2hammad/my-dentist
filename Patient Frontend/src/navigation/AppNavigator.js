@@ -25,6 +25,7 @@ import ChatScreen from '../screens/ChatScreen';
 import PatientInboxScreen from '../screens/PatientInboxScreen';
 import PromoScreen from '../screens/PromoScreen';
 import SavedDoctorsScreen from '../screens/SavedDoctorsScreen';
+import PatientRewardsScreen from '../screens/PatientRewardsScreen';
 
 // Doctor Screens
 import DoctorHomeScreen from '../screens/doctor/DoctorHomeScreen';
@@ -98,6 +99,7 @@ function MainTabNavigator() {
           let iconName;
 
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === 'Rewards') iconName = focused ? 'gift' : 'gift-outline';
           else if (route.name === 'MyReviews') iconName = focused ? 'star' : 'star-outline';
           else if (route.name === 'Campaigns') iconName = focused ? 'calendar' : 'calendar-outline';
           else if (route.name === 'BillsHistory') iconName = focused ? 'receipt' : 'receipt-outline';
@@ -109,6 +111,7 @@ function MainTabNavigator() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Rewards" component={PatientRewardsScreen} />
       <Tab.Screen name="MyReviews" component={MyReviewsScreen} options={{ tabBarLabel: 'Reviews' }} />
       <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Appointments' }} />
       <Tab.Screen name="BillsHistory" component={BillsHistoryScreen} options={{ tabBarLabel: 'Bills' }} />

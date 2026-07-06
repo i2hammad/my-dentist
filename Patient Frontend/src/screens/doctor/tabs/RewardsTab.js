@@ -236,7 +236,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
           </View>
 
           <Text style={styles.blueCardDesc}>
-            With Paying only <Text style={{color: '#FDE047', fontWeight: 'bold'}}>10% commission</Text>{'\n'}
+            With Paying only <Text style={{color: '#FDE047', fontWeight: 'bold'}}>10% platform fee</Text>{'\n'}
             <Text style={{color: '#FDE047', fontWeight: 'bold'}}>get more and more patients.</Text>
           </Text>
 
@@ -415,7 +415,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
         )}
       </View>
 
-      {/* Payment & commission options moved to Platform Fee tab */}
+      {/* Payment & platform fee options moved to Platform Fee tab */}
 
       {/* Deep Blue Footer Banner */}
       <View style={styles.footerBanner}>
@@ -424,7 +424,7 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
             <Ionicons name="people" size={24} color="#0052FF" />
           </View>
           <View style={{flex: 1, paddingHorizontal: isWide ? 16 : 0, marginVertical: isWide ? 0 : 12}}>
-            <Text style={styles.footerBannerTitle}>Grow your clinic with paying only 10%{'\n'}commission on a whole treatment amount</Text>
+            <Text style={styles.footerBannerTitle}>Grow your clinic with paying only 10%{'\n'}platform fee on a whole treatment amount</Text>
             <Text style={styles.footerBannerDesc}>Encourage visits, online payments and reviews.</Text>
           </View>
           <TouchableOpacity

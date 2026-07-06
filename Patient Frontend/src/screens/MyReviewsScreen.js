@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,7 +36,7 @@ function Stars({ rating, size = 15 }) {
   );
 }
 
-function ReviewCard({ review, onPressDoctor, onDelete }) {
+function ReviewCard({ review, onPressDoctor }) {
   const doc = review.doctorId || {};
   const photoUri = doc.photo ? imgUrl(doc.photo) : null;
   return (
@@ -80,10 +80,6 @@ function ReviewCard({ review, onPressDoctor, onDelete }) {
         </View>
       ) : null}
 
-      <TouchableOpacity style={styles.deleteRow} onPress={() => onDelete(review)} hitSlop={8}>
-        <Ionicons name="trash-outline" size={15} color="#DC2626" />
-        <Text style={styles.deleteTxt}>Delete review</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -116,25 +112,6 @@ export default function MyReviewsScreen({ navigation }) {
     if (doc?._id) navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc });
   };
 
-  const handleDelete = (review) => {
-    const doDelete = async () => {
-      try {
-        const token = await storage.getItem('userToken');
-        await axios.delete(`${API_BASE_URL}/api/reviews/${review._id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setReviews((prev) => prev.filter((r) => r._id !== review._id));
-      } catch {
-        if (!isWeb) Alert.alert('Error', 'Could not delete the review. Please try again.');
-      }
-    };
-    if (isWeb) { doDelete(); return; }
-    Alert.alert('Delete review', 'Are you sure you want to delete this review?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
-    ]);
-  };
-
   return (
     <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
       {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
@@ -162,7 +139,7 @@ export default function MyReviewsScreen({ navigation }) {
           <>
             <Text style={styles.countLabel}>{reviews.length} review{reviews.length === 1 ? '' : 's'}</Text>
             {reviews.map((r) => (
-              <ReviewCard key={r._id} review={r} onPressDoctor={goToDoctor} onDelete={handleDelete} />
+              <ReviewCard key={r._id} review={r} onPressDoctor={goToDoctor} />
             ))}
           </>
         )}
@@ -207,9 +184,6 @@ const styles = StyleSheet.create({
   replyBox: { backgroundColor: '#F0F5FF', borderRadius: 10, padding: 10, marginTop: 10 },
   replyLabel: { fontSize: 11.5, fontWeight: '700', color: '#0052FF', marginLeft: 5 },
   replyText: { fontSize: 13, color: '#475569', lineHeight: 18 },
-
-  deleteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, alignSelf: 'flex-start' },
-  deleteTxt: { fontSize: 12.5, color: '#DC2626', fontWeight: '600', marginLeft: 5 },
 
   emptyContainer: { alignItems: 'center', paddingVertical: 50 },
   emptyTitle: { fontSize: 16, fontWeight: '800', color: '#475569', marginTop: 14 },

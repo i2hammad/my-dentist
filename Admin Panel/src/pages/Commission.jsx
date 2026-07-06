@@ -10,7 +10,7 @@ const COMM_CSV_COLS = [
   { header: 'Doctor', value: (r) => r.fullName },
   { header: 'City', value: (r) => r.city },
   { header: 'Collected', value: (r) => r.collected },
-  { header: 'Commission Earned', value: (r) => r.commissionEarned },
+  { header: 'Platform Fee Earned', value: (r) => r.commissionEarned },
   { header: 'Paid', value: (r) => r.commissionPaid },
   { header: 'Outstanding', value: (r) => r.commissionDue },
 ];
@@ -24,18 +24,18 @@ export default function Commission() {
     api.get('/api/admin/commission').then((r) => setD(r.data.data)).catch(() => setD(false));
   }, []);
 
-  if (d === false) return <div className="card"><div className="empty">Failed to load commission data</div></div>;
-  if (!d) return (<div className="card"><PageHeader title="Commission" crumb="Commission" /><SkeletonStatCards /><SkeletonTable cols={6} /></div>);
+  if (d === false) return <div className="card"><div className="empty">Failed to load platform fee data</div></div>;
+  if (!d) return (<div className="card"><PageHeader title="Platform Fee" crumb="Platform Fee" /><SkeletonStatCards /><SkeletonTable cols={6} /></div>);
 
   const rows = overdueOnly ? d.doctors.filter((r) => r.commissionDue > 0) : d.doctors;
 
   return (
     <div className="card">
-      <PageHeader title="Platform Commission" crumb="Commission"
-        actions={<ExportButton path="/api/admin/commission" columns={COMM_CSV_COLS} filename="commission.csv" pick="doctors" />} />
+      <PageHeader title="Platform Fee" crumb="Platform Fee"
+        actions={<ExportButton path="/api/admin/commission" columns={COMM_CSV_COLS} filename="platform-fee.csv" pick="doctors" />} />
 
       <StatCards items={[
-        { label: `Commission Earned (${d.rate}%)`, value: money(d.totals.earned), icon: Percent, tone: 'blue' },
+        { label: `Platform Fee Earned (${d.rate}%)`, value: money(d.totals.earned), icon: Percent, tone: 'blue' },
         { label: 'Collected (Platform)', value: money(d.totals.paid), icon: CheckCircle, tone: 'green' },
         { label: 'Outstanding Dues', value: money(d.totals.due), icon: WarningCircle, tone: 'amber' },
         { label: 'Doctors Overdue', value: d.overdueCount, icon: Wallet, tone: 'purple' },
@@ -50,7 +50,7 @@ export default function Commission() {
 
       <div className="table-scroll">
       <table>
-        <thead><tr><th>Doctor</th><th>City</th><th>Collected</th><th>Commission ({d.rate}%)</th><th>Paid</th><th>Outstanding</th><th></th></tr></thead>
+        <thead><tr><th>Doctor</th><th>City</th><th>Collected</th><th>Platform Fee ({d.rate}%)</th><th>Paid</th><th>Outstanding</th><th></th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r._id}>

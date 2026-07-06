@@ -215,9 +215,9 @@ function AppTab({ isSuper }) {
             hint="Doctors reaching this many points unlock the green Popular badge." />
           <div />
         </div>
-        <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Commission</h4>
+        <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Platform Fee</h4>
         <div className="field-row">
-          <Field label="Platform Commission Rate (%)" type="number" value={s.commissionRate ?? 10} onChange={set('commissionRate')} />
+          <Field label="Platform Fee Rate (%)" type="number" value={s.commissionRate ?? 10} onChange={set('commissionRate')} />
           <div />
         </div>
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>General</h4>

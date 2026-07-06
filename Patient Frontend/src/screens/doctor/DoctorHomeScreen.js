@@ -194,7 +194,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
           </Text>
           <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
             {blocked
-              ? (profile.blockReason || 'Your account has been blocked due to outstanding dues. Please clear your commission dues and contact support to be unblocked.')
+              ? (profile.blockReason || 'Your account has been blocked due to outstanding dues. Please clear your platform fee dues and contact support to be unblocked.')
               : rejected
               ? 'Your profile was not approved. Please contact support for details or to re-apply.'
               : 'Your profile is under review. An admin will approve your account shortly — you’ll get full access once approved.'}

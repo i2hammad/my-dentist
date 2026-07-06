@@ -42,7 +42,7 @@ const EMPTY_PAYOUT = { bankName: '', accountTitle: '', accountNumber: '' };
 
 export default function PlatformFeeTab({ profile, bills = [] }) {
   const [commissionRate, setCommissionRate] = useState(10);
-  // Admin-managed commission figures (the source of truth, always in sync with the Admin Panel).
+  // Admin-managed platform fee figures (the source of truth, always in sync with the Admin Panel).
   const [liveCommission, setLiveCommission] = useState({ due: null, paid: null });
 
   // Outstanding dues + cleared amount come from the admin-managed DoctorProfile
@@ -84,7 +84,7 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
           setPlatformPayments(res.data.data.payments);
           if (res.data.data.commissionRate) setCommissionRate(res.data.data.commissionRate);
         }
-        // Pull the freshest admin-managed commission dues so figures match the Admin Panel.
+        // Pull the freshest admin-managed platform fee dues so figures match the Admin Panel.
         try {
           const meRes = await axios.get(`${API_BASE_URL}/api/users/me`, { headers: { Authorization: `Bearer ${token}` } });
           const prof = meRes.data?.data?.profile;
@@ -154,7 +154,7 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Platform Fee Summary</Text>
           <Text style={styles.headerSub}>
-            Track your commission dues and patient reward redemptions
+            Track your platform fee dues and patient reward redemptions
           </Text>
         </View>
       </View>
@@ -177,16 +177,16 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
           label="Outstanding Platform Fee"
           value={fmt(outstandingDue)}
           valueColor={outstandingDue > 0 ? '#D97706' : '#16A34A'}
-          note="Outstanding commission as recorded by My Dentist"
+          note="Outstanding platform fee as recorded by My Dentist"
         />
         <StatCard
           icon="checkmark-circle-outline"
           iconBg="#EFF6FF"
           iconColor="#0052FF"
-          label="Commission Paid"
+          label="Platform Fee Paid"
           value={fmt(paidCommission)}
           valueColor="#0052FF"
-          note="Commission cleared / verified by My Dentist"
+          note="Platform fee cleared / verified by My Dentist"
         />
       </View>
 
@@ -194,36 +194,36 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
       <View style={styles.breakdownCard}>
         <Text style={styles.breakdownTitle}>Fee Breakdown</Text>
         <Row label="Patient Redeemed Amount" value={`- ${fmt(totalRedeemedAmount)}`} valueColor="#16A34A" />
-        <Row label="Commission Paid / Cleared" value={fmt(paidCommission)} valueColor="#16A34A" />
+        <Row label="Platform Fee Paid / Cleared" value={fmt(paidCommission)} valueColor="#16A34A" />
         <View style={styles.divider} />
         <Row label="Outstanding Platform Fee" value={fmt(outstandingDue)} valueColor={outstandingDue > 0 ? '#D97706' : '#16A34A'} bold />
       </View>
 
-      {/* ── Pay 10% Commission to My Dentist ── */}
+      {/* ── Pay 10% Platform Fee to My Dentist ── */}
       <View style={styles.commissionBox}>
         <View style={styles.commissionHeader}>
           <View style={styles.commissionIconWrap}>
             <Ionicons name="business" size={20} color="#0052FF" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.commissionTitle}>Pay 10% Commission to My Dentist</Text>
+            <Text style={styles.commissionTitle}>Pay 10% Platform Fee to My Dentist</Text>
             <Text style={styles.commissionDesc}>Send payment to any account below. Tap account number to copy.</Text>
           </View>
         </View>
 
-        {/* After payment → WhatsApp the screenshot as proof. Admin verifies & deducts the commission. */}
+        {/* After payment → WhatsApp the screenshot as proof. Admin verifies & deducts the platform fee. */}
         <View style={styles.proofBox}>
           <View style={styles.proofNoteRow}>
             <Ionicons name="information-circle-outline" size={15} color="#0369A1" style={{ marginRight: 6, marginTop: 1 }} />
             <Text style={styles.proofNote}>
-              After payment, WhatsApp the screenshot to My Dentist as proof. Your commission will be verified and deducted from your account.
+              After payment, WhatsApp the screenshot to My Dentist as proof. Your platform fee will be verified and deducted from your account.
             </Text>
           </View>
           <TouchableOpacity
             style={styles.proofWaBtn}
             activeOpacity={0.85}
             onPress={() => openWhatsApp(
-              `Hello, I'm Dr. ${profile?.fullName || 'Doctor'}. I have paid my platform commission${outstandingDue > 0 ? ` (${fmt(outstandingDue)})` : ''} to My Dentist. I'm attaching the payment screenshot as proof — please verify and deduct it from my account. Thank you.`
+              `Hello, I'm Dr. ${profile?.fullName || 'Doctor'}. I have paid my platform fee${outstandingDue > 0 ? ` (${fmt(outstandingDue)})` : ''} to My Dentist. I'm attaching the payment screenshot as proof - please verify and deduct it from my account. Thank you.`
             )}
           >
             <Ionicons name="logo-whatsapp" size={18} color="#FFF" style={{ marginRight: 8 }} />
@@ -359,9 +359,9 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
             <Ionicons name="percent-outline" size={16} color="#0052FF" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.infoLabel}>{commissionRate}% Platform Commission</Text>
+            <Text style={styles.infoLabel}>{commissionRate}% Platform Fee</Text>
             <Text style={styles.infoDesc}>
-              My Dentist charges a {commissionRate}% commission on your collected treatment amount.
+              My Dentist charges a {commissionRate}% platform fee on your collected treatment amount.
             </Text>
           </View>
         </View>
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 8 },
 
-  // Commission / payment accounts
+  // Platform fee / payment accounts
   commissionBox: {
     backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
     borderWidth: 1.5, borderColor: '#BFDBFE', marginBottom: 0,
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   },
   claimBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
 
-  // Pay-commission → send WhatsApp screenshot proof
+  // Pay platform fee, then send WhatsApp screenshot proof
   proofBox: { marginTop: 2, marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   proofNoteRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD', borderRadius: 10, padding: 10, marginBottom: 12 },
   proofNote: { flex: 1, fontSize: 11.5, color: '#0369A1', lineHeight: 16, fontWeight: '500' },

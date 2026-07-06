@@ -171,6 +171,8 @@ export default function NotificationsScreen({ navigation, route }) {
     } else if (item.type === 'reward') {
       if (isDoctor) {
         navigation.navigate('DoctorTabs', { screen: 'DoctorHome', params: { initialTab: 'rewards' } });
+      } else {
+        navigation.navigate('MainTabs', { screen: 'Rewards' });
       }
     }
   };

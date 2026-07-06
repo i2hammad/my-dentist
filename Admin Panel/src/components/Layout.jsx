@@ -23,7 +23,7 @@ const NAV = [
   { to: '/appointments', label: 'Appointments', Icon: CalendarBlank },
   { to: '/bills', label: 'Bills & Bill History', Icon: Receipt },
   { to: '/rewards', label: 'Rewards & Payments', Icon: Gift },
-  { to: '/commission', label: 'Commission', Icon: Percent },
+  { to: '/platform-fee', label: 'Platform Fee', Icon: Percent },
   { to: '/campaigns', label: 'Dr. Promotions', Icon: Megaphone },
   { to: '/patient-campaigns', label: 'Patient Promotions', Icon: Sparkle },
   { to: '/broadcast', label: 'Broadcast', Icon: PaperPlaneTilt },

@@ -147,7 +147,7 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Retention + Commission */}
+          {/* Retention + Platform Fee */}
           <div className="dash-grid">
             {/* Retention */}
             <div className="card">
@@ -160,9 +160,9 @@ export default function Analytics() {
               </div>
             </div>
 
-            {/* Commission */}
+            {/* Platform Fee */}
             <div className="card">
-              <div className="card-head"><h3>Commission</h3></div>
+              <div className="card-head"><h3>Platform Fee</h3></div>
               <StatCards items={[
                 { label: 'Earned', value: money(d.commissionTotals?.earned), icon: CurrencyDollar, tone: 'blue' },
                 { label: 'Collected', value: money(d.commissionTotals?.collected), icon: CurrencyDollar, tone: 'green' },

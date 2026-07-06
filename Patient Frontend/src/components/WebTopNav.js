@@ -17,6 +17,7 @@ import useResponsive from '../hooks/useResponsive';
 // `stack` routes are pushed on the root stack.
 const PATIENT_TABS = [
   { name: 'Home', label: 'Home', icon: 'home', tabsRoute: 'MainTabs' },
+  { name: 'Rewards', label: 'Rewards', icon: 'gift', tabsRoute: 'MainTabs' },
   { name: 'Campaigns', label: 'Appointments', icon: 'calendar', tabsRoute: 'MainTabs' },
   { name: 'MyReviews', label: 'My Reviews', icon: 'star', tabsRoute: 'MainTabs' },
   { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs' },

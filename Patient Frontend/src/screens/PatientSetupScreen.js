@@ -33,6 +33,12 @@ export default function PatientSetupScreen({ navigation }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   
   const cities = ['Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar'];
+  const cityQuery = city.trim().toLowerCase();
+  const filteredCities = cities.filter((c) => c.toLowerCase().includes(cityQuery));
+  const selectCity = (c) => {
+    setCity(c);
+    setShowCityDropdown(false);
+  };
 
   useEffect(() => {
     if (isFocused) {
@@ -393,24 +399,42 @@ export default function PatientSetupScreen({ navigation }) {
 
               <View style={[styles.fieldItem, webHalf, showCityDropdown && styles.fieldItemOpen]}>
               <Text style={styles.label}>City</Text>
-              <TouchableOpacity
-                style={styles.inputContainer}
-                onPress={() => { setShowCityDropdown(!showCityDropdown); setShowGenderDropdown(false); }}
-              >
+              <View style={styles.inputContainer}>
                 <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <Text style={[styles.input, { color: city ? '#0F172A' : '#94A3B8' }]}>
-                  {city || 'Select your city'}
-                </Text>
-                <Ionicons name={showCityDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
-              </TouchableOpacity>
+                <TextInput
+                  style={styles.input}
+                  value={city}
+                  onChangeText={(text) => {
+                    setCity(text);
+                    const q = text.trim().toLowerCase();
+                    setShowCityDropdown(!q || cities.some((c) => c.toLowerCase().includes(q)));
+                  }}
+                  onFocus={() => { setShowCityDropdown(true); setShowGenderDropdown(false); }}
+                  onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
+                  placeholder="Enter your city"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={() => setShowCityDropdown(false)}
+                />
+                <TouchableOpacity
+                  onPress={() => { setShowCityDropdown(!showCityDropdown); setShowGenderDropdown(false); }}
+                  hitSlop={8}
+                  style={styles.dropdownToggle}
+                >
+                  <Ionicons name={showCityDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
 
-              {showCityDropdown && (
+              {showCityDropdown && filteredCities.length > 0 && (
                 <View style={styles.dropdownMenu}>
-                  {cities.map((c) => (
+                  {filteredCities.map((c) => (
                     <TouchableOpacity 
                       key={c} 
                       style={styles.dropdownItem} 
-                      onPress={() => { setCity(c); setShowCityDropdown(false); }}
+                      onMouseDown={Platform.OS === 'web' ? (e) => { e.preventDefault(); selectCity(c); } : undefined}
+                      onPressIn={() => selectCity(c)}
+                      onPress={() => selectCity(c)}
                     >
                       <Text style={styles.dropdownItemText}>{c}</Text>
                     </TouchableOpacity>
@@ -612,6 +636,11 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#0F172A',
     fontSize: 14,
+  },
+  dropdownToggle: {
+    paddingLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dropdownMenu: {
     position: 'absolute',

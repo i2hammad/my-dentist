@@ -9,7 +9,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
-import { webContent } from '../config/webLayout';
+import { webContent, isWeb } from '../config/webLayout';
 import PromoCard from '../components/PromoCard';
 
 const getTreatIcon = (name = '') => {
@@ -43,6 +43,40 @@ const TIME_SLOTS = [
 const DAY_SHORT  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const dateToIso = (date) => (
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+);
+
+const isoToDate = (iso) => {
+  if (!iso) return new Date();
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const tomorrow = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1);
+  return d;
+};
+
+const tomorrowIso = () => dateToIso(tomorrow());
+
+const dateLabel = (iso) => {
+  const d = isoToDate(iso);
+  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+const timeLabel = (value) => {
+  const [hours = '0', minutes = '00'] = String(value || '').split(':');
+  const h = Number(hours);
+  const h12 = h % 12 || 12;
+  const ampm = h < 12 ? 'AM' : 'PM';
+  return `${h12}:${minutes} ${ampm}`;
+};
+
 function generateDates(count = 60) {
   const dates = [];
   for (let i = 1; i <= count; i++) {
@@ -52,7 +86,7 @@ function generateDates(count = 60) {
       dayName: DAY_SHORT[d.getDay()],
       dateNum: d.getDate(),
       month:   MONTH_SHORT[d.getMonth()],
-      iso:     d.toISOString().split('T')[0],
+      iso:     dateToIso(d),
       isWeekend: d.getDay() === 0 || d.getDay() === 6,
     });
   }
@@ -99,20 +133,18 @@ export default function BookingScreen({ route, navigation }) {
   const onPickDate = (event, picked) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (event?.type === 'dismissed' || !picked) return;
-    const iso = picked.toISOString().split('T')[0];
+    const minIso = tomorrowIso();
+    const iso = dateToIso(picked) < minIso ? minIso : dateToIso(picked);
     setSelectedDate(iso);
-    setCustomDateLabel(`${picked.getDate()} ${MONTH_SHORT[picked.getMonth()]} ${picked.getFullYear()}`);
+    setCustomDateLabel(dateLabel(iso));
   };
 
   const onPickTime = (event, picked) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (event?.type === 'dismissed' || !picked) return;
-    const hh = String(picked.getHours()).padStart(2, '0');
-    const mm = String(picked.getMinutes()).padStart(2, '0');
-    setSelectedTime(`${hh}:${mm}`);
-    const h12 = picked.getHours() % 12 || 12;
-    const ampm = picked.getHours() < 12 ? 'AM' : 'PM';
-    setCustomTimeLabel(`${h12}:${mm} ${ampm}`);
+    const value = `${pad2(picked.getHours())}:${pad2(picked.getMinutes())}`;
+    setSelectedTime(value);
+    setCustomTimeLabel(timeLabel(value));
   };
 
   const toggleTreatment = (t) => {
@@ -145,9 +177,24 @@ export default function BookingScreen({ route, navigation }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      Alert.alert('Appointment Booked!', 'Your appointment has been booked successfully. The doctor will confirm shortly.', [
-        { text: 'OK' },
-      ]);
+      const goToAppointments = () => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs', params: { screen: 'Campaigns' } }],
+        });
+      };
+
+      if (isWeb) {
+        window.alert('Your appointment has been booked successfully. The doctor will confirm shortly.');
+        goToAppointments();
+      } else {
+        Alert.alert(
+          'Appointment Booked!',
+          'Your appointment has been booked successfully. The doctor will confirm shortly.',
+          [{ text: 'OK', onPress: goToAppointments }],
+          { cancelable: false }
+        );
+      }
     } catch (error) {
       const msg = error.response?.data?.message
         || error.response?.data?.errors?.map(e => e.msg).join(', ')
@@ -296,18 +343,47 @@ export default function BookingScreen({ route, navigation }) {
             </ScrollView>
 
             {/* Pick any date button */}
-            <TouchableOpacity style={styles.pickAnyBtn} onPress={() => setShowDatePicker(true)}>
-              <Ionicons name="calendar-outline" size={18} color="#0052FF" />
-              <Text style={styles.pickAnyText}>
-                {customDateLabel ? `Custom date: ${customDateLabel}` : 'Pick any future date'}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color="#0052FF" />
-            </TouchableOpacity>
-            {showDatePicker && (
+            {isWeb ? (
+              <View style={styles.pickAnyBtn}>
+                <Ionicons name="calendar-outline" size={18} color="#0052FF" />
+                {React.createElement('input', {
+                  type: 'date',
+                  value: selectedDate || '',
+                  min: tomorrowIso(),
+                  onChange: (e) => {
+                    const iso = e.target.value;
+                    if (!iso) return;
+                    setSelectedDate(iso);
+                    setCustomDateLabel(dateLabel(iso));
+                  },
+                  style: {
+                    flex: 1,
+                    border: 'none',
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#0052FF',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  },
+                  'aria-label': 'Pick any future date',
+                })}
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.pickAnyBtn} onPress={() => setShowDatePicker(true)}>
+                <Ionicons name="calendar-outline" size={18} color="#0052FF" />
+                <Text style={styles.pickAnyText}>
+                  {customDateLabel ? `Custom date: ${customDateLabel}` : 'Pick any future date'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#0052FF" />
+              </TouchableOpacity>
+            )}
+            {showDatePicker && !isWeb && (
               <DateTimePicker
-                value={selectedDate ? new Date(selectedDate) : new Date()}
+                value={selectedDate ? isoToDate(selectedDate) : tomorrow()}
                 mode="date"
-                minimumDate={new Date()}
+                minimumDate={tomorrow()}
                 display="default"
                 onChange={onPickDate}
               />
@@ -346,14 +422,42 @@ export default function BookingScreen({ route, navigation }) {
             </View>
 
             {/* Pick custom time */}
-            <TouchableOpacity style={styles.pickAnyBtn} onPress={() => setShowTimePicker(true)}>
-              <Ionicons name="time-outline" size={18} color="#7C3AED" />
-              <Text style={[styles.pickAnyText, { color: '#7C3AED' }]}>
-                {customTimeLabel ? `Custom time: ${customTimeLabel}` : 'Pick a custom time'}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
-            </TouchableOpacity>
-            {showTimePicker && (
+            {isWeb ? (
+              <View style={styles.pickAnyBtn}>
+                <Ionicons name="time-outline" size={18} color="#7C3AED" />
+                {React.createElement('input', {
+                  type: 'time',
+                  value: selectedTime || '',
+                  onChange: (e) => {
+                    const value = e.target.value;
+                    if (!value) return;
+                    setSelectedTime(value);
+                    setCustomTimeLabel(timeLabel(value));
+                  },
+                  style: {
+                    flex: 1,
+                    border: 'none',
+                    outline: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#7C3AED',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  },
+                  'aria-label': 'Pick a custom time',
+                })}
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.pickAnyBtn} onPress={() => setShowTimePicker(true)}>
+                <Ionicons name="time-outline" size={18} color="#7C3AED" />
+                <Text style={[styles.pickAnyText, { color: '#7C3AED' }]}>
+                  {customTimeLabel ? `Custom time: ${customTimeLabel}` : 'Pick a custom time'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#7C3AED" />
+              </TouchableOpacity>
+            )}
+            {showTimePicker && !isWeb && (
               <DateTimePicker
                 value={new Date()}
                 mode="time"

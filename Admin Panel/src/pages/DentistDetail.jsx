@@ -52,7 +52,7 @@ export default function DentistDetail() {
     }
   };
   const setCommission = async () => {
-    const val = window.prompt(`Set outstanding commission dues (PKR) for ${doc.fullName}.\nSetting any amount above 0 will automatically BLOCK the doctor until the dues are cleared.`, String(doc.commissionDue || 0));
+    const val = window.prompt(`Set outstanding platform fee dues (PKR) for ${doc.fullName}.\nSetting any amount above 0 will automatically BLOCK the doctor until the dues are cleared.`, String(doc.commissionDue || 0));
     if (val == null) return;
     const num = Number(val);
     if (isNaN(num) || num < 0) return toast('Enter a valid amount', 'error');
@@ -64,7 +64,7 @@ export default function DentistDetail() {
   };
   const addDues = async () => {
     const earned = d.earnings?.commissionEarned || 0;
-    const val = window.prompt(`Add commission dues (PKR) for ${doc.fullName}.\nPlatform has earned PKR ${earned.toLocaleString()} (${d.earnings?.commissionRate ?? 10}% of collected).`, String(earned - (doc.commissionPaid || 0) > 0 ? earned - (doc.commissionPaid || 0) : earned));
+    const val = window.prompt(`Add platform fee dues (PKR) for ${doc.fullName}.\nPlatform fee earned is PKR ${earned.toLocaleString()} (${d.earnings?.commissionRate ?? 10}% of collected).`, String(earned - (doc.commissionPaid || 0) > 0 ? earned - (doc.commissionPaid || 0) : earned));
     if (val == null) return;
     const num = Number(val);
     if (isNaN(num) || num <= 0) return toast('Enter a valid amount', 'error');
@@ -73,12 +73,12 @@ export default function DentistDetail() {
   };
   const clearDues = async () => {
     if (!(doc.commissionDue > 0)) return toast('No outstanding dues to clear', 'error');
-    if (!(await confirm({ title: 'Clear Dues', message: `Mark PKR ${doc.commissionDue.toLocaleString()} commission dues as PAID for ${doc.fullName}? This also unblocks them if they were blocked for dues.`, confirmText: 'Clear Dues' }))) return;
+    if (!(await confirm({ title: 'Clear Dues', message: `Mark PKR ${doc.commissionDue.toLocaleString()} platform fee dues as PAID for ${doc.fullName}? This also unblocks them if they were blocked for dues.`, confirmText: 'Clear Dues' }))) return;
     try { await api.patch(`/api/admin/dentists/${id}/commission/clear`); toast('Dues cleared'); load(); }
     catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
   };
   const syncDues = async () => {
-    if (!(await confirm({ title: 'Sync Dues', message: `Auto-set ${doc.fullName}'s outstanding dues to (commission earned − already paid)? This recalculates from their collected bills.`, confirmText: 'Sync' }))) return;
+    if (!(await confirm({ title: 'Sync Dues', message: `Auto-set ${doc.fullName}'s outstanding dues to (platform fee earned - already paid)? This recalculates from their collected bills.`, confirmText: 'Sync' }))) return;
     try { const r = await api.patch(`/api/admin/dentists/${id}/commission/sync`); toast(`Dues synced to Rs. ${(r.data.data.owed || 0).toLocaleString()}`); load(); }
     catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
   };
@@ -260,7 +260,7 @@ export default function DentistDetail() {
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 700 }}>{money(b.finalAmount)}</div>
                   <span className={`badge ${b.status === 'paid' ? 'green' : b.status === 'draft' ? 'gray' : 'amber'}`} style={{ fontSize: 10 }}>{b.status}</span>
-                  {b.commission > 0 && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Comm. {money(b.commission)}</div>}
+                  {b.commission > 0 && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Platform Fee {money(b.commission)}</div>}
                 </div>
               </div>
             )) : <span className="muted">No bills yet</span>}
@@ -280,11 +280,11 @@ export default function DentistDetail() {
             )}
           </div>
 
-          {/* Platform commission */}
+          {/* Platform fee */}
           {d.earnings && (
             <div className="card" style={{ marginTop: 16 }}>
-              <div className="card-head"><h3>Platform Commission ({d.earnings.commissionRate}%)</h3></div>
-              <CommRow k={`Commission earned (${d.earnings.commissionRate}% of ${money(d.earnings.totalEarned)})`} v={money(d.earnings.commissionEarned)} bold />
+              <div className="card-head"><h3>Platform Fee ({d.earnings.commissionRate}%)</h3></div>
+              <CommRow k={`Platform fee earned (${d.earnings.commissionRate}% of ${money(d.earnings.totalEarned)})`} v={money(d.earnings.commissionEarned)} bold />
               <CommRow k="Cleared / paid to date" v={money(d.earnings.commissionPaid)} green />
               <CommRow k="Outstanding dues" v={money(d.earnings.commissionDue)} red={d.earnings.commissionDue > 0} bold />
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -295,7 +295,7 @@ export default function DentistDetail() {
               </div>
               <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠ "Set Outstanding" blocks the doctor on any amount above 0. "Add Dues" auto-blocks once the total reaches PKR 50,000. Clearing dues unblocks a doctor blocked for dues.</p>
 
-              {/* Commission payment history */}
+              {/* Platform fee payment history */}
               {d.commissionLog?.length > 0 && (
                 <div style={{ marginTop: 14, borderTop: '1px solid #F1F5F9', paddingTop: 10 }}>
                   <h4 style={{ fontSize: 13, margin: '0 0 8px' }}>Payment History</h4>

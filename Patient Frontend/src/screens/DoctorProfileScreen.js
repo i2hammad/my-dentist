@@ -88,7 +88,6 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
   const [appointments, setAppointments] = useState([]);
   const [bills, setBills]               = useState([]);
-  const [rewards, setRewards]           = useState({ points: 0, transactions: [] });
   const [payingBillId, setPayingBillId] = useState(null);
 
   const [activeTab, setActiveTab] = useState('About');
@@ -128,11 +127,6 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
   // Lightbox
   const [lightboxUri, setLightboxUri] = useState(null);
-
-  // Redeem Points
-  const [redeemCode, setRedeemCode] = useState(null);
-  const [redeemLoading, setRedeemLoading] = useState(false);
-  const [showRewardHistory, setShowRewardHistory] = useState(false);
 
   // Jump to a specific tab when navigated from a notification
   useEffect(() => {
@@ -233,40 +227,6 @@ export default function DoctorProfileScreen({ route, navigation }) {
     } catch (e) { /* ignore */ }
   }, [saved, doctor]);
 
-  // Actually calls the redeem API and reveals the discount code.
-  const doRedeem = async () => {
-    const pts = rewards.totalPoints || rewards.points || 0;
-    if (pts <= 0) return Alert.alert('No Points', 'You have no reward points to redeem.');
-    setRedeemLoading(true);
-    try {
-      const token = await storage.getItem('userToken');
-      const res = await axios.post(`${API_BASE_URL}/api/rewards/redeem`, { points: pts }, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.data?.success) {
-        setRedeemCode(res.data.data?.code);
-      }
-    } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Could not generate code. Please try again.');
-    } finally {
-      setRedeemLoading(false);
-    }
-  };
-
-  // Warn the patient before generating — the code must be saved immediately.
-  // Closing the app loses the code and resets the redeemed points to zero.
-  const handleRedeem = () => {
-    const pts = rewards.totalPoints || rewards.points || 0;
-    if (pts <= 0) return Alert.alert('No Points', 'You have no reward points to redeem.');
-    Alert.alert(
-      'Generate Redemption Code?',
-      `You are about to redeem ${pts} pts for a PKR ${pts} discount code.\n\nOnce generated, write it down or take a screenshot right away. If you close the app before giving the code to your doctor, the code will be lost and your points will be reset to zero.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Generate Code', onPress: doRedeem },
-      ],
-      { cancelable: true }
-    );
-  };
-
   const TAB_ICONS = {
     'About': 'person-outline',
     'Treatments': 'medkit-outline',
@@ -275,10 +235,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
     'Reviews': 'star-outline',
     'Appointments': 'calendar-outline',
     'Bills & Bill History': 'receipt-outline',
-    'Rewards & Payments': 'gift-outline',
   };
 
-  const tabs = ['About', 'Treatments', 'Gallery', 'Facilities', 'Reviews', 'Appointments', 'Bills & Bill History', 'Rewards & Payments'];
+  const tabs = ['About', 'Treatments', 'Gallery', 'Facilities', 'Reviews', 'Appointments', 'Bills & Bill History'];
 
   useEffect(() => {
     fetchDoctorData();
@@ -358,16 +317,6 @@ export default function DoctorProfileScreen({ route, navigation }) {
           }
         } catch (e) {
           console.log('Error fetching bills:', e?.message);
-        }
-
-        // Fetch rewards
-        try {
-          const rewRes = await axios.get(`${API_BASE_URL}/api/rewards/my`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (rewRes.data?.success) setRewards(rewRes.data.data || { totalPoints: 0, equivalentPKR: 0, recentHistory: [] });
-        } catch (e) {
-          console.log('Error fetching rewards:', e?.message);
         }
 
         // Fetch patient profile
@@ -478,8 +427,6 @@ export default function DoctorProfileScreen({ route, navigation }) {
             setBills(fresh);
             setSelectedBillDetail(prev => prev ? (fresh.find(b => b._id === prev._id) || applyStatus(prev)) : prev);
           }
-          const rewardRes = await axios.get(`${API_BASE_URL}/api/rewards/my`, { headers: { Authorization: `Bearer ${token}` } });
-          if (rewardRes.data?.success) setRewards(rewardRes.data.data || { points: 0, transactions: [] });
         } catch (_) {}
 
         if (pending) {
@@ -2342,223 +2289,6 @@ export default function DoctorProfileScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* ══════════════ REWARDS (ENHANCED) ══════════════ */}
-          {activeTab === 'Rewards & Payments' && (
-            <View>
-              {/* ===== POINTS BALANCE HERO (signature dark navy) ===== */}
-              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 22, padding: 20, borderWidth: 1, borderColor: '#E8EEF9', overflow: 'hidden', shadowColor: '#0A1551', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 }}>
-                {/* soft brand-tint depth circles */}
-                <View style={{ position: 'absolute', top: -50, right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: '#F1F6FF' }} />
-                <View style={{ position: 'absolute', bottom: -60, left: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: '#FBF9FF' }} />
-
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1, marginRight: 12 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#0052FF', marginRight: 8 }} />
-                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#64748B', letterSpacing: 1.4 }}>AVAILABLE REWARD POINTS</Text>
-                    </View>
-                    <Text style={{ fontSize: 44, fontWeight: '900', color: '#0A1551', letterSpacing: -1, lineHeight: 48 }} numberOfLines={1} adjustsFontSizeToFit>
-                      {rewards.totalPoints || rewards.points || 0}
-                    </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, alignSelf: 'flex-start', backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
-                      <Ionicons name="cash-outline" size={13} color="#16A34A" style={{ marginRight: 5 }} />
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#16A34A' }}>= PKR {(rewards.totalPoints || rewards.points || 0)} Discount Value</Text>
-                    </View>
-                  </View>
-                  <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}>
-                    <Ionicons name="gift" size={26} color="#0052FF" />
-                  </View>
-                </View>
-
-                {/* View / Hide Rewards History toggle */}
-                <TouchableOpacity
-                  onPress={() => setShowRewardHistory(v => !v)}
-                  activeOpacity={0.8}
-                  style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 14, paddingVertical: 12 }}
-                >
-                  <Ionicons name={showRewardHistory ? 'chevron-up' : 'time-outline'} size={16} color="#0052FF" style={{ marginRight: 7 }} />
-                  <Text style={{ color: '#0052FF', fontWeight: '700', fontSize: 13.5 }}>
-                    {showRewardHistory ? 'Hide Rewards History' : 'View Rewards History'}
-                  </Text>
-                </TouchableOpacity>
-
-                {showRewardHistory && (
-                  <View style={{ marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1, borderColor: '#EEF2F7', padding: 6 }}>
-                    {(() => {
-                      const history = rewards.recentHistory || rewards.transactions || [];
-                      if (!history.length) {
-                        return (
-                          <View style={{ alignItems: 'center', paddingVertical: 22 }}>
-                            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                              <Ionicons name="sparkles-outline" size={20} color="#0052FF" />
-                            </View>
-                            <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0F172A', marginBottom: 3 }}>No reward activity yet.</Text>
-                            <Text style={{ fontSize: 12, color: '#94A3B8' }}>Earn points on visits, referrals and reviews.</Text>
-                          </View>
-                        );
-                      }
-                      return history.map((h, i) => {
-                        const pts = h.points || 0;
-                        const positive = pts >= 0;
-                        return (
-                          <View key={h._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 8, borderBottomWidth: i < history.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
-                            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: positive ? '#DCFCE7' : '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
-                              <Ionicons name={positive ? 'arrow-up' : 'arrow-down'} size={15} color={positive ? '#16A34A' : '#DC2626'} />
-                            </View>
-                            <View style={{ flex: 1, marginRight: 8 }}>
-                              <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }} numberOfLines={1}>{h.description || h.type || 'Reward'}</Text>
-                              <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{h.createdAt ? new Date(h.createdAt).toLocaleDateString() : ''}</Text>
-                            </View>
-                            <Text style={{ fontSize: 14, fontWeight: '800', color: positive ? '#16A34A' : '#DC2626' }}>
-                              {positive ? '+' : ''}{pts} pts
-                            </Text>
-                          </View>
-                        );
-                      });
-                    })()}
-                  </View>
-                )}
-              </View>
-
-              {/* ===== HOW YOU EARN POINTS ===== */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
-                <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0052FF', marginRight: 9 }} />
-                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>HOW YOU EARN POINTS</Text>
-              </View>
-
-              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
-                {[
-                  { icon: 'checkmark-circle', tint: '#DCFCE7', border: '#BBF7D0', color: '#16A34A', title: 'Visit Completed', sub: 'On every online payment', pts: '+2%' },
-                  { icon: 'person-add', tint: '#EDE9FE', border: '#DDD6FE', color: '#7C3AED', title: 'Refer a Friend', sub: 'When friend completes first visit', pts: '+100 pts' },
-                  { icon: 'star', tint: '#FEF3C7', border: '#FDE68A', color: '#D97706', title: 'Write a Review', sub: 'After submitting a verified review', pts: '+50 pts' },
-                ].map((r, i, arr) => (
-                  <View key={r.title} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
-                    <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: r.tint, borderWidth: 1, borderColor: r.border, alignItems: 'center', justifyContent: 'center', marginRight: 13 }}>
-                      <Ionicons name={r.icon} size={21} color={r.color} />
-                    </View>
-                    <View style={{ flex: 1, marginRight: 10 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }}>{r.title}</Text>
-                      <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{r.sub}</Text>
-                    </View>
-                    <View style={{ backgroundColor: r.color, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 }}>
-                      <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' }}>{r.pts}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-
-              {/* ===== REDEEM POINTS ===== */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
-                <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#16A34A', marginRight: 9 }} />
-                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>REDEEM POINTS</Text>
-              </View>
-
-              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                    <Ionicons name="pricetag" size={22} color="#16A34A" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '800', color: '#0A1551' }}>Redeem Points</Text>
-                    <Text style={{ fontSize: 12.5, color: '#64748B', marginTop: 2 }}>
-                      Redeem all {rewards.totalPoints || rewards.points || 0} pts = PKR {rewards.totalPoints || rewards.points || 0} discount
-                    </Text>
-                  </View>
-                </View>
-
-                {redeemCode ? (
-                  <View style={{ backgroundColor: '#F0FDF4', borderRadius: 16, padding: 18, marginTop: 14, borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                      <Ionicons name="checkmark-circle" size={15} color="#16A34A" style={{ marginRight: 5 }} />
-                      <Text style={{ fontSize: 10.5, color: '#16A34A', fontWeight: '800', letterSpacing: 1.2 }}>YOUR DISCOUNT CODE</Text>
-                    </View>
-                    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#BBF7D0', borderStyle: 'dashed', paddingHorizontal: 20, paddingVertical: 12, marginBottom: 8 }}>
-                      <Text style={{ fontSize: 26, fontWeight: '900', color: '#0A1551', letterSpacing: 6, textAlign: 'center' }}>{redeemCode}</Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => { Share.share({ message: 'My Dentist Discount Code: ' + redeemCode }); }}
-                      activeOpacity={0.85}
-                      style={{ marginTop: 4, backgroundColor: '#16A34A', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 11, flexDirection: 'row', alignItems: 'center' }}
-                    >
-                      <Ionicons name="share-social-outline" size={16} color="#FFFFFF" style={{ marginRight: 7 }} />
-                      <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13.5 }}>Share Code</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={handleRedeem}
-                    disabled={redeemLoading}
-                    activeOpacity={0.85}
-                    style={{ marginTop: 14, backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: redeemLoading ? 0.85 : 1, shadowColor: '#0052FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 3 }}
-                  >
-                    {redeemLoading ? (
-                      <ActivityIndicator color="#FFF" size="small" />
-                    ) : (
-                      <>
-                        <Ionicons name="pricetags-outline" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-                        <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 14 }}>Tap to Generate Code</Text>
-                        <Ionicons name="chevron-forward" size={15} color="#FFFFFF" style={{ marginLeft: 4 }} />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 12 }}>
-                  <Ionicons name="information-circle-outline" size={14} color="#94A3B8" style={{ marginRight: 6, marginTop: 1 }} />
-                  <Text style={{ flex: 1, fontSize: 11.5, color: '#94A3B8', lineHeight: 16 }}>
-                    Share this code with the doctor. They can apply it to deduct the amount from your bill.
-                  </Text>
-                </View>
-              </View>
-
-              {/* ===== PAYMENT HISTORY ===== */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
-                <View style={{ width: 16, height: 3, borderRadius: 2, backgroundColor: '#0A1551', marginRight: 9 }} />
-                <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.4 }}>PAYMENT HISTORY</Text>
-                {bills.filter(b => b.status === 'paid').length > 0 && (
-                  <View style={{ marginLeft: 'auto', backgroundColor: '#DCFCE7', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#16A34A' }}>{bills.filter(b => b.status === 'paid').length} paid</Text>
-                  </View>
-                )}
-              </View>
-
-              {bills.filter(b => b.status === 'paid').length > 0 ? (
-                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
-                  {bills.filter(b => b.status === 'paid').map((b, i, arr) => (
-                    <View key={b._id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: '#F1F5F9' }}>
-                      <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center', justifyContent: 'center', marginRight: 13 }}>
-                        <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
-                      </View>
-                      <View style={{ flex: 1, marginRight: 8 }}>
-                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }} numberOfLines={1}>{b.treatmentName}</Text>
-                        <Text style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 2 }}>{new Date(b.createdAt).toLocaleDateString()}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0A1551' }}>PKR {b.amount?.toLocaleString()}</Text>
-                        <TouchableOpacity
-                          onPress={() => handleDownloadInvoice(b)}
-                          activeOpacity={0.8}
-                          style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}
-                        >
-                          <Ionicons name="cloud-download-outline" size={13} color="#0052FF" style={{ marginRight: 5 }} />
-                          <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#0052FF' }}>Receipt</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', paddingVertical: 30, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                    <Ionicons name="receipt-outline" size={24} color="#0052FF" />
-                  </View>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginBottom: 4 }}>No paid transaction history.</Text>
-                  <Text style={{ fontSize: 12.5, color: '#94A3B8' }}>Your paid bills will appear here.</Text>
-                </View>
-              )}
-            </View>
-          )}
-
         </View>
           </View>{/* /webMain */}
         </View>{/* /webGrid */}
@@ -3186,52 +2916,6 @@ const styles = StyleSheet.create({
   helpSub:         { fontSize: 11, color: '#64748B', lineHeight: 16 },
   contactSupportBtn:{ borderWidth: 1, borderColor: '#0052FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginLeft: 8, marginTop: 6 },
   contactSupportText:{ fontSize: 11, color: '#0052FF', fontWeight: '700' },
-
-  // ── Rewards Tab ──
-  rewardsTopRow:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 0 },
-  pointsCard:      { backgroundColor: '#1E293B', borderRadius: 16, padding: 20, marginBottom: 12 },
-  pointsHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  pointsLabel:     { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
-  pointsVal:       { fontSize: 32, fontWeight: '900', color: '#FFF', marginTop: 4 },
-  pointsDesc:      { fontSize: 11, color: '#F59E0B', fontWeight: '700', marginTop: 2 },
-  rewardsHistoryBtn:{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  rewardsHistoryBtnText:{ fontSize: 12, color: '#FFF', fontWeight: '600' },
-
-  earnCard:        { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  earnTitle:       { fontSize: 13, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
-  earnRow:         { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  earnDesc:        { flex: 1, fontSize: 12, color: '#475569', lineHeight: 16 },
-  earnPts:         { fontSize: 12, fontWeight: '700', color: '#16A34A', marginLeft: 6 },
-
-  redeemCard:      { backgroundColor: '#F0FDF4', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#BBF7D0', marginBottom: 16 },
-  redeemLeft:      { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  redeemIconWrap:  { width: 44, height: 44, borderRadius: 22, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center' },
-  redeemTitle:     { fontSize: 14, fontWeight: '700', color: '#0F172A' },
-  redeemSub:       { fontSize: 11, color: '#64748B' },
-  redeemBtn:       { backgroundColor: '#16A34A', borderRadius: 10, paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 10 },
-  redeemBtnText:   { color: '#FFF', fontSize: 13, fontWeight: '700' },
-  redeemInfo:      { fontSize: 11, color: '#64748B', lineHeight: 15 },
-
-  paymentGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
-  paymentCard:     { width: (width - 60) / 2, borderRadius: 14, padding: 14, minHeight: 110 },
-  paymentCardTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  defaultBadge:    { backgroundColor: '#F59E0B', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  defaultBadgeText:{ fontSize: 9, color: '#FFF', fontWeight: '700' },
-  paymentCardNum:  { fontSize: 12, fontWeight: '700', color: '#FFF', marginBottom: 3 },
-  paymentCardExp:  { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 8 },
-  removeTextCard:  { fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: '600', textDecorationLine: 'underline' },
-
-  historyRow:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  historyName:     { fontSize: 13, fontWeight: '600', color: '#0F172A' },
-  historyDate:     { fontSize: 11, color: '#64748B', marginTop: 2 },
-  historyPrice:    { fontSize: 13, fontWeight: '700', color: '#16A34A' },
-
-  referralBanner:  { flexDirection: 'row', alignItems: 'center', backgroundColor: '#4F46E5', borderRadius: 16, padding: 16, marginTop: 20 },
-  referralIconWrap:{ width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
-  referralTitle:   { fontSize: 14, fontWeight: '700', color: '#FFF', marginBottom: 3 },
-  referralSub:     { fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 15, marginBottom: 10 },
-  referNowBtn:     { borderWidth: 1, borderColor: '#FFF', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start' },
-  referNowBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
 
   // Old - kept for safety
   savedMethods:    { gap: 10 },

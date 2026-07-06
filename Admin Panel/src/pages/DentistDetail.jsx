@@ -58,7 +58,7 @@ export default function DentistDetail() {
     if (isNaN(num) || num < 0) return toast('Enter a valid amount', 'error');
     try {
       await api.patch(`/api/admin/dentists/${id}/commission`, { commissionDue: num });
-      toast(num > 0 ? `Outstanding set to Rs. ${num.toLocaleString()} — doctor blocked` : 'Outstanding cleared');
+      toast(num > 0 ? `Outstanding Plateform Fee Limit set to Rs. ${num.toLocaleString()} — doctor blocked` : 'Outstanding Plateform Fee Limit cleared');
       load();
     } catch { toast('Failed', 'error'); }
   };
@@ -72,9 +72,22 @@ export default function DentistDetail() {
     catch { toast('Failed', 'error'); }
   };
   const clearDues = async () => {
-    if (!(doc.commissionDue > 0)) return toast('No outstanding dues to clear', 'error');
-    if (!(await confirm({ title: 'Clear Dues', message: `Mark PKR ${doc.commissionDue.toLocaleString()} platform fee dues as PAID for ${doc.fullName}? This also unblocks them if they were blocked for dues.`, confirmText: 'Clear Dues' }))) return;
-    try { await api.patch(`/api/admin/dentists/${id}/commission/clear`); toast('Dues cleared'); load(); }
+    const outstanding = doc.commissionDue || 0;
+    if (!(outstanding > 0)) return toast('No outstanding Plateform dues to clear. Use “Set Outstanding Plateform Fee Limit” or “↻ Sync from Bills” to record dues first.', 'error');
+    // Let the admin clear a custom (partial) amount; defaults to the full outstanding.
+    const val = window.prompt(`Clear platform fee dues for ${doc.fullName}.\nOutstanding: PKR ${outstanding.toLocaleString()}.\nEnter the amount to clear (leave as-is to clear all):`, String(outstanding));
+    if (val == null) return;
+    const num = Number(val);
+    if (isNaN(num) || num <= 0) return toast('Enter a valid amount to clear', 'error');
+    if (num > outstanding) return toast(`Cannot clear more than the outstanding PKR ${outstanding.toLocaleString()}.`, 'error');
+    const isFull = num >= outstanding;
+    const remaining = outstanding - num;
+    if (!(await confirm({
+      title: 'Clear Plateform dues',
+      message: `Mark PKR ${num.toLocaleString()} of ${doc.fullName}'s platform fee dues as PAID?${isFull ? ' This clears all dues and unblocks them if they were blocked for dues.' : ` PKR ${remaining.toLocaleString()} will remain outstanding.`}`,
+      confirmText: 'Clear Plateform dues',
+    }))) return;
+    try { await api.patch(`/api/admin/dentists/${id}/commission/clear`, { amount: num }); toast(`Cleared PKR ${num.toLocaleString()}`); load(); }
     catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
   };
   const syncDues = async () => {
@@ -115,9 +128,9 @@ export default function DentistDetail() {
           <button className="btn ghost" onClick={viewAs}><Eye size={16} style={{ verticalAlign: -2, marginRight: 6 }} />View as</button>
           {doc.approvalStatus !== 'approved' && <button className="btn primary" onClick={approve}><Check size={16} weight="bold" style={{ verticalAlign: -2, marginRight: 6 }} />Approve</button>}
           {doc.approvalStatus === 'pending' && <button className="btn ghost" onClick={reject}>Reject</button>}
-          <button className="btn ghost" onClick={setCommission}>Set Outstanding</button>
+          <button className="btn ghost" onClick={setCommission}>Set Outstanding Plateform Fee Limit</button>
           <button className="btn ghost" onClick={addDues}>+ Add Dues</button>
-          {doc.commissionDue > 0 && <button className="btn primary" onClick={clearDues}>Clear Dues (Rs. {doc.commissionDue.toLocaleString()})</button>}
+          {doc.commissionDue > 0 && <button className="btn primary" onClick={clearDues}>Clear Plateform dues (Rs. {doc.commissionDue.toLocaleString()})</button>}
           <button className={`btn ${doc.isBlocked ? 'primary' : 'ghost'}`} onClick={toggleBlock}>{doc.isBlocked ? 'Unblock' : 'Block'}</button>
           <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
         </div>
@@ -148,7 +161,7 @@ export default function DentistDetail() {
         <StatCards items={[
           { label: 'Total Earned', value: money(d.earnings.totalEarned), icon: Wallet, tone: 'green' },
           { label: 'Total Billed', value: money(d.earnings.totalBilled), icon: Receipt, tone: 'blue' },
-          { label: 'Outstanding', value: money(d.earnings.outstanding), icon: WarningCircle, tone: 'amber' },
+          { label: 'Drafts Amount', value: money(d.earnings.outstanding), icon: WarningCircle, tone: 'amber' },
           { label: 'Paid Bills', value: `${d.earnings.paidCount} / ${d.earnings.billCount}`, icon: CheckCircle, tone: 'purple' },
         ]} />
       )}
@@ -285,15 +298,15 @@ export default function DentistDetail() {
             <div className="card" style={{ marginTop: 16 }}>
               <div className="card-head"><h3>Platform Fee ({d.earnings.commissionRate}%)</h3></div>
               <CommRow k={`Platform fee earned (${d.earnings.commissionRate}% of ${money(d.earnings.totalEarned)})`} v={money(d.earnings.commissionEarned)} bold />
-              <CommRow k="Cleared / paid to date" v={money(d.earnings.commissionPaid)} green />
-              <CommRow k="Outstanding dues" v={money(d.earnings.commissionDue)} red={d.earnings.commissionDue > 0} bold />
+              <CommRow k="Plateform fee cleared to date" v={money(d.earnings.commissionPaid)} green />
+              <CommRow k="Outstanding Plateform Fee" v={money(d.earnings.commissionDue)} red={d.earnings.commissionDue > 0} bold />
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button className="btn ghost" style={{ flex: 1 }} onClick={setCommission}>Set Outstanding</button>
+                <button className="btn ghost" style={{ flex: 1 }} onClick={setCommission}>Set Outstanding Plateform Fee Limit</button>
                 <button className="btn ghost" style={{ flex: 1 }} onClick={syncDues}>↻ Sync from Bills</button>
                 <button className="btn ghost" style={{ flex: 1 }} onClick={addDues}>+ Add Dues</button>
-                <button className="btn primary" style={{ flex: 1 }} disabled={!(doc.commissionDue > 0)} onClick={clearDues}>Clear Dues</button>
+                <button className="btn primary" style={{ flex: 1, opacity: doc.commissionDue > 0 ? 1 : 0.55 }} onClick={clearDues}>Clear Plateform dues</button>
               </div>
-              <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠ "Set Outstanding" blocks the doctor on any amount above 0. "Add Dues" auto-blocks once the total reaches PKR 50,000. Clearing dues unblocks a doctor blocked for dues.</p>
+              <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠ "Set Outstanding Plateform Fee Limit" blocks the doctor on any amount above 0. "Add Dues" auto-blocks once the total reaches PKR 50,000. Clearing dues unblocks a doctor blocked for dues.</p>
 
               {/* Platform fee payment history */}
               {d.commissionLog?.length > 0 && (
@@ -302,7 +315,7 @@ export default function DentistDetail() {
                   {d.commissionLog.map((l) => (
                     <div key={l._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #F8FAFC' }}>
                       <div>
-                        <span className={`badge ${l.type === 'clear' ? 'green' : l.type === 'sync' ? 'blue' : 'amber'}`} style={{ fontSize: 10, textTransform: 'capitalize' }}>{l.type}</span>
+                        <span className={`badge ${l.type === 'clear' ? 'green' : l.type === 'sync' ? 'blue' : l.type === 'reverse' ? 'red' : 'amber'}`} style={{ fontSize: 10, textTransform: 'capitalize' }}>{l.type}</span>
                         <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>{fmtDate(l.createdAt)} · {l.actorName}</span>
                       </div>
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{money(l.amount)}</span>

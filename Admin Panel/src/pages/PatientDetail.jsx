@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Trash, Gift } from '@phosphor-icons/react';
 import api, { imgUrl } from '../lib/api';
 import { fmtDate, money } from '../components/ui.jsx';
 import { SkeletonStatCards } from '../components/Skeleton.jsx';
 import { useToast, useConfirm } from '../components/feedback.jsx';
+import Modal from '../components/Modal.jsx';
+import Field from '../components/Field.jsx';
 
 const Row = ({ k, v }) => (<div><div className="k">{k}</div><div className="v">{v ?? '—'}</div></div>);
 
@@ -14,6 +16,7 @@ export default function PatientDetail() {
   const toast = useToast();
   const confirm = useConfirm();
   const [d, setD] = useState(null);
+  const [showPoints, setShowPoints] = useState(false);
 
   const load = () => api.get(`/api/admin/patients/${id}`).then((r) => setD(r.data.data)).catch(() => { toast('Failed to load', 'error'); nav('/patients'); });
 
@@ -59,8 +62,9 @@ export default function PatientDetail() {
     <div>
       <div className="card-head" style={{ marginBottom: 16 }}>
         <button className="btn ghost" onClick={() => nav('/patients')}><ArrowLeft size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Back to Patients</button>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="row-actions">
           <button className="btn ghost" onClick={viewAs}>View as</button>
+          <button className="btn primary" onClick={() => setShowPoints(true)}><Gift size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Give Points</button>
           <button className={`btn ${p.isBlocked ? 'ghost' : 'danger'}`} onClick={toggleBlock}>{p.isBlocked ? 'Reinstate' : 'Suspend'}</button>
           <button className="btn danger" onClick={del}><Trash size={16} style={{ verticalAlign: -2, marginRight: 6 }} />Delete</button>
         </div>
@@ -124,6 +128,69 @@ export default function PatientDetail() {
           </div>
         </div>
       </div>
+
+      {showPoints && (
+        <GivePointsModal
+          patient={p}
+          currentPoints={d.points}
+          onClose={() => setShowPoints(false)}
+          onSaved={() => { setShowPoints(false); load(); }}
+          toast={toast}
+        />
+      )}
     </div>
+  );
+}
+
+function GivePointsModal({ patient, currentPoints, onClose, onSaved, toast }) {
+  const [points, setPoints] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const pts = parseInt(points, 10);
+    if (isNaN(pts) || pts === 0) return toast('Enter a non-zero number of points', 'error');
+    setBusy(true);
+    try {
+      await api.patch(`/api/admin/patients/${patient._id}/points`, { addPoints: pts, note });
+      toast(`${pts > 0 ? '+' : ''}${pts} pts ${pts > 0 ? 'given to' : 'deducted from'} ${patient.fullName}`);
+      onSaved();
+    } catch (e) {
+      toast(e.response?.data?.message || 'Failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Give Points to Patient"
+      onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={busy || !points} onClick={submit}>
+          {busy ? 'Saving…' : 'Give Points'}
+        </button>
+      </>}
+    >
+      <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+        <strong>{patient.fullName}</strong>
+        <span style={{ float: 'right', fontWeight: 700 }}>{(currentPoints || 0).toLocaleString()} pts current</span>
+      </div>
+
+      <Field
+        label="Points to Add (use negative to deduct)"
+        type="number"
+        value={points}
+        onChange={setPoints}
+        placeholder="e.g. 500"
+      />
+      <Field
+        label="Note (optional)"
+        value={note}
+        onChange={setNote}
+        placeholder="Reason for this adjustment…"
+      />
+    </Modal>
   );
 }

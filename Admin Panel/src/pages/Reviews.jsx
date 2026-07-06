@@ -79,14 +79,14 @@ export default function Reviews() {
         <>
           <div className="table-scroll">
           <table>
-            <thead><tr><th>Patient</th><th>Dentist</th><th>Rating</th><th>Comment</th><th>Date</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Patient</th><th>Dentist</th><th>Rating</th><th className="wrap-col">Comment</th><th>Date</th><th>Actions</th></tr></thead>
             <tbody>
               {L.data.map((r) => (
                 <tr key={r._id}>
                   <td><UserCell name={r.patientId?.fullName} img={r.patientId?.profileImage} /></td>
                   <td><UserCell name={r.doctorId?.fullName} img={r.doctorId?.photo} /></td>
                   <td><Stars value={r.rating} /></td>
-                  <td style={{ maxWidth: 280 }} className="muted" title={r.comment || undefined}>
+                  <td style={{ maxWidth: 280 }} className="muted wrap-col" title={r.comment || undefined}>
                     {r.hidden && <span className="badge red" style={{ marginRight: 6 }}>Hidden</span>}
                     {r.comment || '—'}
                   </td>
@@ -112,7 +112,7 @@ export default function Reviews() {
           title="Review Details"
           onClose={() => setView(null)}
           footer={
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="row-actions">
               <button className="btn ghost" onClick={() => reply(view)}>Reply on behalf</button>
               <button className="btn" onClick={() => toggleHide(view)}>{view.hidden ? 'Unhide' : 'Hide from patients'}</button>
             </div>

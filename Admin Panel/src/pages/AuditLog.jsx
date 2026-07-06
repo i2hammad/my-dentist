@@ -65,7 +65,7 @@ export default function AuditLog() {
         <>
           <div className="table-scroll">
           <table>
-            <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Entity</th><th>Description</th></tr></thead>
+            <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Entity</th><th className="wrap-col">Description</th></tr></thead>
             <tbody>
               {L.data.map((r) => (
                 <tr key={r._id}>
@@ -73,7 +73,7 @@ export default function AuditLog() {
                   <td style={{ fontWeight: 600 }}>{r.actorName || '—'}</td>
                   <td><span className={`badge ${ACTION_BADGE[r.action] || 'gray'}`}>{r.action}</span></td>
                   <td style={{ textTransform: 'capitalize' }}>{r.entity || '—'}</td>
-                  <td className="muted">{r.description || '—'}</td>
+                  <td className="muted wrap-col">{r.description || '—'}</td>
                 </tr>
               ))}
               {!L.data.length && <tr><td colSpan={5} className="empty">No activity recorded yet</td></tr>}

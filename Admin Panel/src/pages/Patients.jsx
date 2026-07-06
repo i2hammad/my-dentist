@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Sparkle, UserCheck, ClipboardText, Trash, Eye, EyeSlash, Plus, MapPin, Phone, EnvelopeSimple, GenderIntersex, GenderMale, GenderFemale, Key, ArrowsClockwise } from '@phosphor-icons/react';
+import { Users, Sparkle, UserCheck, ClipboardText, Trash, Eye, EyeSlash, Plus, MapPin, Phone, EnvelopeSimple, GenderIntersex, GenderMale, GenderFemale, Key, ArrowsClockwise, Gift } from '@phosphor-icons/react';
 
 // ♂ / ♀ gender chip used in the tables.
 function GenderTag({ value }) {
@@ -40,6 +40,7 @@ export default function Patients() {
   const [showAdd, setShowAdd] = useState(false);
   const [resetFor, setResetFor] = useState(null);
   const [pwMap, setPwMap] = useState({}); // patientId -> { value, show } (only the just-reset password)
+  const [givePointsFor, setGivePointsFor] = useState(null); // null = closed, 'pick' = open with search, or a specific patient object
 
   const toggleShow = (p) => {
     const entry = pwMap[p._id];
@@ -57,6 +58,7 @@ export default function Patients() {
     <div className="card">
       <PageHeader title="Patients" crumb="Patients"
         actions={<>
+          <button className="btn ghost" onClick={() => setGivePointsFor('pick')}><Gift size={16} style={{ marginRight: 6, verticalAlign: -2 }} />Give Points</button>
           <ExportButton path="/api/admin/patients" params={{ search }} columns={PATIENT_CSV_COLS} filename="patients.csv" />
           <button className="btn primary" onClick={() => setShowAdd(true)}><Plus size={16} weight="bold" style={{ marginRight: 6, verticalAlign: -2 }} />Add New Patient</button>
         </>} />
@@ -98,6 +100,7 @@ export default function Patients() {
                     <span className="badge green">Active</span>
                     <div className="ec-actions">
                       <button className="icon-btn" title="View" onClick={() => nav(`/patients/${p._id}`)}><Eye size={16} /></button>
+                      <button className="icon-btn" title="Give Points" onClick={() => setGivePointsFor(p)}><Gift size={16} /></button>
                       <button className="icon-btn del" title="Delete" onClick={() => del(p)}><Trash size={16} /></button>
                     </div>
                   </div>
@@ -143,6 +146,7 @@ export default function Patients() {
                     <button className="btn ghost" style={{ padding: '5px 10px', fontSize: 12.5 }} onClick={() => nav(`/patients/${p._id}`)}>
                       <Eye size={14} style={{ marginRight: 4, verticalAlign: -2 }} />View User Details
                     </button>
+                    <button className="icon-btn" title="Give Points" onClick={() => setGivePointsFor(p)}><Gift size={16} /></button>
                     <button className="icon-btn del" title="Delete" onClick={() => del(p)}><Trash size={16} /></button>
                   </td>
                 </tr>
@@ -158,7 +162,113 @@ export default function Patients() {
 
       {showAdd && <AddPatient onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); L.reload(); toast('Patient created'); }} toast={toast} />}
       {resetFor && <ResetPasswordModal p={resetFor} onClose={() => setResetFor(null)} onReset={(pw) => onReset(resetFor, pw)} toast={toast} />}
+      {givePointsFor && <GivePointsModal preSelected={givePointsFor === 'pick' ? null : givePointsFor} onClose={() => setGivePointsFor(null)} onSaved={() => { setGivePointsFor(null); L.reload(); }} toast={toast} />}
     </div>
+  );
+}
+
+function GivePointsModal({ preSelected, onClose, onSaved, toast }) {
+  const [search, setSearch] = useState('');
+  const [patients, setPatients] = useState([]);
+  const [selected, setSelected] = useState(preSelected || null);
+  const [points, setPoints] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Load patients once for the picker (only when not pre-selected from a row).
+  useEffect(() => {
+    if (!preSelected) {
+      api.get('/api/admin/patients', { params: { limit: 200 } })
+        .then((r) => setPatients(r.data.data || []))
+        .catch(() => {});
+    }
+  }, [preSelected]);
+
+  const filtered = patients.filter((p) =>
+    !search || p.fullName?.toLowerCase().includes(search.toLowerCase()) || p.userId?.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const submit = async () => {
+    if (!selected) return toast('Select a patient first', 'error');
+    const pts = parseInt(points, 10);
+    if (isNaN(pts) || pts === 0) return toast('Enter a non-zero number of points', 'error');
+    setBusy(true);
+    try {
+      await api.patch(`/api/admin/patients/${selected._id}/points`, { addPoints: pts, note });
+      toast(`${pts > 0 ? '+' : ''}${pts} pts ${pts > 0 ? 'given to' : 'deducted from'} ${selected.fullName}`);
+      onSaved();
+    } catch (e) {
+      toast(e.response?.data?.message || 'Failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Give Points to Patient"
+      onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={busy || !selected || !points} onClick={submit}>
+          {busy ? 'Saving…' : 'Give Points'}
+        </button>
+      </>}
+    >
+      {/* Patient picker — hidden when pre-selected from a row action */}
+      {!preSelected && (
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Select Patient</label>
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: '100%', marginBottom: 8 }}
+          />
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+            {filtered.length === 0 && <div className="muted" style={{ padding: '10px 14px', fontSize: 13 }}>No patients found</div>}
+            {filtered.map((p) => (
+              <div
+                key={p._id}
+                onClick={() => setSelected(p)}
+                style={{
+                  padding: '9px 14px', cursor: 'pointer', fontSize: 13,
+                  background: selected?._id === p._id ? 'var(--blue)' : 'transparent',
+                  color: selected?._id === p._id ? '#fff' : 'inherit',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <strong>{p.fullName}</strong>
+                <span style={{ marginLeft: 8, opacity: 0.7 }}>{p.userId?.email || p.city || ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected patient summary */}
+      {selected && (
+        <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+          <strong>{selected.fullName}</strong>
+          <span style={{ marginLeft: 8, color: '#64748B' }}>{selected.userId?.email || selected.city || ''}</span>
+        </div>
+      )}
+
+      <Field
+        label="Points to Add (use negative to deduct)"
+        type="number"
+        value={points}
+        onChange={setPoints}
+        placeholder="e.g. 500"
+      />
+      <Field
+        label="Note (optional)"
+        value={note}
+        onChange={setNote}
+        placeholder="Reason for this adjustment…"
+      />
+    </Modal>
   );
 }
 

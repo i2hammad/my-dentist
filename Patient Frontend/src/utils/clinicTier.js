@@ -15,10 +15,14 @@ export function getClinicTier(facilityScore = 0, thresholds) {
 }
 
 // For filtering doctor lists by tier from a facilityScore.
-export function matchesTier(facilityScore, tier) {
+// Pass admin-configured `thresholds` ({ modern, elite }) to keep filters in sync
+// with the Facilities settings; falls back to the built-in defaults.
+export function matchesTier(facilityScore, tier, thresholds) {
   const s = facilityScore || 0;
-  if (tier === 'elite') return s >= 31;
-  if (tier === 'modern') return s >= 16 && s <= 30;
-  if (tier === 'standard') return s >= 1 && s <= 15;
+  const elite = Number(thresholds?.elite) || 31;
+  const modern = Number(thresholds?.modern) || 16;
+  if (tier === 'elite') return s >= elite;
+  if (tier === 'modern') return s >= modern && s < elite;
+  if (tier === 'standard') return s >= 1 && s < modern;
   return true;
 }

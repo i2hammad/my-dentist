@@ -1,9 +1,9 @@
 import React from 'react';
-import { Platform, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
@@ -49,6 +49,11 @@ import BillsHistoryScreen from '../screens/BillsHistoryScreen';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNotifications } from '../context/NotificationContext';
 import WebTopNav from '../components/WebTopNav';
+import axios from 'axios';
+import storage from '../config/storage';
+import API_BASE_URL from '../config/api';
+import { openWhatsApp } from '../utils/support';
+import { drName } from '../utils/doctorName';
 
 // On web, a single root-level top navbar (WebTopNav, rendered above the stack)
 // handles all navigation, so the per-navigator tab bars are hidden. Native keeps
@@ -126,14 +131,113 @@ function MainTabNavigator() {
   );
 }
 
+function DoctorAccessStatusScreen({ profile, navigation }) {
+  const blocked = profile?.isBlocked;
+  const rejected = profile?.approvalStatus === 'rejected';
+  const platformFeeDue = Number(profile?.commissionDue || 0);
+  const blockedForPlatformFee = blocked && platformFeeDue > 0;
+  const title = blocked ? 'Account Blocked' : rejected ? 'Application Not Approved' : 'Pending Approval';
+  const message = blocked
+    ? (profile.blockReason || 'Your account has been blocked due to outstanding platform fee dues. Please clear your dues and contact support to restore access.')
+    : rejected
+    ? 'Your profile was not approved. Please contact support for details or to re-apply.'
+    : 'Your profile is under review. An admin will approve your account shortly. You will get full access once approved.';
+  const supportMessage = blockedForPlatformFee
+    ? `Hello, I'm ${drName(profile.fullName, 'Doctor')}. My account is blocked because of outstanding platform fee dues of PKR ${platformFeeDue.toLocaleString()}. I have cleared / want to clear the dues. Please guide me and restore my access.`
+    : `Hello, I'm Dr. ${profile?.fullName || ''}. Regarding my account ${blocked ? '(blocked)' : '(approval)'} - please assist.`;
+
+  const logout = async () => {
+    await storage.removeItem('userToken');
+    await storage.removeItem('userRole');
+    navigation.replace('Login');
+  };
+
+  return (
+    <SafeAreaView edges={['top']} style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30, backgroundColor: '#F8FAFC' }}>
+      <View style={{ alignItems: 'center', width: '100%', maxWidth: 380 }}>
+        <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: blocked ? '#FEE2E2' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+          <Ionicons name={blocked ? 'lock-closed' : rejected ? 'close-circle' : 'hourglass'} size={42} color={blocked ? '#DC2626' : rejected ? '#DC2626' : '#D97706'} />
+        </View>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: '#0A1551', textAlign: 'center', marginBottom: 10 }}>{title}</Text>
+        <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 22 }}>{message}</Text>
+
+        {blockedForPlatformFee && (
+          <View style={{ width: '100%', backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 18, padding: 16, marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="warning-outline" size={18} color="#D97706" />
+              <Text style={{ marginLeft: 8, fontSize: 14, fontWeight: '800', color: '#9A3412' }}>Platform Fee Payment Required</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ fontSize: 12.5, color: '#9A3412', fontWeight: '600' }}>Outstanding Amount</Text>
+              <Text style={{ fontSize: 13, color: '#9A3412', fontWeight: '900' }}>PKR {platformFeeDue.toLocaleString()}</Text>
+            </View>
+            <Text style={{ fontSize: 12.5, color: '#9A3412', lineHeight: 18 }}>
+              Your dashboard access is paused until this platform fee is cleared and verified by My Dentist support. After payment, send your payment proof using the button below.
+            </Text>
+          </View>
+        )}
+
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#25D366', paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999 }} onPress={() => openWhatsApp(supportMessage)}>
+          <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+          <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Contact Support</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ marginTop: 16 }} onPress={logout}>
+          <Text style={{ color: '#64748B', fontWeight: '600' }}>Log out</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 // Doctor Tabs (after login as doctor)
-function DoctorTabNavigator() {
+function DoctorTabNavigator({ navigation }) {
   const { unreadChatCount } = useNotifications();
   const chatBadge = unreadChatCount > 0 ? (unreadChatCount > 99 ? '99+' : unreadChatCount) : undefined;
   const tabBarOptions = useTabBarOptions();
+  const [gateLoading, setGateLoading] = React.useState(true);
+  const [doctorProfile, setDoctorProfile] = React.useState(null);
+
+  const loadAccess = React.useCallback(async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) {
+        navigation.replace('Login');
+        return;
+      }
+      const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data?.success) setDoctorProfile(res.data.data?.profile || null);
+    } catch {
+      // Let existing screens show their own network/auth state if the check fails.
+    } finally {
+      setGateLoading(false);
+    }
+  }, [navigation]);
+
+  React.useEffect(() => {
+    loadAccess();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') loadAccess();
+    });
+    return () => sub.remove();
+  }, [loadAccess]);
+
+  if (gateLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+        <ActivityIndicator size="large" color="#0052FF" />
+      </View>
+    );
+  }
+
+  if (doctorProfile && (doctorProfile.isBlocked || doctorProfile.approvalStatus === 'rejected' || doctorProfile.approvalStatus === 'pending')) {
+    return <DoctorAccessStatusScreen profile={doctorProfile} navigation={navigation} />;
+  }
 
   return (
     <Tab.Navigator
+      screenListeners={{ tabPress: loadAccess }}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {

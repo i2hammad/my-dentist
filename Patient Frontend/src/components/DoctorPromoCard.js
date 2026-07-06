@@ -19,9 +19,16 @@ export default function DoctorPromoCard({ style }) {
   const [campaigns, setCampaigns] = useState([]);
   const [rotationInterval, setRotationInterval] = useState(10);
   const [idx, setIdx] = useState(0);
+  const [containerW, setContainerW] = useState(0);
   const scrollRef = useRef(null);
 
-  const cardW = Math.min(isWeb ? 1100 : width, 1100) - 32;
+  // Horizontal inset — matches the doctor dashboard content (paddingHorizontal 20)
+  // so the banner lines up with the rest of the screen instead of overflowing.
+  const PAD = 20;
+  // Size the card to the ACTUAL container width (measured via onLayout) rather
+  // than a hardcoded cap, so on web it fits the centered content column.
+  const baseW = containerW || Math.min(width, 980);
+  const cardW = Math.max(0, baseW - PAD * 2);
 
   useEffect(() => {
     (async () => {
@@ -56,7 +63,10 @@ export default function DoctorPromoCard({ style }) {
   if (!campaigns.length) return null;
 
   return (
-    <View style={[{ marginTop: 14, marginBottom: 4 }, style]}>
+    <View
+      style={[{ marginTop: 14, marginBottom: 4 }, style]}
+      onLayout={e => setContainerW(e.nativeEvent.layout.width)}
+    >
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -65,7 +75,7 @@ export default function DoctorPromoCard({ style }) {
         decelerationRate="fast"
         disableIntervalMomentum
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16 }}
+        contentContainerStyle={{ paddingHorizontal: PAD }}
         onMomentumScrollEnd={e => setIdx(Math.round(e.nativeEvent.contentOffset.x / (cardW + 16)))}
       >
         {campaigns.map((c, i) => {

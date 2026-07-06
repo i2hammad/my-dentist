@@ -40,12 +40,15 @@ const parseCoords = (s) => {
 
 // ─── No Default Facilities ────────────────────────────────────────────────────────
 
-// ─── Clinic Tier Helper ─── Standard 1-15 · Modern 16-30 · Elite 31+ ──────────
-const getClinicTier = (score) => {
-  if (score >= 31) return { label: 'Elite Clinic',    color: '#D97706', bg: '#FEF3C7', desc: 'Top-tier dental facility with advanced technology & premium hygiene.' };
-  if (score >= 16) return { label: 'Modern Clinic',   color: '#0052FF', bg: '#EFF6FF', desc: 'Well-equipped modern clinic with quality standards.' };
-  if (score >= 1)  return { label: 'Standard Clinic', color: '#64748B', bg: '#F1F5F9', desc: 'Basic dental care with standard safety protocols.' };
-  return              { label: 'Unrated',            color: '#94A3B8', bg: '#F8FAFC', desc: 'Facility score not yet available.' };
+// ─── Clinic Tier Helper ─── ranges come from admin Facilities settings ─────────
+// `thresholds` = { modern, elite } from platform-settings; falls back to defaults.
+const getClinicTier = (score, thresholds) => {
+  const elite = Number(thresholds?.elite) || 31;
+  const modern = Number(thresholds?.modern) || 16;
+  if (score >= elite)  return { label: 'Elite Clinic',    color: '#D97706', bg: '#FEF3C7', desc: 'Top-tier dental facility with advanced technology & premium hygiene.' };
+  if (score >= modern) return { label: 'Modern Clinic',   color: '#0052FF', bg: '#EFF6FF', desc: 'Well-equipped modern clinic with quality standards.' };
+  if (score >= 1)      return { label: 'Standard Clinic', color: '#64748B', bg: '#F1F5F9', desc: 'Basic dental care with standard safety protocols.' };
+  return                 { label: 'Unrated',            color: '#94A3B8', bg: '#F8FAFC', desc: 'Facility score not yet available.' };
 };
 
 // ─── Treatment Icon Helper ─────────────────────────────────────────────────────
@@ -109,6 +112,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
     easypaisaNumber: '', easypaisaTitle: '',
     jazzcashNumber: '', jazzcashTitle: '',
   });
+  const [tierThresholds, setTierThresholds] = useState(null); // admin-managed clinic tier ranges
   const [showAddMethodModal, setShowAddMethodModal] = useState(false);
   const [newMethodType, setNewMethodType] = useState('visa');
   const [newAccountNumber, setNewAccountNumber] = useState('');
@@ -142,6 +146,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
         const token = await storage.getItem('userToken');
         const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, { headers: { Authorization: `Bearer ${token}` } });
         if (res.data?.success && res.data.data?.payments) setPlatformPayments(res.data.data.payments);
+        if (res.data?.data?.clinicTierThresholds) setTierThresholds(res.data.data.clinicTierThresholds);
       } catch (_) {}
     })();
   }, []);
@@ -645,7 +650,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
   // Clinic Tier
   const facilityScore = doctor.facilityScore || 0;
-  const tier = getClinicTier(facilityScore);
+  const tierElite = Number(tierThresholds?.elite) || 31;
+  const tierModern = Number(tierThresholds?.modern) || 16;
+  const tier = getClinicTier(facilityScore, tierThresholds);
 
   // ── Desktop left rail: doctor identity + sticky booking card.
   // Reuses the same data/handlers as the phone layout but is always visible
@@ -1572,14 +1579,14 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
           {/* ══════════════ FACILITIES & SERVICES ══════════════ */}
           {activeTab === 'Facilities' && (() => {
-            const tierKey = facilityScore >= 31 ? 'elite' : facilityScore >= 16 ? 'modern' : facilityScore >= 1 ? 'standard' : 'unrated';
+            const tierKey = facilityScore >= tierElite ? 'elite' : facilityScore >= tierModern ? 'modern' : facilityScore >= 1 ? 'standard' : 'unrated';
             const gradeIcon = tierKey === 'elite' ? 'ribbon' : tierKey === 'modern' ? 'business' : 'shield-checkmark';
             const tagLabel = (tier.label || 'Unrated').replace(' Clinic', '').toUpperCase();
             const cardBase = { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 };
             const LEGENDS = [
-              { key: 'elite',    icon: 'ribbon',           name: 'Elite Clinic',    range: '31+ Points',     color: '#D97706', bg: '#FFFBEB', bd: '#FDE68A' },
-              { key: 'modern',   icon: 'business',         name: 'Modern Clinic',   range: '16 – 30 Points', color: '#0052FF', bg: '#EFF6FF', bd: '#BFDBFE' },
-              { key: 'standard', icon: 'shield-checkmark', name: 'Standard Clinic', range: '1 – 15 Points',  color: '#64748B', bg: '#F8FAFC', bd: '#E2E8F0' },
+              { key: 'elite',    icon: 'ribbon',           name: 'Elite Clinic',    range: `${tierElite}+ Points`,                      color: '#D97706', bg: '#FFFBEB', bd: '#FDE68A' },
+              { key: 'modern',   icon: 'business',         name: 'Modern Clinic',   range: `${tierModern} – ${tierElite - 1} Points`,   color: '#0052FF', bg: '#EFF6FF', bd: '#BFDBFE' },
+              { key: 'standard', icon: 'shield-checkmark', name: 'Standard Clinic', range: `1 – ${tierModern - 1} Points`,               color: '#64748B', bg: '#F8FAFC', bd: '#E2E8F0' },
             ];
             const tierDark = ({ elite: '#B45309', modern: '#1E40AF', standard: '#475569', unrated: '#64748B' })[tierKey];
             return (

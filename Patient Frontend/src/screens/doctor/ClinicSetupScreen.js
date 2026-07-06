@@ -1,124 +1,19 @@
-﻿import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
+import { FACILITY_CATEGORIES } from '../../config/facilities';
+import { getClinicTier, TIER_THRESHOLDS } from '../../utils/clinicTier';
 
 const { width } = Dimensions.get('window');
 const isWideScreen = width >= 768;
 
-// ── Facility Data ──────────────────────────────────────────────
-const CATEGORIES = [
-  {
-    key: 'hygiene',
-    title: 'HYGIENE & STERILIZATION',
-    icon: 'shield-checkmark',
-    color: '#0052FF',
-    bgColor: '#EFF6FF',
-    items: [
-      'Basic Sterilization',
-      'Autoclave Sterilization',
-      'UV Sterilization',
-      'Disposable Instruments',
-      'Instrument Pouch Sealing',
-      'Separate Sterilization Room',
-      'Infection Control System',
-    ],
-  },
-  {
-    key: 'ppe',
-    title: 'STAFF SAFETY PROTECTION (PPE)',
-    icon: 'shield',
-    color: '#16A34A',
-    bgColor: '#F0FDF4',
-    tooltip: 'Personal Protective Equipment used by staff during procedures.',
-    items: [
-      'Surgical Gloves',
-      'Surgical Masks',
-      'Face Shields',
-      'Protective Gowns',
-      'Safety Glasses',
-      'Hand Sanitizer Availability',
-    ],
-  },
-  {
-    key: 'equipment',
-    title: 'DENTAL EQUIPMENT',
-    icon: 'build',
-    color: '#7C3AED',
-    bgColor: '#F5F3FF',
-    items: [
-      'Digital X-Ray',
-      'RVG System',
-      'OPG Machine',
-      'Intra Oral Camera',
-      'Laser Dentistry',
-      'Implant Facility',
-      'Orthodontic Setup',
-      'Pediatric Dentistry',
-    ],
-  },
-  {
-    key: 'facilities',
-    title: 'CLINIC FACILITIES',
-    icon: 'business',
-    color: '#EA580C',
-    bgColor: '#FFF7ED',
-    items: [
-      'Air Conditioned',
-      'Waiting Area',
-      'VIP Lounge',
-      'Drinking Water',
-      'Free Wi-Fi',
-      'Parking Available',
-      'Wheelchair Accessible',
-      'Kids Play Area',
-      'Prayer Area',
-      'Backup Generator',
-    ],
-  },
-  {
-    key: 'emergency',
-    title: 'EMERGENCY & SAFETY',
-    icon: 'medkit',
-    color: '#DC2626',
-    bgColor: '#FEF2F2',
-    items: [
-      'Ambulance Service',
-      'Oxygen Cylinder',
-      'First Aid Kit',
-      'Fire Safety Equipment',
-      '24/7 Emergency Support',
-    ],
-  },
-  {
-    key: 'convenience',
-    title: 'PATIENT CONVENIENCE',
-    icon: 'phone-portrait',
-    color: '#0D9488',
-    bgColor: '#F0FDFA',
-    items: [
-      'Online Appointment Booking',
-      'Online Consultation',
-      'Card Payment Accepted',
-      'EasyPaisa/JazzCash',
-      'SMS/WhatsApp Reminder',
-      'Digital Prescription',
-    ],
-  },
-];
-
-const TOTAL_FACILITIES = CATEGORIES.reduce((sum, cat) => sum + cat.items.length, 0);
-
-// Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
-function getGrade(count) {
-  if (count >= 31) return { label: 'Elite Clinic', color: '#F59E0B', tier: 'elite' };
-  if (count >= 16) return { label: 'Modern Clinic', color: '#0052FF', tier: 'modern' };
-  if (count >= 1) return { label: 'Standard Clinic', color: '#64748B', tier: 'standard' };
-  return { label: 'No Grade', color: '#CBD5E1', tier: 'none' };
-}
+// Facility catalogue + tier ranges now come from the admin Facilities settings
+// (fetched at runtime). FACILITY_CATEGORIES / TIER_THRESHOLDS are the offline
+// fallback so the screen still works before the request resolves.
 
 // ── Checkbox Component ─────────────────────────────────────────
 function Checkbox({ label, checked, onToggle }) {
@@ -159,6 +54,22 @@ function InfoTooltip({ text }) {
 export default function ClinicSetupScreen({ navigation }) {
   const [selected, setSelected] = useState({});
   const [saving, setSaving] = useState(false);
+  const [categories, setCategories] = useState(FACILITY_CATEGORIES);
+  const [tierThresholds, setTierThresholds] = useState(TIER_THRESHOLDS);
+
+  // Pull the admin-managed facility catalogue + tier ranges so this selection
+  // screen matches the Admin app and the doctor's Facilities tab.
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`, { headers: { Authorization: `Bearer ${token}` } });
+        const cats = res.data?.data?.facilityCategories;
+        if (Array.isArray(cats) && cats.length) setCategories(cats);
+        if (res.data?.data?.clinicTierThresholds) setTierThresholds(res.data.data.clinicTierThresholds);
+      } catch (_) { /* fall back to bundled catalogue */ }
+    })();
+  }, []);
 
   const toggleItem = (item) => {
     setSelected((prev) => ({
@@ -172,7 +83,14 @@ export default function ClinicSetupScreen({ navigation }) {
     [selected]
   );
 
-  const grade = useMemo(() => getGrade(selectedCount), [selectedCount]);
+  const totalFacilities = useMemo(
+    () => categories.reduce((sum, cat) => sum + (cat.items?.length || 0), 0),
+    [categories]
+  );
+
+  const elite = Number(tierThresholds?.elite) || 31;
+  const modern = Number(tierThresholds?.modern) || 16;
+  const grade = useMemo(() => getClinicTier(selectedCount, tierThresholds), [selectedCount, tierThresholds]);
 
   const handleSave = async () => {
     try {
@@ -219,7 +137,7 @@ export default function ClinicSetupScreen({ navigation }) {
       {/* Trophy */}
       <View style={[styles.trophyWrap, { borderColor: grade.color }]}>
         <Ionicons
-          name={selectedCount >= 26 ? 'trophy' : 'shield-checkmark'}
+          name={grade.tier === 'elite' ? 'trophy' : 'shield-checkmark'}
           size={36}
           color={grade.color}
         />
@@ -227,9 +145,9 @@ export default function ClinicSetupScreen({ navigation }) {
 
       <Text style={[styles.gradeLabel, { color: grade.color }]}>{grade.label}</Text>
       <Text style={styles.gradeDesc}>
-        {selectedCount >= 26
+        {grade.tier === 'elite'
           ? 'Your clinic offers excellent facilities and premium care.'
-          : selectedCount >= 11
+          : grade.tier === 'modern'
           ? 'Your clinic has good modern facilities for patients.'
           : selectedCount >= 1
           ? 'Your clinic meets standard care requirements.'
@@ -245,7 +163,7 @@ export default function ClinicSetupScreen({ navigation }) {
       </View>
 
       <Text style={styles.facilityCountText}>
-        Selected Facilities: <Text style={{ fontWeight: '700', color: '#0A1551' }}>{selectedCount} / {TOTAL_FACILITIES}</Text>
+        Selected Facilities: <Text style={{ fontWeight: '700', color: '#0A1551' }}>{selectedCount} / {totalFacilities}</Text>
       </Text>
 
       <Text style={styles.gradeHint}>Keep adding more facilities to improve your grade.</Text>
@@ -255,15 +173,15 @@ export default function ClinicSetupScreen({ navigation }) {
         <Text style={styles.legendTitle}>Grade Legend</Text>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-          <Text style={styles.legendText}>Elite (31+)</Text>
+          <Text style={styles.legendText}>Elite ({elite}+)</Text>
         </View>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: '#0052FF' }]} />
-          <Text style={styles.legendText}>Modern (16–30)</Text>
+          <Text style={styles.legendText}>Modern ({modern}–{elite - 1})</Text>
         </View>
         <View style={styles.legendRow}>
           <View style={[styles.legendDot, { backgroundColor: '#64748B' }]} />
-          <Text style={styles.legendText}>Standard (1–15)</Text>
+          <Text style={styles.legendText}>Standard (1–{modern - 1})</Text>
         </View>
       </View>
     </View>
@@ -329,7 +247,7 @@ export default function ClinicSetupScreen({ navigation }) {
           )}
 
           <View style={styles.categoriesCol}>
-            {CATEGORIES.map(renderCategory)}
+            {categories.map(renderCategory)}
           </View>
 
           {isWideScreen && (

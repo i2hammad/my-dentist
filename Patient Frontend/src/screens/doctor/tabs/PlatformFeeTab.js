@@ -47,7 +47,7 @@ export default function PlatformFeeTab({ profile, bills = [] }) {
 
   // Outstanding dues + cleared amount come from the admin-managed DoctorProfile
   // fields (commissionDue / commissionPaid), NOT a local bill calculation — so the
-  // doctor app always shows the SAME figures as the Admin Panel and reflects "Clear Dues".
+  // doctor app always shows the SAME figures as the Admin Panel and reflects cleared platform dues.
   const outstandingDue = liveCommission.due != null ? liveCommission.due : (profile?.commissionDue || 0);
   const paidCommission = liveCommission.paid != null ? liveCommission.paid : (profile?.commissionPaid || 0);
   const totalRedeemedAmount = bills.reduce((sum, b) => sum + (b.discountFromRewards || 0), 0);

@@ -183,6 +183,11 @@ export default function DoctorHomeScreen({ route, navigation }) {
   if (profile && (profile.isBlocked || profile.approvalStatus === 'rejected' || profile.approvalStatus === 'pending')) {
     const blocked = profile.isBlocked;
     const rejected = profile.approvalStatus === 'rejected';
+    const platformFeeDue = Number(profile.commissionDue || 0);
+    const blockedForPlatformFee = blocked && platformFeeDue > 0;
+    const supportMessage = blockedForPlatformFee
+      ? `Hello, I'm ${drName(profile.fullName, 'Doctor')}. My account is blocked because of outstanding platform fee dues of PKR ${platformFeeDue.toLocaleString()}. I have cleared / want to clear the dues. Please guide me and restore my access.`
+      : `Hello, I'm Dr. ${profile.fullName || ''}. Regarding my account ${blocked ? '(blocked)' : '(approval)'} — please assist.`;
     return (
       <SafeAreaView edges={['top']} style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', padding: 30 }]}>
         <View style={{ alignItems: 'center', maxWidth: 360 }}>
@@ -194,13 +199,28 @@ export default function DoctorHomeScreen({ route, navigation }) {
           </Text>
           <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
             {blocked
-              ? (profile.blockReason || 'Your account has been blocked due to outstanding dues. Please clear your platform fee dues and contact support to be unblocked.')
+              ? (profile.blockReason || 'Your account has been blocked due to outstanding platform fee dues. Please clear your dues and contact support to restore access.')
               : rejected
               ? 'Your profile was not approved. Please contact support for details or to re-apply.'
               : 'Your profile is under review. An admin will approve your account shortly — you’ll get full access once approved.'}
           </Text>
+          {blockedForPlatformFee && (
+            <View style={{ width: '100%', backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 18, padding: 16, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <Ionicons name="warning-outline" size={18} color="#D97706" />
+                <Text style={{ marginLeft: 8, fontSize: 14, fontWeight: '800', color: '#9A3412' }}>Platform Fee Payment Required</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 12.5, color: '#9A3412', fontWeight: '600' }}>Outstanding Amount</Text>
+                <Text style={{ fontSize: 13, color: '#9A3412', fontWeight: '900' }}>PKR {platformFeeDue.toLocaleString()}</Text>
+              </View>
+              <Text style={{ fontSize: 12.5, color: '#9A3412', lineHeight: 18 }}>
+                Your dashboard access is paused until this platform fee is cleared and verified by My Dentist support. After payment, send your payment proof using the button below.
+              </Text>
+            </View>
+          )}
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#25D366', paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999 }}
-            onPress={() => openWhatsApp(`Hello, I'm Dr. ${profile.fullName || ''}. Regarding my account ${blocked ? '(blocked)' : '(approval)'} — please assist.`)}>
+            onPress={() => openWhatsApp(supportMessage)}>
             <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
             <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Contact Support</Text>
           </TouchableOpacity>

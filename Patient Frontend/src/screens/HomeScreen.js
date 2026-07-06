@@ -45,6 +45,7 @@ import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
 import { ctaLabel } from '../utils/promo';
+import { matchesTier } from '../utils/clinicTier';
 
 // ─── Filter tab config ──────────────────────────────────────────────
 const FILTER_TABS = [
@@ -56,7 +57,7 @@ const FILTER_TABS = [
 ];
 
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
-function filterDoctors(doctors, tab, favorites, patientCoords) {
+function filterDoctors(doctors, tab, favorites, patientCoords, tierThresholds) {
   if (tab === 'Nearby') {
     if (!patientCoords) return doctors;
     const distOf = (d) => {
@@ -70,15 +71,9 @@ function filterDoctors(doctors, tab, favorites, patientCoords) {
     return [...doctors].sort((a, b) => distOf(a) - distOf(b));
   }
   if (tab === 'Favorites') return doctors.filter(d => favorites && (favorites[String(d._id)] || favorites[String(d.userId)]));
-  if (tab === 'Elite')     return doctors.filter(d => (d.facilityScore || 0) >= 31);
-  if (tab === 'Modern')    return doctors.filter(d => {
-    const s = d.facilityScore || 0;
-    return s >= 16 && s <= 30;
-  });
-  if (tab === 'Standard')  return doctors.filter(d => {
-    const s = d.facilityScore || 0;
-    return s >= 1 && s <= 15;
-  });
+  if (tab === 'Elite')     return doctors.filter(d => matchesTier(d.facilityScore, 'elite', tierThresholds));
+  if (tab === 'Modern')    return doctors.filter(d => matchesTier(d.facilityScore, 'modern', tierThresholds));
+  if (tab === 'Standard')  return doctors.filter(d => matchesTier(d.facilityScore, 'standard', tierThresholds));
   return doctors;
 }
 
@@ -251,6 +246,7 @@ export default function HomeScreen({ navigation }) {
   const [favorites, setFavorites]     = useState({});
   const [favoriteDoctors, setFavoriteDoctors] = useState([]);
   const [campaigns, setCampaigns]       = useState([]);
+  const [tierThresholds, setTierThresholds] = useState(null); // admin-managed clinic tier ranges
   const [rotationInterval, setRotationInterval] = useState(10);
   const [activeCampaignIdx, setActiveCampaignIdx] = useState(0);
   const campaignScrollRef = useRef(null);
@@ -311,6 +307,13 @@ export default function HomeScreen({ navigation }) {
           }
         }
       } catch (e) { /* non-critical */ }
+
+      // Fetch admin-managed clinic tier ranges so the Elite/Modern/Standard
+      // filter tabs stay in sync with the Facilities settings.
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/users/platform-settings`);
+        if (res.data?.data?.clinicTierThresholds) setTierThresholds(res.data.data.clinicTierThresholds);
+      } catch (e) { /* non-critical — matchesTier falls back to defaults */ }
     } finally {
       setLoading(false);
     }
@@ -410,7 +413,7 @@ export default function HomeScreen({ navigation }) {
 
   const filteredDoctors = filterTab === 'Favorites'
     ? favoriteDoctors
-    : filterDoctors(doctors, filterTab, favorites, patientCoords);
+    : filterDoctors(doctors, filterTab, favorites, patientCoords, tierThresholds);
 
   // Greeting + first name for the header.
   const firstName = (profile?.fullName || '').trim().split(/\s+/)[0] || '';

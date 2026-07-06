@@ -6,7 +6,7 @@ const commissionLogSchema = new mongoose.Schema(
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'DoctorProfile', required: true, index: true },
     doctorName: { type: String, default: '' },
     // 'add' = dues increased · 'clear' = dues paid/cleared · 'sync' = recomputed from bills · 'set' = set to absolute
-    type: { type: String, enum: ['add', 'clear', 'sync', 'set'], required: true },
+    type: { type: String, enum: ['add', 'clear', 'sync', 'set', 'accrue', 'reverse'], required: true },
     amount: { type: Number, default: 0 },        // the change amount (PKR)
     balanceAfter: { type: Number, default: 0 },   // commissionDue after the change
     note: { type: String, default: '' },

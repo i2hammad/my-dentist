@@ -50,6 +50,7 @@ router.delete('/dentists/:id', admin.deleteDentist);
 router.get('/patients', admin.listPatients);
 router.post('/patients', admin.createPatient);
 router.get('/patients/:id', admin.getPatient);
+router.patch('/patients/:id/points', admin.givePatientPoints);
 router.patch('/patients/:id/block', admin.blockPatient);
 router.patch('/patients/:id/unblock', admin.unblockPatient);
 router.patch('/patients/:id/reset-password', admin.resetPatientPassword);

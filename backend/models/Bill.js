@@ -53,6 +53,13 @@ const billSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Paid amount cannot be negative'],
     },
+    // Platform commission already accrued to the doctor's dues for THIS bill.
+    // Reconciliation applies only the delta between this and the bill's current
+    // target commission, so accrual is idempotent across create/edit/pay/unpay.
+    commissionAccrued: {
+      type: Number,
+      default: 0,
+    },
     status: {
       type: String,
       enum: {

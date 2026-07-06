@@ -18,15 +18,16 @@ const rewardSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: {
-        values: ['visit', 'referral', 'review'],
+        values: ['visit', 'referral', 'review', 'admin'],
         message: '{VALUE} is not a valid reward type',
       },
       required: [true, 'Reward type is required'],
     },
     points: {
+      // No min: admin adjustments may be negative (deductions). Earn paths
+      // (visit/review/referral) always create positive entries.
       type: Number,
       required: [true, 'Points are required'],
-      min: [0, 'Points cannot be negative'],
     },
     description: {
       type: String,

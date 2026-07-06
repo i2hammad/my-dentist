@@ -591,6 +591,51 @@ exports.getPatient = async (req, res) => {
   } catch (e) { fail(res, 500, e.message); }
 };
 
+// @route PATCH /api/admin/patients/:id/points
+// body: { addPoints: <number> }  (positive = grant, negative = deduct)
+// Records an admin adjustment on the patient's Reward ledger so it shows up in
+// the patient's rewards history (mirrors the doctor "Give Points" flow).
+exports.givePatientPoints = async (req, res) => {
+  try {
+    const patient = await PatientProfile.findById(req.params.id);
+    if (!patient) return fail(res, 404, 'Patient not found');
+
+    const raw = req.body.addPoints ?? req.body.points;
+    const pts = parseInt(raw, 10);
+    if (isNaN(pts) || pts === 0) return fail(res, 400, 'Provide a non-zero number of points');
+
+    // Prevent a deduction from driving the patient's spendable balance below 0.
+    if (pts < 0) {
+      const agg = await Reward.aggregate([
+        { $match: { patientId: patient._id, isRedeemed: false } },
+        { $group: { _id: null, total: { $sum: '$points' } } },
+      ]);
+      const balance = agg.length ? agg[0].total : 0;
+      if (balance + pts < 0) {
+        return fail(res, 400, `Cannot deduct ${Math.abs(pts)} pts — patient only has ${balance} pts.`);
+      }
+    }
+
+    const note = (req.body.note || '').trim();
+    const reward = await Reward.create({
+      patientId: patient._id,
+      type: 'admin',
+      points: pts,
+      isRedeemed: false,
+      description: note || (pts > 0 ? 'Points granted by admin' : 'Points deducted by admin'),
+    });
+
+    await logAudit(req, {
+      action: 'update',
+      entity: 'patient',
+      entityId: patient._id,
+      description: `${pts > 0 ? 'Granted' : 'Deducted'} ${Math.abs(pts)} pts ${pts > 0 ? 'to' : 'from'} "${patient.fullName}"`,
+    });
+
+    ok(res, reward);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
 // ─── My profile / account ───────────────────────────────────
 const AppSettings = require('../models/AppSettings');
 
@@ -710,7 +755,7 @@ exports.listPopularDoctors = async (req, res) => {
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Commission dues & blocking ─────────────────────────────
+// ─── Platform fee dues & blocking ───────────────────────────
 const COMMISSION_BLOCK_THRESHOLD = 50000;
 
 // @route PATCH /api/admin/dentists/:id/commission
@@ -731,7 +776,7 @@ exports.setCommission = async (req, res) => {
       logType = 'add'; delta = doc.commissionDue - before;
     }
 
-    // Auto-block when the doctor owes commission. Explicitly SETTING an outstanding
+    // Auto-block when the doctor owes platform fees. Explicitly SETTING an outstanding
     // amount blocks on ANY positive value; incremental "Add Dues" blocks once the
     // running total reaches the threshold (avoids over-blocking on tiny increments).
     // Clearing dues does NOT auto-unblock (admin unblocks after verifying payment).
@@ -740,7 +785,7 @@ exports.setCommission = async (req, res) => {
       : (doc.commissionDue || 0) >= COMMISSION_BLOCK_THRESHOLD;
     if (shouldBlock && !doc.isBlocked) {
       doc.isBlocked = true;
-      doc.blockReason = `Outstanding commission dues of PKR ${doc.commissionDue.toLocaleString()}. Clear dues and contact admin to unblock.`;
+      doc.blockReason = `Your account is blocked because outstanding platform fee dues of PKR ${doc.commissionDue.toLocaleString()} are pending. Please clear the dues and share payment proof with My Dentist support to restore access.`;
     }
     await doc.save();
     await logCommission(req, doc, { type: logType, amount: delta });
@@ -756,17 +801,33 @@ exports.syncDues = async (req, res) => {
     const doc = await DoctorProfile.findById(req.params.id);
     if (!doc) return fail(res, 404, 'Dentist not found');
 
-    const bills = await Bill.find({ doctorId: doc._id }).select('finalAmount paidAmount status').lean();
-    const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
     const settings = await getOrCreateSettings();
     const rate = settings.commissionRate ?? 10;
-    const earned = Math.round(collected * (rate / 100));
+
+    const bills = await Bill.find({ doctorId: doc._id }).select('finalAmount paidAmount amount status commissionAccrued').lean();
+    const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
+
+    // Backfill each bill's accrued commission to its true target so the per-bill
+    // ledger stays the single source of truth shared with automatic accrual —
+    // this is what keeps Sync and auto-accrual from double-counting.
+    const { targetCommission } = require('../utils/commission');
+    let earned = 0;
+    const ops = [];
+    for (const b of bills) {
+      const target = targetCommission(b, rate);
+      earned += target;
+      if ((b.commissionAccrued || 0) !== target) {
+        ops.push({ updateOne: { filter: { _id: b._id }, update: { $set: { commissionAccrued: target } } } });
+      }
+    }
+    if (ops.length) await Bill.bulkWrite(ops);
+
     const owed = Math.max(0, earned - (doc.commissionPaid || 0));
 
     doc.commissionDue = owed;
     if (owed >= COMMISSION_BLOCK_THRESHOLD && !doc.isBlocked) {
       doc.isBlocked = true;
-      doc.blockReason = `Outstanding commission dues of PKR ${owed.toLocaleString()} exceeded the limit. Clear dues and contact admin to unblock.`;
+      doc.blockReason = `Your account is blocked because outstanding platform fee dues of PKR ${owed.toLocaleString()} exceeded the PKR ${COMMISSION_BLOCK_THRESHOLD.toLocaleString()} limit. Please clear the dues and share payment proof with My Dentist support to restore access.`;
     }
     await doc.save();
     await logCommission(req, doc, { type: 'sync', amount: owed, note: `${rate}% of ${collected.toLocaleString()} collected − ${(doc.commissionPaid || 0).toLocaleString()} paid` });
@@ -776,25 +837,33 @@ exports.syncDues = async (req, res) => {
 };
 
 // @route PATCH /api/admin/dentists/:id/commission/clear
-// Marks the doctor's outstanding commission dues as paid. Records the amount to
-// commissionPaid (cumulative) and resets commissionDue to 0.
+// body: { amount } — optional partial amount to clear (defaults to the full
+// outstanding). Records the cleared amount to commissionPaid (cumulative) and
+// deducts it from commissionDue. Fully clearing unblocks a dues-blocked doctor.
 exports.clearDues = async (req, res) => {
   try {
     const doc = await DoctorProfile.findById(req.params.id);
     if (!doc) return fail(res, 404, 'Dentist not found');
-    const cleared = doc.commissionDue || 0;
-    if (cleared <= 0) return fail(res, 400, 'No outstanding dues to clear');
+    const outstanding = doc.commissionDue || 0;
+    if (outstanding <= 0) return fail(res, 400, 'No outstanding dues to clear');
+
+    // Custom (partial) amount — defaults to clearing the full outstanding.
+    const raw = req.body?.amount;
+    let amount = (raw === undefined || raw === null || raw === '') ? outstanding : Number(raw);
+    if (isNaN(amount) || amount <= 0) return fail(res, 400, 'Enter a valid amount to clear');
+    const cleared = Math.min(amount, outstanding); // never clear more than owed
+
     doc.commissionPaid = (doc.commissionPaid || 0) + cleared;
-    doc.commissionDue = 0;
-    // Clearing dues below the block threshold auto-unblocks (dues were the reason).
-    if (doc.isBlocked && /commission/i.test(doc.blockReason || '')) {
+    doc.commissionDue = outstanding - cleared;
+    // Auto-unblock only once dues are fully cleared (they were the block reason).
+    if (doc.commissionDue <= 0 && doc.isBlocked && /(commission|platform fee|dues)/i.test(doc.blockReason || '')) {
       doc.isBlocked = false;
       doc.blockReason = '';
     }
     await doc.save();
     await logCommission(req, doc, { type: 'clear', amount: cleared, note: req.body?.note || '' });
-    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Cleared PKR ${cleared.toLocaleString()} commission dues for "${doc.fullName}"` });
-    ok(res, { doc, cleared });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Cleared PKR ${cleared.toLocaleString()} commission dues for "${doc.fullName}"${doc.commissionDue > 0 ? ` (PKR ${doc.commissionDue.toLocaleString()} remaining)` : ''}` });
+    ok(res, { doc, cleared, remaining: doc.commissionDue });
   } catch (e) { fail(res, 500, e.message); }
 };
 

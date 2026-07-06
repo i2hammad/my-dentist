@@ -5,6 +5,7 @@ const Reward = require('../models/Reward');
 const Notification = require('../models/Notification');
 const PaymentMethod = require('../models/PaymentMethod');
 const { generateInvoiceNumber } = require('../utils/invoiceGenerator');
+const { reconcileBillCommission } = require('../utils/commission');
 
 // @desc    Get current user's bills (paginated)
 // @route   GET /api/bills/my
@@ -256,6 +257,11 @@ const createBill = async (req, res) => {
       }
     }
 
+    // Accrue platform commission to the doctor's dues when the bill is paid.
+    if (status === 'paid') {
+      await reconcileBillCommission(bill._id);
+    }
+
     // Notify the patient — but not for drafts (drafts aren't issued yet).
     if (status !== 'draft') {
       await Notification.create({
@@ -430,6 +436,9 @@ const confirmPayment = async (req, res) => {
     bill.paidAt = new Date();
     bill.paidAmount = bill.finalAmount || bill.amount;
     await bill.save();
+
+    // Accrue platform commission now that the payment is confirmed.
+    await reconcileBillCommission(bill._id);
 
     // Grant the reward now that the cash payment is confirmed.
     const rewardPoints = Math.floor(bill.amount * 0.02);
@@ -662,6 +671,11 @@ const updateBill = async (req, res) => {
         }
       }
     }
+
+    // Reconcile platform commission for this bill. Idempotent + delta-based, so
+    // it correctly handles an edited paid amount, or a paid↔unpaid toggle,
+    // without ever double-charging.
+    await reconcileBillCommission(updatedBill._id);
 
     res.status(200).json({
       success: true,

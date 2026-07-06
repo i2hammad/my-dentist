@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { useIsFocused } from '@react-navigation/native';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
+import imgUrl from '../../config/imgUrl';
 import DoctorPromoCard from '../../components/DoctorPromoCard';
 import DoctorHeader from '../../components/DoctorHeader';
 
@@ -103,9 +104,13 @@ export default function DoctorAppointmentsScreen({ navigation }) {
       <View style={styles.cardHeader}>
         <View style={styles.patientInfo}>
           <View style={styles.patientAvatar}>
-            <Text style={styles.patientAvatarText}>
-              {item.patientId?.fullName?.charAt(0) || 'P'}
-            </Text>
+            {item.patientId?.profileImage ? (
+              <Image source={{ uri: imgUrl(item.patientId.profileImage) }} style={styles.patientAvatarImg} />
+            ) : (
+              <Text style={styles.patientAvatarText}>
+                {item.patientId?.fullName?.charAt(0) || 'P'}
+              </Text>
+            )}
           </View>
           <View>
             <Text style={styles.patientName}>{item.patientId?.fullName || 'Unknown Patient'}</Text>
@@ -337,7 +342,8 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   patientInfo: { flexDirection: 'row', alignItems: 'center' },
-  patientAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  patientAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' },
+  patientAvatarImg: { width: 44, height: 44, borderRadius: 22 },
   patientAvatarText: { color: '#0052FF', fontSize: 18, fontWeight: 'bold' },
   patientName: { color: '#0A1551', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   treatmentType: { color: '#64748B', fontSize: 13 },

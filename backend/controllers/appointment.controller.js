@@ -158,7 +158,7 @@ const getMyAppointments = async (req, res) => {
       })
       .populate({
         path: 'patientId',
-        select: 'fullName userId mobileNumber'
+        select: 'fullName userId mobileNumber profileImage'
       })
       .sort({ date: sortOrder, time: sortOrder });
 
@@ -198,7 +198,7 @@ const getAppointment = async (req, res) => {
       })
       .populate({
         path: 'patientId',
-        select: 'fullName userId'
+        select: 'fullName userId profileImage'
       });
 
     if (!appointment) {
@@ -277,7 +277,7 @@ const rescheduleAppointment = async (req, res) => {
 
     const appointment = await Appointment.findById(req.params.id)
       .populate({ path: 'doctorId', select: 'userId fullName clinicTiming' })
-      .populate({ path: 'patientId', select: 'userId fullName' });
+      .populate({ path: 'patientId', select: 'userId fullName profileImage' });
 
     if (!appointment) {
       return res.status(404).json({
@@ -399,7 +399,7 @@ const cancelAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate({ path: 'doctorId', select: 'userId fullName' })
-      .populate({ path: 'patientId', select: 'userId fullName' });
+      .populate({ path: 'patientId', select: 'userId fullName profileImage' });
 
     if (!appointment) {
       return res.status(404).json({
@@ -480,7 +480,7 @@ const completeAppointment = async (req, res) => {
 
     const appointment = await Appointment.findById(req.params.id)
       .populate({ path: 'doctorId', select: 'userId fullName' })
-      .populate({ path: 'patientId', select: 'userId fullName' });
+      .populate({ path: 'patientId', select: 'userId fullName profileImage' });
 
     if (!appointment) {
       return res.status(404).json({
@@ -579,7 +579,7 @@ const getVisitSummary = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate({ path: 'doctorId', select: 'fullName specialization userId' })
-      .populate({ path: 'patientId', select: 'fullName userId' });
+      .populate({ path: 'patientId', select: 'fullName userId profileImage' });
 
     if (!appointment) {
       return res.status(404).json({
@@ -647,7 +647,7 @@ const addVisitSummary = async (req, res) => {
 
     const appointment = await Appointment.findById(req.params.id)
       .populate({ path: 'doctorId', select: 'userId fullName' })
-      .populate({ path: 'patientId', select: 'userId fullName' });
+      .populate({ path: 'patientId', select: 'userId fullName profileImage' });
 
     if (!appointment) {
       return res.status(404).json({

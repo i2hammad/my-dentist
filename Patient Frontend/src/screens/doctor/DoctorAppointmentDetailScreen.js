@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Modal, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
+import imgUrl from '../../config/imgUrl';
 
 const isWeb = Platform.OS === 'web';
 
@@ -264,7 +265,13 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
         {/* Patient */}
         <View style={styles.card}>
           <View style={styles.docRow}>
-            <View style={styles.docAvatar}><Text style={styles.avatarText}>{(appt.patientId?.fullName || '?').charAt(0)}</Text></View>
+            <View style={styles.docAvatar}>
+              {appt.patientId?.profileImage ? (
+                <Image source={{ uri: imgUrl(appt.patientId.profileImage) }} style={styles.docAvatarImg} />
+              ) : (
+                <Text style={styles.avatarText}>{(appt.patientId?.fullName || '?').charAt(0)}</Text>
+              )}
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.docName}>{appt.patientId?.fullName || 'Patient'}</Text>
               {!!appt.patientId?.mobileNumber && <Text style={styles.docSpec}>{appt.patientId.mobileNumber}</Text>}
@@ -414,7 +421,8 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 13, fontWeight: '700' },
   card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#EEF2F7' },
   docRow: { flexDirection: 'row', alignItems: 'center' },
-  docAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  docAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' },
+  docAvatarImg: { width: 48, height: 48, borderRadius: 24 },
   avatarText: { fontSize: 20, fontWeight: '800', color: '#0052FF' },
   docName: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
   docSpec: { fontSize: 13, color: '#64748B', marginTop: 2 },

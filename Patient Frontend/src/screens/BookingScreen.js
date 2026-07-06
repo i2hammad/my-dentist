@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, KeyboardAvoidingView, Platform, Alert
@@ -26,19 +26,6 @@ const getTreatIcon = (name = '') => {
   if (n.includes('check'))     return 'search-outline';
   return 'medical-outline';
 };
-
-const TIME_SLOTS = [
-  { label: '09:00 AM', value: '09:00' },
-  { label: '10:00 AM', value: '10:00' },
-  { label: '11:00 AM', value: '11:00' },
-  { label: '12:00 PM', value: '12:00' },
-  { label: '02:00 PM', value: '14:00' },
-  { label: '03:00 PM', value: '15:00' },
-  { label: '04:00 PM', value: '16:00' },
-  { label: '05:00 PM', value: '17:00' },
-  { label: '06:00 PM', value: '18:00' },
-  { label: '07:00 PM', value: '19:00' },
-];
 
 const DAY_SHORT  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -77,20 +64,91 @@ const timeLabel = (value) => {
   return `${h12}:${minutes} ${ampm}`;
 };
 
-function generateDates(count = 60) {
+const parseBookingTime = (input) => {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  const twentyFour = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (twentyFour) return Number(twentyFour[1]) * 60 + Number(twentyFour[2]);
+  const twelveHour = raw.match(/^(0?[1-9]|1[0-2]):([0-5]\d)\s*([AaPp][Mm])$/);
+  if (!twelveHour) return NaN;
+  let h = Number(twelveHour[1]);
+  const m = Number(twelveHour[2]);
+  const meridiem = twelveHour[3].toUpperCase();
+  if (meridiem === 'PM' && h !== 12) h += 12;
+  if (meridiem === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+};
+
+const minutesToTime = (minutes) => `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
+
+const normalizeDayList = (days, fallback) => {
+  const valid = Array.isArray(days) ? days.filter((day) => DAY_SHORT.includes(day)) : [];
+  return valid.length ? valid : fallback;
+};
+
+const getTimingRanges = (timing = {}) => {
+  const ranges = [
+    [timing.morningStart, timing.morningEnd],
+    [timing.eveningStart, timing.eveningEnd],
+  ].map(([start, end]) => {
+    const startMin = parseBookingTime(start);
+    const endMin = parseBookingTime(end);
+    return Number.isFinite(startMin) && Number.isFinite(endMin) && startMin < endMin
+      ? { startMin, endMin }
+      : null;
+  }).filter(Boolean);
+
+  if (!ranges.length) {
+    const startMin = parseBookingTime(timing.startTime || '10:00');
+    const endMin = parseBookingTime(timing.endTime || '20:00');
+    if (Number.isFinite(startMin) && Number.isFinite(endMin) && startMin < endMin) {
+      ranges.push({ startMin, endMin });
+    }
+  }
+  return ranges;
+};
+
+const isDateAllowedByTiming = (iso, timing = {}) => {
+  const d = isoToDate(iso);
+  const day = DAY_SHORT[d.getDay()];
+  const availableDays = normalizeDayList(timing.availableDays, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+  const offDays = normalizeDayList(timing.offDays, []);
+  return availableDays.includes(day) && !offDays.includes(day);
+};
+
+const isTimeAllowedByTiming = (time, timing = {}) => {
+  const minutes = parseBookingTime(time);
+  if (!Number.isFinite(minutes)) return false;
+  return getTimingRanges(timing).some((range) => minutes >= range.startMin && minutes < range.endMin);
+};
+
+function generateDates(count = 60, timing = {}) {
   const dates = [];
   for (let i = 1; i <= count; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
+    const iso = dateToIso(d);
     dates.push({
       dayName: DAY_SHORT[d.getDay()],
       dateNum: d.getDate(),
       month:   MONTH_SHORT[d.getMonth()],
-      iso:     dateToIso(d),
+      iso,
       isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      isAvailable: isDateAllowedByTiming(iso, timing),
     });
   }
   return dates;
+}
+
+function generateTimeSlots(timing = {}, stepMinutes = 30) {
+  const slots = [];
+  getTimingRanges(timing).forEach((range) => {
+    for (let minutes = range.startMin; minutes < range.endMin; minutes += stepMinutes) {
+      const value = minutesToTime(minutes);
+      slots.push({ value, label: timeLabel(value) });
+    }
+  });
+  return slots;
 }
 
 export default function BookingScreen({ route, navigation }) {
@@ -103,13 +161,17 @@ export default function BookingScreen({ route, navigation }) {
   const [loading, setLoading]                       = useState(false);
   const [userRole, setUserRole]                     = useState(null);
   const [doctorTreatments, setDoctorTreatments]     = useState([]);
+  const [bookedSlots, setBookedSlots]               = useState([]);
 
   const [showDatePicker, setShowDatePicker]         = useState(false);
   const [showTimePicker, setShowTimePicker]         = useState(false);
   const [customDateLabel, setCustomDateLabel]       = useState('');
   const [customTimeLabel, setCustomTimeLabel]       = useState('');
 
-  const dates = generateDates(60);
+  const clinicTiming = doctor.clinicTiming || {};
+  const clinicTimingKey = JSON.stringify(clinicTiming);
+  const dates = useMemo(() => generateDates(60, clinicTiming), [clinicTimingKey]);
+  const timeSlots = useMemo(() => generateTimeSlots(clinicTiming), [clinicTimingKey]);
 
   useEffect(() => {
     (async () => {
@@ -130,11 +192,44 @@ export default function BookingScreen({ route, navigation }) {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!selectedDate || !doctor._id) {
+      setBookedSlots([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const token = await storage.getItem('userToken');
+        if (!token) return;
+        const res = await axios.get(`${API_BASE_URL}/api/appointments/doctor/${doctor._id}/booked-slots`, {
+          params: { date: selectedDate },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const slots = res.data?.success ? (res.data.data || []) : [];
+        if (alive) {
+          setBookedSlots(slots);
+          if (selectedTime && slots.includes(selectedTime)) {
+            setSelectedTime(null);
+            setCustomTimeLabel('');
+          }
+        }
+      } catch {
+        if (alive) setBookedSlots([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [selectedDate, doctor._id, selectedTime]);
+
   const onPickDate = (event, picked) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (event?.type === 'dismissed' || !picked) return;
     const minIso = tomorrowIso();
     const iso = dateToIso(picked) < minIso ? minIso : dateToIso(picked);
+    if (!isDateAllowedByTiming(iso, clinicTiming)) {
+      Alert.alert('Clinic Closed', 'The doctor is not available on this day. Please choose an available clinic day.');
+      return;
+    }
     setSelectedDate(iso);
     setCustomDateLabel(dateLabel(iso));
   };
@@ -143,6 +238,14 @@ export default function BookingScreen({ route, navigation }) {
     setShowTimePicker(Platform.OS === 'ios');
     if (event?.type === 'dismissed' || !picked) return;
     const value = `${pad2(picked.getHours())}:${pad2(picked.getMinutes())}`;
+    if (!isTimeAllowedByTiming(value, clinicTiming)) {
+      Alert.alert('Unavailable Time', 'This time is outside the doctor clinic timings. Please choose an available slot.');
+      return;
+    }
+    if (bookedSlots.includes(value)) {
+      Alert.alert('Slot Booked', 'This time slot is already booked. Please choose another available slot.');
+      return;
+    }
     setSelectedTime(value);
     setCustomTimeLabel(timeLabel(value));
   };
@@ -156,6 +259,12 @@ export default function BookingScreen({ route, navigation }) {
   const handleBooking = async () => {
     if (!selectedDate || !selectedTime) {
       return Alert.alert('Missing Info', 'Please select a date and time for your appointment.');
+    }
+    if (!isDateAllowedByTiming(selectedDate, clinicTiming) || !isTimeAllowedByTiming(selectedTime, clinicTiming)) {
+      return Alert.alert('Unavailable Slot', 'Please choose a date and time inside the doctor clinic timings.');
+    }
+    if (bookedSlots.includes(selectedTime)) {
+      return Alert.alert('Slot Booked', 'This time slot is already booked. Please choose another available slot.');
     }
     if (selectedTreatments.length === 0) {
       return Alert.alert('Missing Info', 'Please select at least one treatment.');
@@ -320,6 +429,7 @@ export default function BookingScreen({ route, navigation }) {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {dates.map((date) => {
                   const sel = selectedDate === date.iso;
+                  const disabled = !date.isAvailable;
                   return (
                     <TouchableOpacity
                       key={date.iso}
@@ -327,15 +437,17 @@ export default function BookingScreen({ route, navigation }) {
                         styles.dateCell,
                         sel && styles.dateCellSelected,
                         date.isWeekend && !sel && styles.dateCellWeekend,
+                        disabled && !sel && styles.dateCellDisabled,
                       ]}
+                      disabled={disabled}
                       onPress={() => { setSelectedDate(date.iso); setCustomDateLabel(''); }}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.dateCellDay, sel && { color: '#FFF' }, date.isWeekend && !sel && { color: '#EF4444' }]}>
+                      <Text style={[styles.dateCellDay, sel && { color: '#FFF' }, date.isWeekend && !sel && { color: '#EF4444' }, disabled && !sel && styles.disabledText]}>
                         {date.dayName}
                       </Text>
-                      <Text style={[styles.dateCellNum, sel && { color: '#FFF' }]}>{date.dateNum}</Text>
-                      <Text style={[styles.dateCellMonth, sel && { color: 'rgba(255,255,255,0.75)' }]}>{date.month}</Text>
+                      <Text style={[styles.dateCellNum, sel && { color: '#FFF' }, disabled && !sel && styles.disabledText]}>{date.dateNum}</Text>
+                      <Text style={[styles.dateCellMonth, sel && { color: 'rgba(255,255,255,0.75)' }, disabled && !sel && styles.disabledText]}>{date.month}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -353,6 +465,10 @@ export default function BookingScreen({ route, navigation }) {
                   onChange: (e) => {
                     const iso = e.target.value;
                     if (!iso) return;
+                    if (!isDateAllowedByTiming(iso, clinicTiming)) {
+                      window.alert('The doctor is not available on this day. Please choose an available clinic day.');
+                      return;
+                    }
                     setSelectedDate(iso);
                     setCustomDateLabel(dateLabel(iso));
                   },
@@ -367,14 +483,14 @@ export default function BookingScreen({ route, navigation }) {
                     fontFamily: 'inherit',
                     cursor: 'pointer',
                   },
-                  'aria-label': 'Pick any future date',
+                  'aria-label': 'Pick an available future date',
                 })}
               </View>
             ) : (
               <TouchableOpacity style={styles.pickAnyBtn} onPress={() => setShowDatePicker(true)}>
                 <Ionicons name="calendar-outline" size={18} color="#0052FF" />
                 <Text style={styles.pickAnyText}>
-                  {customDateLabel ? `Custom date: ${customDateLabel}` : 'Pick any future date'}
+                  {customDateLabel ? `Custom date: ${customDateLabel}` : 'Pick an available future date'}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color="#0052FF" />
               </TouchableOpacity>
@@ -405,17 +521,24 @@ export default function BookingScreen({ route, navigation }) {
               <Text style={styles.sectionTitle}>Select Time</Text>
             </View>
             <View style={styles.timeGrid}>
-              {TIME_SLOTS.map((slot) => {
+              {timeSlots.length === 0 ? (
+                <View style={styles.emptySlotsBox}>
+                  <Ionicons name="alert-circle-outline" size={18} color="#D97706" />
+                  <Text style={styles.emptySlotsText}>No clinic time slots are configured for this doctor.</Text>
+                </View>
+              ) : timeSlots.map((slot) => {
                 const sel = selectedTime === slot.value;
+                const disabled = !selectedDate || bookedSlots.includes(slot.value);
                 return (
                   <TouchableOpacity
                     key={slot.value}
-                    style={[styles.timeChip, sel && styles.timeChipSelected]}
+                    style={[styles.timeChip, sel && styles.timeChipSelected, disabled && styles.timeChipDisabled]}
+                    disabled={disabled}
                     onPress={() => { setSelectedTime(slot.value); setCustomTimeLabel(''); }}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="time-outline" size={12} color={sel ? '#FFF' : '#7C3AED'} />
-                    <Text style={[styles.timeChipText, sel && styles.timeChipTextSel]}>{slot.label}</Text>
+                    <Ionicons name="time-outline" size={12} color={disabled ? '#94A3B8' : sel ? '#FFF' : '#7C3AED'} />
+                    <Text style={[styles.timeChipText, sel && styles.timeChipTextSel, disabled && styles.disabledText]}>{slot.label}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -431,6 +554,14 @@ export default function BookingScreen({ route, navigation }) {
                   onChange: (e) => {
                     const value = e.target.value;
                     if (!value) return;
+                    if (!isTimeAllowedByTiming(value, clinicTiming)) {
+                      window.alert('This time is outside the doctor clinic timings. Please choose an available slot.');
+                      return;
+                    }
+                    if (bookedSlots.includes(value)) {
+                      window.alert('This time slot is already booked. Please choose another available slot.');
+                      return;
+                    }
                     setSelectedTime(value);
                     setCustomTimeLabel(timeLabel(value));
                   },
@@ -695,6 +826,8 @@ const styles = StyleSheet.create({
   },
   dateCellSelected: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
   dateCellWeekend: { borderColor: '#FECACA', backgroundColor: '#FFF5F5' },
+  dateCellDisabled: { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0', opacity: 0.48 },
+  disabledText: { color: '#94A3B8' },
   dateCellDay: { fontSize: 10, fontWeight: '700', color: '#94A3B8', marginBottom: 4 },
   dateCellNum: { fontSize: 22, fontWeight: '900', color: '#0A1551' },
   dateCellMonth: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
@@ -715,8 +848,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   timeChipSelected: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  timeChipDisabled: { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0', opacity: 0.48 },
   timeChipText: { fontSize: 12, color: '#7C3AED', fontWeight: '600' },
   timeChipTextSel: { color: '#FFF' },
+  emptySlotsBox: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  emptySlotsText: { flex: 1, color: '#9A3412', fontSize: 12.5, fontWeight: '700' },
 
   // Pick any / custom button
   pickAnyBtn: {

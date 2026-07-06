@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import storage from '../../config/storage';
 import API_BASE_URL from '../../config/api';
@@ -27,14 +26,119 @@ const fmtTime = (t) => {
   return `${h % 12 || 12}:${mm} ${h >= 12 ? 'PM' : 'AM'}`;
 };
 const pad = (n) => String(n).padStart(2, '0');
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dateToIso = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const isoToDate = (iso) => {
+  const [year, month, day] = String(iso || '').split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+const parseTime = (input) => {
+  const raw = String(input || '').trim();
+  const twentyFour = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (twentyFour) return Number(twentyFour[1]) * 60 + Number(twentyFour[2]);
+  const twelveHour = raw.match(/^(0?[1-9]|1[0-2]):([0-5]\d)\s*([AaPp][Mm])$/);
+  if (!twelveHour) return NaN;
+  let h = Number(twelveHour[1]);
+  const m = Number(twelveHour[2]);
+  const meridiem = twelveHour[3].toUpperCase();
+  if (meridiem === 'PM' && h !== 12) h += 12;
+  if (meridiem === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+};
+const minutesToTime = (minutes) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+const validDays = (days, fallback) => {
+  const out = Array.isArray(days) ? days.filter((d) => DAY_SHORT.includes(d)) : [];
+  return out.length ? out : fallback;
+};
+const isDateAllowed = (iso, timing = {}) => {
+  const d = isoToDate(iso);
+  const day = DAY_SHORT[d.getDay()];
+  const available = validDays(timing.availableDays, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+  const off = validDays(timing.offDays, []);
+  return available.includes(day) && !off.includes(day);
+};
+const timingRanges = (timing = {}) => {
+  const ranges = [[timing.morningStart, timing.morningEnd], [timing.eveningStart, timing.eveningEnd]]
+    .map(([start, end]) => {
+      const startMin = parseTime(start);
+      const endMin = parseTime(end);
+      return Number.isFinite(startMin) && Number.isFinite(endMin) && startMin < endMin ? { startMin, endMin } : null;
+    })
+    .filter(Boolean);
+  if (!ranges.length) {
+    const startMin = parseTime(timing.startTime || '10:00');
+    const endMin = parseTime(timing.endTime || '20:00');
+    if (Number.isFinite(startMin) && Number.isFinite(endMin) && startMin < endMin) ranges.push({ startMin, endMin });
+  }
+  return ranges;
+};
+const generateDateOptions = (count, timing) => {
+  const dates = [];
+  for (let i = 1; i <= count; i++) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + i);
+    const iso = dateToIso(d);
+    dates.push({
+      iso,
+      dayName: DAY_SHORT[d.getDay()],
+      dateNum: d.getDate(),
+      month: MONTH_SHORT[d.getMonth()],
+      isAvailable: isDateAllowed(iso, timing),
+    });
+  }
+  return dates;
+};
+const generateTimeOptions = (timing, step = 30) => {
+  const slots = [];
+  timingRanges(timing).forEach((range) => {
+    for (let minutes = range.startMin; minutes < range.endMin; minutes += step) {
+      const value = minutesToTime(minutes);
+      slots.push({ value, label: fmtTime(value) });
+    }
+  });
+  return slots;
+};
 
 export default function DoctorAppointmentDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const [appt, setAppt] = useState(route?.params?.appointment || null);
   const [busy, setBusy] = useState(false);
-  const [showDate, setShowDate] = useState(false);
-  const [showTime, setShowTime] = useState(false);
-  const [newDate, setNewDate] = useState(appt?.date ? new Date(appt.date) : new Date());
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const clinicTiming = appt?.doctorId?.clinicTiming || {};
+  const doctorId = appt?.doctorId?._id || appt?.doctorId || null;
+  const timingKey = JSON.stringify(clinicTiming);
+  const dateOptions = useMemo(() => generateDateOptions(30, clinicTiming), [timingKey]);
+  const timeOptions = useMemo(() => generateTimeOptions(clinicTiming), [timingKey]);
+  const headers = async () => ({ Authorization: `Bearer ${await storage.getItem('userToken')}` });
+
+  useEffect(() => {
+    if (!showReschedule || !newDate || !doctorId) {
+      setBookedSlots([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/appointments/doctor/${doctorId}/booked-slots`, {
+          params: { date: newDate, excludeId: appt?._id },
+          headers: await headers(),
+        });
+        const slots = res.data?.success ? (res.data.data || []) : [];
+        if (alive) {
+          setBookedSlots(slots);
+          if (newTime && slots.includes(newTime)) setNewTime('');
+        }
+      } catch {
+        if (alive) setBookedSlots([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [showReschedule, newDate, doctorId, appt?._id, newTime]);
 
   if (!appt) {
     return (
@@ -48,7 +152,6 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
   const canModify = ['pending', 'confirmed', 'rescheduled'].includes(appt.status);
   const canComplete = appt.status === 'confirmed' || appt.status === 'rescheduled';
   const treatments = (appt.treatmentType || 'Consultation').split(',').map((t) => t.trim());
-  const headers = async () => ({ Authorization: `Bearer ${await storage.getItem('userToken')}` });
 
   const act = async (verb, fn, optimistic) => {
     setBusy(true);
@@ -112,13 +215,21 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
     { text: 'Yes, Cancel', style: 'destructive', onPress: () => act('cancelled', (h) => axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/cancel`, {}, { headers: h }), { status: 'cancelled' }) },
   ]);
 
-  const submitReschedule = (dateObj, timeStr) => act('rescheduled', async (h) => {
-    const dateStr = `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
-    return axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/reschedule`, { date: dateStr, time: timeStr }, { headers: h });
-  }, { date: dateObj.toISOString(), time: timeStr });
+  const openReschedule = () => {
+    const firstDate = dateOptions.find((d) => d.isAvailable)?.iso || '';
+    setNewDate(firstDate);
+    setNewTime('');
+    setShowReschedule(true);
+  };
 
-  const onPickDate = (e, d) => { setShowDate(false); if (e?.type === 'dismissed' || !d) return; setNewDate(d); setShowTime(true); };
-  const onPickTime = (e, t) => { setShowTime(false); if (e?.type === 'dismissed' || !t) return; submitReschedule(newDate, `${pad(t.getHours())}:${pad(t.getMinutes())}`); };
+  const submitReschedule = () => {
+    if (!newDate || !newTime) return Alert.alert('Missing Info', 'Please select an available date and time.');
+    if (bookedSlots.includes(newTime)) return Alert.alert('Slot Booked', 'This time slot is already booked. Please choose another available slot.');
+    setShowReschedule(false);
+    act('rescheduled', async (h) => (
+      axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/reschedule`, { date: newDate, time: newTime }, { headers: h })
+    ), { date: `${newDate}T00:00:00.000Z`, time: newTime });
+  };
 
   return (
     <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.safe}>
@@ -190,7 +301,7 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
                 <Text style={styles.completeBtnText}>Mark Visit as Completed</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.rescheduleBtn} disabled={busy} onPress={() => setShowDate(true)}>
+            <TouchableOpacity style={styles.rescheduleBtn} disabled={busy} onPress={openReschedule}>
               <Ionicons name="calendar" size={18} color="#0052FF" style={{ marginRight: 8 }} />
               <Text style={styles.rescheduleText}>Reschedule</Text>
             </TouchableOpacity>
@@ -204,8 +315,67 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
         )}
       </ScrollView>
 
-      {showDate && <DateTimePicker value={newDate} mode="date" minimumDate={new Date()} onChange={onPickDate} />}
-      {showTime && <DateTimePicker value={new Date()} mode="time" onChange={onPickTime} />}
+      <Modal visible={showReschedule} transparent animationType="slide" onRequestClose={() => setShowReschedule(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.rescheduleSheet, isWeb && styles.webBlock]}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Reschedule Appointment</Text>
+              <TouchableOpacity onPress={() => setShowReschedule(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.pickerLabel}>Available Date</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.datePickerRow}>
+              {dateOptions.map((d) => {
+                const selected = newDate === d.iso;
+                const disabled = !d.isAvailable;
+                return (
+                  <TouchableOpacity
+                    key={d.iso}
+                    disabled={disabled}
+                    activeOpacity={0.85}
+                    onPress={() => { setNewDate(d.iso); setNewTime(''); }}
+                    style={[styles.dateChip, selected && styles.dateChipSelected, disabled && styles.dateChipDisabled]}
+                  >
+                    <Text style={[styles.dateChipDay, selected && styles.selectedText, disabled && styles.disabledText]}>{d.dayName}</Text>
+                    <Text style={[styles.dateChipNum, selected && styles.selectedText, disabled && styles.disabledText]}>{d.dateNum}</Text>
+                    <Text style={[styles.dateChipMonth, selected && styles.selectedSubText, disabled && styles.disabledText]}>{d.month}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={styles.pickerLabel}>Available Time</Text>
+            <View style={styles.timePickerGrid}>
+              {timeOptions.length ? timeOptions.map((slot) => {
+                const selected = newTime === slot.value;
+                const disabled = !newDate || !isDateAllowed(newDate, clinicTiming) || bookedSlots.includes(slot.value);
+                return (
+                  <TouchableOpacity
+                    key={slot.value}
+                    disabled={disabled}
+                    activeOpacity={0.85}
+                    onPress={() => setNewTime(slot.value)}
+                    style={[styles.timeChip, selected && styles.timeChipSelected, disabled && styles.timeChipDisabled]}
+                  >
+                    <Text style={[styles.timeChipText, selected && styles.selectedText, disabled && styles.disabledText]}>{slot.label}</Text>
+                  </TouchableOpacity>
+                );
+              }) : (
+                <View style={styles.noSlotsBox}>
+                  <Ionicons name="alert-circle-outline" size={18} color="#D97706" />
+                  <Text style={styles.noSlotsText}>No clinic time slots are configured.</Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity style={[styles.submitSheetBtn, (!newDate || !newTime) && styles.submitSheetBtnDisabled]} disabled={!newDate || !newTime || busy} onPress={submitReschedule}>
+              <Text style={styles.submitSheetText}>Save New Time</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -253,5 +423,30 @@ const styles = StyleSheet.create({
   closedNote: { color: '#94A3B8', fontSize: 13, textAlign: 'center', marginTop: 12, lineHeight: 19 },
   reqBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#FDE68A' },
   reqBannerText: { flex: 1, color: '#92400E', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
+  rescheduleSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, maxHeight: '86%' },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sheetTitle: { fontSize: 18, fontWeight: '900', color: '#0A1551' },
+  pickerLabel: { fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.1, marginBottom: 10, marginTop: 4 },
+  datePickerRow: { gap: 8, paddingBottom: 14 },
+  dateChip: { width: 68, minHeight: 78, borderRadius: 16, borderWidth: 1, borderColor: '#DBEAFE', backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', paddingVertical: 9 },
+  dateChipSelected: { backgroundColor: '#0052FF', borderColor: '#0052FF' },
+  dateChipDisabled: { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0', opacity: 0.48 },
+  dateChipDay: { fontSize: 10.5, fontWeight: '800', color: '#64748B', marginBottom: 4 },
+  dateChipNum: { fontSize: 22, fontWeight: '900', color: '#0A1551' },
+  dateChipMonth: { fontSize: 10.5, fontWeight: '700', color: '#94A3B8', marginTop: 4 },
+  selectedText: { color: '#FFFFFF' },
+  selectedSubText: { color: 'rgba(255,255,255,0.78)' },
+  disabledText: { color: '#94A3B8' },
+  timePickerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  timeChip: { minWidth: '30%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: '#EDE9FE', backgroundColor: '#F5F3FF', paddingHorizontal: 12, paddingVertical: 11 },
+  timeChipSelected: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  timeChipDisabled: { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0', opacity: 0.48 },
+  timeChipText: { fontSize: 12.5, fontWeight: '800', color: '#7C3AED' },
+  noSlotsBox: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  noSlotsText: { flex: 1, color: '#9A3412', fontSize: 12.5, fontWeight: '700' },
+  submitSheetBtn: { backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15, alignItems: 'center', justifyContent: 'center' },
+  submitSheetBtnDisabled: { backgroundColor: '#CBD5E1' },
+  submitSheetText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   empty: { textAlign: 'center', marginTop: 60, color: '#64748B' },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -55,6 +55,7 @@ export default function AppointmentsScreen({ navigation }) {
   const [past, setPast]         = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming');
   const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [campaign, setCampaign] = useState(null);
   const isFocused = useIsFocused();
   useFocusEffect(React.useCallback(() => { if (!isWeb) setStatusBarStyle('light'); }, [isWeb]));
@@ -63,9 +64,9 @@ export default function AppointmentsScreen({ navigation }) {
     if (isFocused) fetchAppointments();
   }, [isFocused]);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isRefresh) setLoading(true);
       const token = await storage.getItem('userToken');
       if (!token) return;
       const [apptRes, campRes] = await Promise.allSettled([
@@ -86,8 +87,11 @@ export default function AppointmentsScreen({ navigation }) {
       console.error(error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = () => { setRefreshing(true); fetchAppointments(true); };
 
   const renderItem = ({ item, index }) => {
     const cfg = STATUS_CONFIG[resolveStatus(item)] || STATUS_CONFIG.pending;
@@ -215,6 +219,9 @@ export default function AppointmentsScreen({ navigation }) {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0052FF" colors={['#0052FF']} />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconRing}>

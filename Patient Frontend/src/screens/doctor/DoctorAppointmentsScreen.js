@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -15,6 +15,7 @@ export default function DoctorAppointmentsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('upcoming');
   const [appointments, setAppointments] = useState({ upcoming: [], past: [] });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [online, setOnline] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -34,6 +35,12 @@ export default function DoctorAppointmentsScreen({ navigation }) {
       const status = res.data?.data?.profile?.onlineStatus;
       setOnline(status === 'online');
     } catch (e) { /* non-critical */ }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await Promise.all([fetchAppointments(), fetchMyStatus()]); }
+    finally { setRefreshing(false); }
   };
 
   const toggleOnline = async () => {
@@ -268,7 +275,13 @@ export default function DoctorAppointmentsScreen({ navigation }) {
         })}
       </ScrollView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, isWeb && styles.webBlock]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, isWeb && styles.webBlock]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0052FF" colors={['#0052FF']} />
+        }
+      >
         {/* Full-bleed: cancel the container's 20px padding so the card (width-32,
             self-padded 16) doesn't overflow on the right. */}
         <DoctorPromoCard style={{ marginHorizontal: -20 }} />

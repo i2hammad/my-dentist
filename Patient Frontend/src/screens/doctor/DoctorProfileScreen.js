@@ -21,6 +21,61 @@ const SPECIALISATIONS = [
 ];
 const GENDERS = ['Male', 'Female', 'Other'];
 const EXPERIENCE_OPTIONS = [...Array.from({ length: 30 }, (_, i) => `${i + 1}`), '30+'];
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const parseClinicTime = (input) => {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  const twentyFour = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (twentyFour) return Number(twentyFour[1]) * 60 + Number(twentyFour[2]);
+  const twelveHour = raw.match(/^(0?[1-9]|1[0-2]):([0-5]\d)\s*([AaPp][Mm])$/);
+  if (!twelveHour) return NaN;
+  let h = Number(twelveHour[1]);
+  const m = Number(twelveHour[2]);
+  const meridiem = twelveHour[3].toUpperCase();
+  if (meridiem === 'PM' && h !== 12) h += 12;
+  if (meridiem === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+};
+
+const formatClinicTime = (minutes) => `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
+
+const normalizeClinicRange = (start, end, label) => {
+  const hasStart = String(start || '').trim().length > 0;
+  const hasEnd = String(end || '').trim().length > 0;
+  if (!hasStart && !hasEnd) return null;
+  if (!hasStart || !hasEnd) throw new Error(`${label} session must include both start and end time.`);
+  const startMin = parseClinicTime(start);
+  const endMin = parseClinicTime(end);
+  if (!Number.isFinite(startMin) || !Number.isFinite(endMin)) {
+    throw new Error(`${label} session time must be in HH:mm format, for example 09:00 or 17:30.`);
+  }
+  if (startMin >= endMin) throw new Error(`${label} session start time must be before end time.`);
+  return { start: formatClinicTime(startMin), end: formatClinicTime(endMin) };
+};
+
+const normalizeClinicTimingForSave = (formData) => {
+  const availableDays = (formData.availableDays || []).filter((day) => DAY_SHORT.includes(day));
+  if (!availableDays.length) throw new Error('Select at least one available clinic day.');
+  const morning = normalizeClinicRange(formData.morningStart, formData.morningEnd, 'Morning');
+  const evening = normalizeClinicRange(formData.eveningStart, formData.eveningEnd, 'Evening');
+  const ranges = [morning, evening].filter(Boolean);
+  if (!ranges.length) throw new Error('Set at least one complete clinic timing session.');
+  const offDays = DAY_SHORT.filter((day) => !availableDays.includes(day));
+  return {
+    days: availableDays.join(', '),
+    startTime: ranges[0].start,
+    endTime: ranges[ranges.length - 1].end,
+    morningStart: morning ? morning.start : '',
+    morningEnd: morning ? morning.end : '',
+    eveningStart: evening ? evening.start : '',
+    eveningEnd: evening ? evening.end : '',
+    availableDays,
+    offDays,
+  };
+};
 
 export default function DoctorProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -179,7 +234,7 @@ export default function DoctorProfileScreen({ navigation }) {
 
   const setField = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const DAYS = DAY_SHORT;
   const toggleDay = (day) => setFormData(prev => {
     const isAvail = (prev.availableDays || []).includes(day);
     if (isAvail) {
@@ -263,23 +318,27 @@ export default function DoctorProfileScreen({ navigation }) {
       if (formData.licenseCert) payload.licenseCert = formData.licenseCert;
       if (formData.idFront) payload.idFront = formData.idFront;
       if (formData.idBack) payload.idBack = formData.idBack;
-      payload.clinicTiming = {
-        days: (formData.availableDays || []).join(', '),
-        morningStart: formData.morningStart, morningEnd: formData.morningEnd,
-        eveningStart: formData.eveningStart, eveningEnd: formData.eveningEnd,
-        availableDays: formData.availableDays || [],
-        offDays: formData.offDays || [],
-      };
+      const clinicTiming = normalizeClinicTimingForSave(formData);
+      payload.clinicTiming = clinicTiming;
 
       await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      setFormData(prev => ({
+        ...prev,
+        morningStart: clinicTiming.morningStart,
+        morningEnd: clinicTiming.morningEnd,
+        eveningStart: clinicTiming.eveningStart,
+        eveningEnd: clinicTiming.eveningEnd,
+        availableDays: clinicTiming.availableDays,
+        offDays: clinicTiming.offDays,
+      }));
 
       await fetchProfile();
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Save error:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile');
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
@@ -427,16 +486,16 @@ export default function DoctorProfileScreen({ navigation }) {
 
           <Text style={styles.timingLabel}>Morning Session</Text>
           <View style={styles.timeRow}>
-            <TextInput style={styles.timeInput} value={formData.morningStart} onChangeText={t => setField('morningStart', t)} placeholder="From e.g. 9:00 AM" placeholderTextColor="#94A3B8" />
+            <TextInput style={styles.timeInput} value={formData.morningStart} onChangeText={t => setField('morningStart', t)} placeholder="From e.g. 09:00" placeholderTextColor="#94A3B8" />
             <Text style={styles.timeDash}>—</Text>
-            <TextInput style={styles.timeInput} value={formData.morningEnd} onChangeText={t => setField('morningEnd', t)} placeholder="To e.g. 1:00 PM" placeholderTextColor="#94A3B8" />
+            <TextInput style={styles.timeInput} value={formData.morningEnd} onChangeText={t => setField('morningEnd', t)} placeholder="To e.g. 13:00" placeholderTextColor="#94A3B8" />
           </View>
 
           <Text style={styles.timingLabel}>Evening Session</Text>
           <View style={styles.timeRow}>
-            <TextInput style={styles.timeInput} value={formData.eveningStart} onChangeText={t => setField('eveningStart', t)} placeholder="From e.g. 5:00 PM" placeholderTextColor="#94A3B8" />
+            <TextInput style={styles.timeInput} value={formData.eveningStart} onChangeText={t => setField('eveningStart', t)} placeholder="From e.g. 17:00" placeholderTextColor="#94A3B8" />
             <Text style={styles.timeDash}>—</Text>
-            <TextInput style={styles.timeInput} value={formData.eveningEnd} onChangeText={t => setField('eveningEnd', t)} placeholder="To e.g. 9:00 PM" placeholderTextColor="#94A3B8" />
+            <TextInput style={styles.timeInput} value={formData.eveningEnd} onChangeText={t => setField('eveningEnd', t)} placeholder="To e.g. 21:00" placeholderTextColor="#94A3B8" />
           </View>
 
           <Text style={styles.timingLabel}>Available Days <Text style={{ color: '#94A3B8', fontWeight: '400' }}>(tap to toggle — greyed = clinic off)</Text></Text>

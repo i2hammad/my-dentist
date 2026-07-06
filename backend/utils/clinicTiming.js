@@ -116,22 +116,60 @@ const normalizeClinicTiming = (timing = {}) => {
   };
 };
 
-const isDateTimeInClinicTiming = (timing = {}, date, time) => {
-  const rawDate = String(date || '');
-  const dateMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  const appointmentDate = dateMatch
-    ? new Date(Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])))
-    : new Date(date);
-  if (Number.isNaN(appointmentDate.getTime())) return false;
-  const dayName = DAY_SHORT[appointmentDate.getUTCDay()];
-  const availableDays = uniqueDays(timing.availableDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
-  const offDays = uniqueDays(timing.offDays || []);
-  if (!availableDays.includes(dayName) || offDays.includes(dayName)) return false;
+// Lenient day normalization for the READ path — skips unrecognized entries
+// instead of throwing (`uniqueDays` throws; that's only wanted when SAVING).
+const safeDays = (days) => {
+  const out = [];
+  for (const day of Array.isArray(days) ? days : []) {
+    const normalized = normalizeDay(day);
+    if (normalized && !out.includes(normalized)) out.push(normalized);
+  }
+  return out;
+};
 
-  const minutes = parseTimeToMinutes(time);
-  if (!Number.isFinite(minutes)) return false;
-  const ranges = sessionRanges(timing);
-  return ranges.some((range) => minutes >= range.startMin && minutes < range.endMin);
+// Lenient session ranges — skips any malformed/half-filled session instead of
+// throwing (`sessionRanges`/`normalizeRange` throw, which we don't want here).
+const safeRanges = (timing = {}) => {
+  const ranges = [];
+  const add = (start, end) => {
+    const s = parseTimeToMinutes(start);
+    const e = parseTimeToMinutes(end);
+    if (Number.isFinite(s) && Number.isFinite(e) && s < e) ranges.push({ startMin: s, endMin: e });
+  };
+  add(timing.morningStart, timing.morningEnd);
+  add(timing.eveningStart, timing.eveningEnd);
+  if (!ranges.length) add(timing.startTime, timing.endTime);
+  return ranges;
+};
+
+// Predicate for booking/reschedule. MUST NOT throw — malformed clinic timing
+// should never turn a valid slot into a 500. Returns true/false only.
+const isDateTimeInClinicTiming = (timing = {}, date, time) => {
+  try {
+    const rawDate = String(date || '');
+    const dateMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const appointmentDate = dateMatch
+      ? new Date(Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])))
+      : new Date(date);
+    if (Number.isNaN(appointmentDate.getTime())) return false;
+
+    const dayName = DAY_SHORT[appointmentDate.getUTCDay()];
+    const availableDays = safeDays(timing.availableDays);
+    const offDays = safeDays(timing.offDays);
+    const effectiveDays = availableDays.length ? availableDays : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (!effectiveDays.includes(dayName) || offDays.includes(dayName)) return false;
+
+    const minutes = parseTimeToMinutes(time);
+    if (!Number.isFinite(minutes)) return false;
+
+    const ranges = safeRanges(timing);
+    // If no session window is parseable, don't hard-block: the client already
+    // constrains the picker to the doctor's timing.
+    if (!ranges.length) return true;
+    return ranges.some((range) => minutes >= range.startMin && minutes < range.endMin);
+  } catch (_) {
+    return true; // never 500 a booking/reschedule over timing parsing
+  }
 };
 
 module.exports = {

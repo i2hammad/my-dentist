@@ -67,15 +67,21 @@ const createAppointment = async (req, res) => {
       status: 'pending'
     });
 
-    // Create notification for the doctor
-    await Notification.create({
-      userId: doctorProfile.userId,
-      type: 'appointment',
-      title: 'New Appointment Request',
-      message: `You have a new ${treatmentType} appointment request for ${new Date(date).toLocaleDateString()} at ${time}.`,
-      relatedModel: 'Appointment',
-      relatedId: appointment._id
-    });
+    // Create notification for the doctor — best-effort: a notification failure
+    // must NOT fail an already-created booking (that showed "Booking Failed"
+    // to the patient even though the appointment was saved).
+    try {
+      await Notification.create({
+        userId: doctorProfile.userId,
+        type: 'appointment',
+        title: 'New Appointment Request',
+        message: `You have a new ${treatmentType} appointment request for ${new Date(date).toLocaleDateString()} at ${time}.`,
+        relatedModel: 'Appointment',
+        relatedId: appointment._id
+      });
+    } catch (notifyErr) {
+      console.error('Appointment notification failed (booking still created):', notifyErr.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -83,6 +89,7 @@ const createAppointment = async (req, res) => {
       data: appointment
     });
   } catch (error) {
+    console.error('Create appointment error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create appointment',
@@ -325,14 +332,18 @@ const rescheduleAppointment = async (req, res) => {
       };
       await appointment.save();
 
-      await Notification.create({
-        userId: appointment.doctorId.userId,
-        type: 'appointment',
-        title: 'Reschedule Requested',
-        message: `${appointment.patientId.fullName} requested to reschedule to ${new Date(date).toLocaleDateString()} at ${time}. Review and confirm.`,
-        relatedModel: 'Appointment',
-        relatedId: appointment._id
-      });
+      try {
+        await Notification.create({
+          userId: appointment.doctorId.userId,
+          type: 'appointment',
+          title: 'Reschedule Requested',
+          message: `${appointment.patientId.fullName} requested to reschedule to ${new Date(date).toLocaleDateString()} at ${time}. Review and confirm.`,
+          relatedModel: 'Appointment',
+          relatedId: appointment._id
+        });
+      } catch (notifyErr) {
+        console.error('Reschedule-request notification failed (request still saved):', notifyErr.message);
+      }
 
       return res.status(200).json({
         success: true,
@@ -348,14 +359,18 @@ const rescheduleAppointment = async (req, res) => {
     appointment.rescheduleRequest = { requested: false, date: null, time: null, requestedAt: null };
     await appointment.save();
 
-    await Notification.create({
-      userId: appointment.patientId.userId,
-      type: 'appointment',
-      title: 'Appointment Rescheduled',
-      message: `Your appointment has been rescheduled by ${appointment.doctorId.fullName} to ${new Date(date).toLocaleDateString()} at ${time}.`,
-      relatedModel: 'Appointment',
-      relatedId: appointment._id
-    });
+    try {
+      await Notification.create({
+        userId: appointment.patientId.userId,
+        type: 'appointment',
+        title: 'Appointment Rescheduled',
+        message: `Your appointment has been rescheduled by ${appointment.doctorId.fullName} to ${new Date(date).toLocaleDateString()} at ${time}.`,
+        relatedModel: 'Appointment',
+        relatedId: appointment._id
+      });
+    } catch (notifyErr) {
+      console.error('Reschedule notification failed (reschedule still applied):', notifyErr.message);
+    }
 
     res.status(200).json({
       success: true,
@@ -363,6 +378,7 @@ const rescheduleAppointment = async (req, res) => {
       data: appointment
     });
   } catch (error) {
+    console.error('Reschedule error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to reschedule appointment',

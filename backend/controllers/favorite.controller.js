@@ -10,12 +10,14 @@ const getFavorites = async (req, res) => {
       .populate({
         path: 'doctorId',
         model: 'DoctorProfile',
+        match: { isBlocked: { $ne: true } }, // blocked doctors drop out of favorites
         select: 'fullName photo specialization clinicName clinicTier onlineStatus coordinates address city pmdcVerified experience avgRating totalReviews facilityScore',
       })
       .sort({ createdAt: -1 })
       .lean();
 
-    // Filter out any favorites where the doctor profile no longer exists
+    // Filter out favorites whose doctor no longer exists OR is now blocked
+    // (a non-matching populate leaves doctorId null).
     const validFavorites = favorites.filter((fav) => fav.doctorId !== null);
 
     res.status(200).json({
@@ -39,9 +41,9 @@ const addFavorite = async (req, res) => {
   try {
     const { doctorId } = req.params;
 
-    // Verify doctor exists (doctorId is DoctorProfile._id)
+    // Verify doctor exists and isn't blocked (doctorId is DoctorProfile._id)
     const doctor = await DoctorProfile.findById(doctorId);
-    if (!doctor) {
+    if (!doctor || doctor.isBlocked) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found',

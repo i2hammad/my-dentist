@@ -10,6 +10,7 @@ const {
   createAppointment,
   getMyAppointments,
   getAppointment,
+  getBookedSlots,
   rescheduleAppointment,
   cancelAppointment,
   completeAppointment,
@@ -77,6 +78,23 @@ router.get(
   ],
   validate,
   getMyAppointments
+);
+
+// @route   GET /api/appointments/doctor/:doctorId/booked-slots
+// @desc    Get booked appointment times for one doctor/date
+router.get(
+  '/doctor/:doctorId/booked-slots',
+  [
+    param('doctorId').isMongoId().withMessage('Invalid doctor ID'),
+    query('date')
+      .notEmpty().withMessage('Date is required')
+      .isISO8601().withMessage('Date must be a valid ISO date'),
+    query('excludeId')
+      .optional()
+      .isMongoId().withMessage('Invalid appointment ID to exclude')
+  ],
+  validate,
+  getBookedSlots
 );
 
 // @route   GET /api/appointments/:id

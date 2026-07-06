@@ -2,6 +2,12 @@ const Appointment = require('../models/Appointment');
 const PatientProfile = require('../models/PatientProfile');
 const DoctorProfile = require('../models/DoctorProfile');
 const Notification = require('../models/Notification');
+const { isDateTimeInClinicTiming } = require('../utils/clinicTiming');
+
+// Statuses that still occupy a time slot (a rescheduled appointment is still a
+// live, upcoming booking — it must block its slot and be reschedulable again).
+// 'completed' and 'cancelled' free the slot.
+const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 
 // @desc    Create a new appointment
 // @route   POST /api/appointments
@@ -19,12 +25,19 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    // Verify the doctor exists
+    // Verify the doctor exists and isn't blocked (blocked doctors can't be booked).
     const doctorProfile = await DoctorProfile.findById(doctorId);
-    if (!doctorProfile) {
+    if (!doctorProfile || doctorProfile.isBlocked) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
+      });
+    }
+
+    if (!isDateTimeInClinicTiming(doctorProfile.clinicTiming, date, time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected date or time is outside the doctor clinic timings. Please choose an available slot.'
       });
     }
 
@@ -33,7 +46,7 @@ const createAppointment = async (req, res) => {
       doctorId,
       date: new Date(date),
       time,
-      status: { $in: ['pending', 'confirmed'] }
+      status: { $in: ACTIVE_STATUSES }
     });
 
     if (existingAppointment) {
@@ -122,7 +135,7 @@ const getMyAppointments = async (req, res) => {
     const appointments = await Appointment.find(filter)
       .populate({
         path: 'doctorId',
-        select: 'fullName specialization clinicName photo userId phone clinicContact address city consultationFee'
+        select: 'fullName specialization clinicName photo userId phone clinicContact address city consultationFee clinicTiming'
       })
       .populate({
         path: 'patientId',
@@ -162,7 +175,7 @@ const getAppointment = async (req, res) => {
     const appointment = await Appointment.findById(req.params.id)
       .populate({
         path: 'doctorId',
-        select: 'fullName specialization clinicName photo userId'
+        select: 'fullName specialization clinicName photo userId clinicTiming'
       })
       .populate({
         path: 'patientId',
@@ -204,6 +217,38 @@ const getAppointment = async (req, res) => {
   }
 };
 
+// @desc    Get booked slots for a doctor on a date
+// @route   GET /api/appointments/doctor/:doctorId/booked-slots?date=YYYY-MM-DD&excludeId=<appointmentId>
+// @access  Private
+const getBookedSlots = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { date, excludeId } = req.query;
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'Date is required' });
+    }
+
+    const query = {
+      doctorId,
+      date: new Date(date),
+      status: { $in: ACTIVE_STATUSES },
+    };
+    if (excludeId) query._id = { $ne: excludeId };
+
+    const appointments = await Appointment.find(query).select('time status').lean();
+    res.status(200).json({
+      success: true,
+      data: appointments.map((appointment) => appointment.time).filter(Boolean),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch booked slots',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Reschedule an appointment
 // @route   PUT /api/appointments/:id/reschedule
 // @access  Private (Patient or Doctor)
@@ -212,7 +257,7 @@ const rescheduleAppointment = async (req, res) => {
     const { date, time } = req.body;
 
     const appointment = await Appointment.findById(req.params.id)
-      .populate({ path: 'doctorId', select: 'userId fullName' })
+      .populate({ path: 'doctorId', select: 'userId fullName clinicTiming' })
       .populate({ path: 'patientId', select: 'userId fullName' });
 
     if (!appointment) {
@@ -222,8 +267,9 @@ const rescheduleAppointment = async (req, res) => {
       });
     }
 
-    // Only pending or confirmed appointments can be rescheduled
-    if (!['pending', 'confirmed'].includes(appointment.status)) {
+    // Only live appointments can be rescheduled (a rescheduled one may be moved
+    // again). Completed/cancelled cannot.
+    if (!ACTIVE_STATUSES.includes(appointment.status)) {
       return res.status(400).json({
         success: false,
         message: `Cannot reschedule an appointment with status '${appointment.status}'`
@@ -245,13 +291,20 @@ const rescheduleAppointment = async (req, res) => {
       });
     }
 
+    if (!isDateTimeInClinicTiming(appointment.doctorId.clinicTiming, date, time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected date or time is outside the doctor clinic timings. Please choose an available slot.'
+      });
+    }
+
     // Check for conflicting appointment at new time
     const conflict = await Appointment.findOne({
       _id: { $ne: appointment._id },
       doctorId: appointment.doctorId._id,
       date: new Date(date),
       time,
-      status: { $in: ['pending', 'confirmed'] }
+      status: { $in: ACTIVE_STATUSES }
     });
 
     if (conflict) {
@@ -632,6 +685,7 @@ module.exports = {
   createAppointment,
   getMyAppointments,
   getAppointment,
+  getBookedSlots,
   rescheduleAppointment,
   cancelAppointment,
   completeAppointment,

@@ -2,6 +2,7 @@ const User = require('../models/User');
 const PatientProfile = require('../models/PatientProfile');
 const DoctorProfile = require('../models/DoctorProfile');
 const { memoryUpload, uploadToCloudinary } = require('../config/cloudinary');
+const { normalizeClinicTiming } = require('../utils/clinicTiming');
 
 // Uploads are streamed to Cloudinary (persistent on serverless hosts).
 // memoryUpload keeps the file as a Buffer in req.file.buffer.
@@ -334,6 +335,13 @@ const updateDoctorProfile = async (req, res) => {
     const updates = {};
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    if (updates.clinicTiming) {
+      try {
+        updates.clinicTiming = normalizeClinicTiming(updates.clinicTiming);
+      } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+      }
     }
     if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, message: 'No valid fields to update' });
     const updatedProfile = await DoctorProfile.findOneAndUpdate({ userId: req.user._id }, { $set: updates }, { new: true, runValidators: true });

@@ -24,8 +24,8 @@ const getDoctors = async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
 
-    // Build filter object
-    const filter = {};
+    // Build filter object. Blocked doctors are hidden from patients everywhere.
+    const filter = { isBlocked: { $ne: true } };
 
     if (req.query.specialization) {
       filter.specialization = req.query.specialization;
@@ -169,7 +169,8 @@ const getNearbyDoctors = async (req, res) => {
           },
           distanceField: 'distance',
           maxDistance: radiusMeters,
-          spherical: true
+          spherical: true,
+          query: { isBlocked: { $ne: true } } // hide blocked doctors from patients
         }
       },
       {
@@ -235,6 +236,7 @@ const searchDoctors = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const filter = {
+      isBlocked: { $ne: true }, // hide blocked doctors from patient search
       $or: [
         { fullName: regex },
         { clinicName: regex },
@@ -284,7 +286,8 @@ const getDoctorById = async (req, res) => {
       .populate('userId', 'email role')
       .lean();
 
-    if (!doctor) {
+    // Blocked doctors are hidden from patients — treat as not found.
+    if (!doctor || doctor.isBlocked) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
@@ -316,9 +319,9 @@ const getDoctorServices = async (req, res) => {
       });
     }
 
-    const doctor = await DoctorProfile.findById(req.params.id).select('services fullName').lean();
+    const doctor = await DoctorProfile.findById(req.params.id).select('services fullName isBlocked').lean();
 
-    if (!doctor) {
+    if (!doctor || doctor.isBlocked) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
@@ -357,9 +360,9 @@ const getDoctorStats = async (req, res) => {
 
     const doctorId = new mongoose.Types.ObjectId(req.params.id);
 
-    // Verify doctor exists
-    const doctor = await DoctorProfile.findById(doctorId).select('fullName').lean();
-    if (!doctor) {
+    // Verify doctor exists and isn't blocked (blocked doctors are hidden).
+    const doctor = await DoctorProfile.findById(doctorId).select('fullName isBlocked').lean();
+    if (!doctor || doctor.isBlocked) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'

@@ -12,6 +12,7 @@ import { detectCoords } from '../utils/geo';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../utils/support';
 import { SkeletonProfile } from '../components/Skeleton';
 import PaymentMethods from '../components/PaymentMethods';
+import CityPicker from '../components/CityPicker';
 import PromoCard from '../components/PromoCard';
 import { webForm, isWeb } from '../config/webLayout';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
@@ -52,15 +53,6 @@ export default function ProfileScreen({ navigation }) {
   const [newMemberAge, setNewMemberAge] = useState('');
   const [newMemberGender, setNewMemberGender] = useState('male');
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
-  
-  const cities = ['Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar'];
-  const cityQuery = city.trim().toLowerCase();
-  const filteredCities = cities.filter((c) => c.toLowerCase().includes(cityQuery));
-  const selectCity = (c) => {
-    setCity(c);
-    setShowCityDropdown(false);
-  };
 
   useEffect(() => {
     if (isFocused) {
@@ -487,7 +479,7 @@ export default function ProfileScreen({ navigation }) {
               <View style={[styles.dropdownAnchor, showGenderDropdown && styles.dropdownAnchorOpen]}>
                 <TouchableOpacity
                   style={styles.inputContainer}
-                  onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowCityDropdown(false); }}
+                  onPress={() => { setShowGenderDropdown(!showGenderDropdown); }}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="people-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
@@ -513,50 +505,7 @@ export default function ProfileScreen({ navigation }) {
               </View>
 
               <Text style={styles.label}>City</Text>
-              <View style={[styles.dropdownAnchor, showCityDropdown && styles.dropdownAnchorOpen]}>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    value={city}
-                    onChangeText={(text) => {
-                      setCity(text);
-                      const q = text.trim().toLowerCase();
-                      setShowCityDropdown(!q || cities.some((c) => c.toLowerCase().includes(q)));
-                    }}
-                    onFocus={() => { setShowCityDropdown(true); setShowGenderDropdown(false); }}
-                    onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
-                    placeholder="Enter your city"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="words"
-                    returnKeyType="done"
-                    onSubmitEditing={() => setShowCityDropdown(false)}
-                  />
-                  <TouchableOpacity
-                    onPress={() => { setShowCityDropdown(!showCityDropdown); setShowGenderDropdown(false); }}
-                    hitSlop={8}
-                    style={styles.dropdownToggle}
-                  >
-                    <Ionicons name={showCityDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
-                  </TouchableOpacity>
-                </View>
-
-                {showCityDropdown && filteredCities.length > 0 && (
-                  <View style={styles.dropdownMenu}>
-                    {filteredCities.map((c) => (
-                      <TouchableOpacity
-                        key={c}
-                        style={styles.dropdownItem}
-                        onMouseDown={Platform.OS === 'web' ? (e) => { e.preventDefault(); selectCity(c); } : undefined}
-                        onPressIn={() => selectCity(c)}
-                        onPress={() => selectCity(c)}
-                      >
-                        <Text style={styles.dropdownItemText}>{c}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
+              <CityPicker value={city} onSelect={setCity} placeholder="Enter your city" />
 
               <Text style={styles.label}>Location / Address</Text>
               <View style={styles.locationCard}>

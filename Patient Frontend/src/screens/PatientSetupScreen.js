@@ -10,6 +10,7 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
 import { webForm, webFieldGrid, webHalf, webFull } from '../config/webLayout';
+import CityPicker from '../components/CityPicker';
 
 export default function PatientSetupScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -29,16 +30,7 @@ export default function PatientSetupScreen({ navigation }) {
   const [profileExists, setProfileExists] = useState(false);
   
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  
-  const cities = ['Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar'];
-  const cityQuery = city.trim().toLowerCase();
-  const filteredCities = cities.filter((c) => c.toLowerCase().includes(cityQuery));
-  const selectCity = (c) => {
-    setCity(c);
-    setShowCityDropdown(false);
-  };
 
   useEffect(() => {
     if (isFocused) {
@@ -276,8 +268,12 @@ export default function PatientSetupScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.pageTitle}>Create Patient Profile</Text>
-            <Text style={styles.pageSubtitle}>Let's create your profile to get started</Text>
+            <Text style={styles.pageTitle}>
+              {profileExists && fullName.trim() ? fullName.trim() : 'Create Patient Profile'}
+            </Text>
+            <Text style={styles.pageSubtitle}>
+              {profileExists ? 'Review and update your profile details' : "Let's create your profile to get started"}
+            </Text>
 
             <View style={styles.formCard}>
               {/* Section Header */}
@@ -372,7 +368,7 @@ export default function PatientSetupScreen({ navigation }) {
               <Text style={styles.label}>Gender</Text>
               <TouchableOpacity
                 style={styles.inputContainer}
-                onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowCityDropdown(false); }}
+                onPress={() => { setShowGenderDropdown(!showGenderDropdown); }}
                 activeOpacity={0.8}
               >
                 <Ionicons name="people-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
@@ -397,50 +393,9 @@ export default function PatientSetupScreen({ navigation }) {
               )}
               </View>
 
-              <View style={[styles.fieldItem, webHalf, showCityDropdown && styles.fieldItemOpen]}>
+              <View style={[styles.fieldItem, webHalf]}>
               <Text style={styles.label}>City</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={city}
-                  onChangeText={(text) => {
-                    setCity(text);
-                    const q = text.trim().toLowerCase();
-                    setShowCityDropdown(!q || cities.some((c) => c.toLowerCase().includes(q)));
-                  }}
-                  onFocus={() => { setShowCityDropdown(true); setShowGenderDropdown(false); }}
-                  onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
-                  placeholder="Enter your city"
-                  placeholderTextColor="#94A3B8"
-                  autoCapitalize="words"
-                  returnKeyType="done"
-                  onSubmitEditing={() => setShowCityDropdown(false)}
-                />
-                <TouchableOpacity
-                  onPress={() => { setShowCityDropdown(!showCityDropdown); setShowGenderDropdown(false); }}
-                  hitSlop={8}
-                  style={styles.dropdownToggle}
-                >
-                  <Ionicons name={showCityDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
-
-              {showCityDropdown && filteredCities.length > 0 && (
-                <View style={styles.dropdownMenu}>
-                  {filteredCities.map((c) => (
-                    <TouchableOpacity 
-                      key={c} 
-                      style={styles.dropdownItem} 
-                      onMouseDown={Platform.OS === 'web' ? (e) => { e.preventDefault(); selectCity(c); } : undefined}
-                      onPressIn={() => selectCity(c)}
-                      onPress={() => selectCity(c)}
-                    >
-                      <Text style={styles.dropdownItemText}>{c}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              <CityPicker value={city} onSelect={setCity} placeholder="Enter your city" />
               </View>
 
               <View style={[styles.fieldItem, webFull]}>

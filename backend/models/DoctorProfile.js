@@ -164,6 +164,21 @@ const doctorProfileSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Line-item ledger for point changes that don't come from a paid bill or
+    // patient review (e.g. admin manual grants/deductions). The doctor's Points
+    // History screen renders these alongside visit/review events so a granted
+    // point is actually visible in the breakdown, not just in the top-line total.
+    pointsAdjustments: {
+      type: [
+        {
+          points: { type: Number, required: true }, // may be negative for a deduction
+          note: { type: String, default: '' },
+          kind: { type: String, default: 'admin' }, // 'admin' | 'referral'
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     // ── Referral program (doctor side) ──
     // The doctor's own shareable code. Patients OR other doctors can redeem it.
     referralCode: { type: String, unique: true, sparse: true },

@@ -21,8 +21,9 @@ const MONTH_NAMES = [
 const PTS_PER_BILL = 50;
 const PTS_PER_REVIEW = 50;
 
-// Build monthly point-event groups from paid bills + received patient reviews.
-function buildMonthGroups(bills, reviews) {
+// Build monthly point-event groups from paid bills + received patient reviews
+// + admin point adjustments (manual grants/deductions).
+function buildMonthGroups(bills, reviews, adjustments) {
   const map = {};
   const ensure = (d) => {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -47,6 +48,20 @@ function buildMonthGroups(bills, reviews) {
       sub: r.patientId?.fullName ? `Review by ${r.patientId.fullName}` : 'Patient review',
     });
   });
+  (adjustments || []).forEach((a, idx) => {
+    const pts = Number(a.points) || 0;
+    if (!pts) return;
+    const d = new Date(a.createdAt || Date.now());
+    const isReferral = a.kind === 'referral';
+    ensure(d).events.push({
+      id: 'a_' + (a._id || `${d.getTime()}_${idx}`),
+      type: isReferral ? 'referral' : 'admin', points: pts, date: d,
+      title: isReferral
+        ? `You earned ${pts} referral points`
+        : (pts > 0 ? `You were granted ${pts} points` : `${Math.abs(pts)} points were deducted`),
+      sub: a.note || (isReferral ? 'Referral bonus' : (pts > 0 ? 'Points granted by admin' : 'Points deducted by admin')),
+    });
+  });
   return Object.values(map)
     .map((g) => ({
       ...g,
@@ -54,6 +69,7 @@ function buildMonthGroups(bills, reviews) {
       points: g.events.reduce((s, e) => s + e.points, 0),
       paidVisits: g.events.filter((e) => e.type === 'visit').length,
       reviewCount: g.events.filter((e) => e.type === 'review').length,
+      adminCount: g.events.filter((e) => e.type === 'admin' || e.type === 'referral').length,
       collected: g.events.reduce((s, e) => s + (e.amount || 0), 0),
     }))
     .sort((a, b) => (a.key < b.key ? 1 : -1));
@@ -64,6 +80,7 @@ export default function PointsHistoryScreen({ navigation, route }) {
 
   const [bills, setBills] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [adjustments, setAdjustments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -73,7 +90,9 @@ export default function PointsHistoryScreen({ navigation, route }) {
         const auth = { headers: { Authorization: `Bearer ${token}` } };
         // Resolve this doctor's profile id so we can pull the reviews they've received.
         const meRes = await axios.get(`${API_BASE_URL}/api/users/me`, auth).catch(() => null);
-        const docId = meRes?.data?.data?.profile?._id;
+        const profile = meRes?.data?.data?.profile;
+        const docId = profile?._id;
+        if (Array.isArray(profile?.pointsAdjustments)) setAdjustments(profile.pointsAdjustments);
         const [billsRes, reviewsRes] = await Promise.all([
           axios.get(`${API_BASE_URL}/api/bills/my`, auth).catch(() => null),
           docId ? axios.get(`${API_BASE_URL}/api/reviews/doctor/${docId}?limit=100`, auth).catch(() => null) : Promise.resolve(null),
@@ -85,7 +104,7 @@ export default function PointsHistoryScreen({ navigation, route }) {
     })();
   }, []);
 
-  const monthGroups = buildMonthGroups(bills, reviews);
+  const monthGroups = buildMonthGroups(bills, reviews, adjustments);
   const now = new Date();
   const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const thisMonthGroup = monthGroups.find((g) => g.key === thisMonthKey);
@@ -124,7 +143,7 @@ export default function PointsHistoryScreen({ navigation, route }) {
             </View>
             <View style={styles.totalRight}>
               <Text style={styles.totalRightLabel}>This Month</Text>
-              <Text style={styles.totalRightValue}>+{thisMonthPts.toLocaleString()} pts</Text>
+              <Text style={styles.totalRightValue}>{thisMonthPts >= 0 ? '+' : ''}{thisMonthPts.toLocaleString()} pts</Text>
             </View>
           </View>
 
@@ -135,7 +154,7 @@ export default function PointsHistoryScreen({ navigation, route }) {
               This month you earned{' '}
               <Text style={styles.thisMonthPts}>{thisMonthPts.toLocaleString()} points</Text>
               {thisMonthGroup
-                ? ` from ${thisMonthGroup.paidVisits} paid visit${thisMonthGroup.paidVisits !== 1 ? 's' : ''}${thisMonthGroup.reviewCount ? ` and ${thisMonthGroup.reviewCount} patient review${thisMonthGroup.reviewCount !== 1 ? 's' : ''}` : ''}.`
+                ? ` from ${thisMonthGroup.paidVisits} paid visit${thisMonthGroup.paidVisits !== 1 ? 's' : ''}${thisMonthGroup.reviewCount ? ` and ${thisMonthGroup.reviewCount} patient review${thisMonthGroup.reviewCount !== 1 ? 's' : ''}` : ''}${thisMonthGroup.adminCount ? ` and ${thisMonthGroup.adminCount} bonus point event${thisMonthGroup.adminCount !== 1 ? 's' : ''}` : ''}.`
                 : ' — no points activity yet this month.'}
             </Text>
           </View>
@@ -185,7 +204,7 @@ export default function PointsHistoryScreen({ navigation, route }) {
                     </View>
                     <View style={styles.ptsWrap}>
                       <Ionicons name="star" size={13} color="#D97706" style={{ marginRight: 4 }} />
-                      <Text style={styles.monthPts}>+{g.points.toLocaleString()} pts</Text>
+                      <Text style={styles.monthPts}>{g.points >= 0 ? '+' : ''}{g.points.toLocaleString()} pts</Text>
                     </View>
                   </View>
 
@@ -213,17 +232,25 @@ export default function PointsHistoryScreen({ navigation, route }) {
                   {g.events.map((e, i) => {
                     const dateStr = e.date.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' });
                     const isReview = e.type === 'review';
+                    const isAdmin = e.type === 'admin';
+                    const isReferral = e.type === 'referral';
+                    const isNeg = e.points < 0;
+                    const iconName = isReferral ? 'gift' : isAdmin ? 'shield-checkmark' : isReview ? 'star' : 'medical-outline';
+                    const iconColor = isReferral ? '#0891B2' : isAdmin ? (isNeg ? '#DC2626' : '#7C3AED') : isReview ? '#D97706' : '#0052FF';
+                    const iconBg = isReferral ? '#CFFAFE' : isAdmin ? (isNeg ? '#FEE2E2' : '#F3E8FF') : isReview ? '#FEF3C7' : '#EFF6FF';
                     return (
                       <View key={e.id} style={[styles.billRow, i === 0 && styles.billRowFirst]}>
-                        <View style={[styles.billIconWrap, isReview && { backgroundColor: '#FEF3C7' }]}>
-                          <Ionicons name={isReview ? 'star' : 'medical-outline'} size={14} color={isReview ? '#D97706' : '#0052FF'} />
+                        <View style={[styles.billIconWrap, { backgroundColor: iconBg }]}>
+                          <Ionicons name={iconName} size={14} color={iconColor} />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.billPatient} numberOfLines={2}>{e.title}</Text>
                           <Text style={styles.billDate}>{dateStr} · {e.sub}</Text>
                         </View>
                         <View style={styles.billRight}>
-                          <Text style={styles.billPts}>+{e.points} pts</Text>
+                          <Text style={[styles.billPts, isNeg && { color: '#DC2626' }]}>
+                            {isNeg ? '' : '+'}{e.points} pts
+                          </Text>
                           {e.amount ? <Text style={styles.billAmt}>Rs. {e.amount.toLocaleString()}</Text> : null}
                         </View>
                       </View>

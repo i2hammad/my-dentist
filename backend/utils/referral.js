@@ -65,7 +65,10 @@ async function rewardReferralOnFirstTreatment(patientProfile) {
     });
     // Referrer doctor earns reward points (drives the Popular badge).
     const { addDoctorPoints } = require('./popular');
-    await addDoctorPoints(referrer._id, REFERRAL_POINTS);
+    await addDoctorPoints(referrer._id, REFERRAL_POINTS, {
+      kind: 'referral',
+      note: `Referral bonus — ${patientProfile.fullName || 'a patient'} joined via your code and completed their first treatment`,
+    });
   } else {
     const referrer = await PatientProfile.findById(patientProfile.referredBy);
     if (!referrer) return;
@@ -110,8 +113,14 @@ async function rewardDoctorReferralOnFirstTreatment(doctorProfile) {
   if (!referrer) return;
 
   const { addDoctorPoints } = require('./popular');
-  await addDoctorPoints(claimed._id, REFERRAL_POINTS);   // referred doctor
-  await addDoctorPoints(referrer._id, REFERRAL_POINTS);  // referrer doctor
+  await addDoctorPoints(claimed._id, REFERRAL_POINTS, {   // referred doctor
+    kind: 'referral',
+    note: 'Referral bonus — you joined via a dentist referral and completed your first treatment',
+  });
+  await addDoctorPoints(referrer._id, REFERRAL_POINTS, {  // referrer doctor
+    kind: 'referral',
+    note: `Referral bonus — ${claimed.fullName || 'a dentist'} you referred completed their first treatment`,
+  });
 
   doctorProfile.referralRewarded = true; // reflect in the caller's copy
 }

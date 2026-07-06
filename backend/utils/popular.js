@@ -35,14 +35,31 @@ async function recomputePopular(doctor) {
 
 /**
  * Add points to a doctor and recompute their popular status.
+ *
+ * Pass `ledger` ({ note, kind }) to also record a line item in the doctor's
+ * pointsAdjustments history (used for referral bonuses, which have no bill/review
+ * to derive a history entry from). Omit it for visit/review points — those are
+ * already shown in the Points History screen from bills/reviews, so writing a
+ * ledger entry there would double-count them.
  */
-async function addDoctorPoints(doctorId, points) {
+async function addDoctorPoints(doctorId, points, ledger) {
   // Atomic $inc so the points ALWAYS persist — a load-modify-.save() would throw
   // (and silently lose the points) if the DoctorProfile has any unrelated validation
   // gap. Popular status is then recomputed best-effort on the already-saved doc.
+  const update = { $inc: { rewardPoints: points } };
+  if (ledger && points) {
+    update.$push = {
+      pointsAdjustments: {
+        points,
+        note: ledger.note || '',
+        kind: ledger.kind || 'admin',
+        createdAt: new Date(),
+      },
+    };
+  }
   const doctor = await DoctorProfile.findByIdAndUpdate(
     doctorId,
-    { $inc: { rewardPoints: points } },
+    update,
     { new: true }
   );
   if (!doctor) return null;

@@ -667,6 +667,17 @@ exports.setPopular = async (req, res) => {
 
     if (typeof addPoints === 'number') {
       doctor.rewardPoints = Math.max(0, (doctor.rewardPoints || 0) + addPoints);
+      // Record a line item so this grant/deduction shows up in the doctor's
+      // Points History (which is otherwise rebuilt only from bills + reviews).
+      if (addPoints !== 0) {
+        doctor.pointsAdjustments = doctor.pointsAdjustments || [];
+        doctor.pointsAdjustments.push({
+          points: addPoints,
+          note: (req.body.note || '').trim() || (addPoints > 0 ? 'Points granted by admin' : 'Points deducted by admin'),
+          kind: 'admin',
+          createdAt: new Date(),
+        });
+      }
       await doctor.save();            // always persist the points (recomputePopular skips saving for 'paid' badges)
       await recomputePopular(doctor); // then auto-grant/remove the green badge
     } else if (action === 'grantPaid') {

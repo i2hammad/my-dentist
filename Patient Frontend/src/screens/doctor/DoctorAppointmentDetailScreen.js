@@ -47,6 +47,18 @@ const parseTime = (input) => {
   return h * 60 + m;
 };
 const minutesToTime = (minutes) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+
+// Preset slots are 1 hour apart; any chosen time must be >= 30 min from a booked one.
+const SLOT_STEP_MINUTES = 60;
+const MIN_GAP_MINUTES = 30;
+const isTooCloseToBooked = (time, booked) => {
+  const m = parseTime(time);
+  if (!Number.isFinite(m)) return false;
+  return (booked || []).some((b) => {
+    const bm = parseTime(b);
+    return Number.isFinite(bm) && Math.abs(bm - m) < MIN_GAP_MINUTES;
+  });
+};
 const validDays = (days, fallback) => {
   const out = Array.isArray(days) ? days.filter((d) => DAY_SHORT.includes(d)) : [];
   return out.length ? out : fallback;
@@ -90,7 +102,7 @@ const generateDateOptions = (count, timing) => {
   }
   return dates;
 };
-const generateTimeOptions = (timing, step = 30) => {
+const generateTimeOptions = (timing, step = SLOT_STEP_MINUTES) => {
   const slots = [];
   timingRanges(timing).forEach((range) => {
     for (let minutes = range.startMin; minutes < range.endMin; minutes += step) {
@@ -131,7 +143,7 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
         const slots = res.data?.success ? (res.data.data || []) : [];
         if (alive) {
           setBookedSlots(slots);
-          if (newTime && slots.includes(newTime)) setNewTime('');
+          if (newTime && isTooCloseToBooked(newTime, slots)) setNewTime('');
         }
       } catch {
         if (alive) setBookedSlots([]);
@@ -224,7 +236,7 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
 
   const submitReschedule = () => {
     if (!newDate || !newTime) return Alert.alert('Missing Info', 'Please select an available date and time.');
-    if (bookedSlots.includes(newTime)) return Alert.alert('Slot Booked', 'This time slot is already booked. Please choose another available slot.');
+    if (isTooCloseToBooked(newTime, bookedSlots)) return Alert.alert('Slot Unavailable', 'This time is within 30 minutes of another booking. Please pick a time at least 30 minutes apart.');
     setShowReschedule(false);
     act('rescheduled', async (h) => (
       axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/reschedule`, { date: newDate, time: newTime }, { headers: h })
@@ -350,7 +362,7 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
             <View style={styles.timePickerGrid}>
               {timeOptions.length ? timeOptions.map((slot) => {
                 const selected = newTime === slot.value;
-                const disabled = !newDate || !isDateAllowed(newDate, clinicTiming) || bookedSlots.includes(slot.value);
+                const disabled = !newDate || !isDateAllowed(newDate, clinicTiming) || isTooCloseToBooked(slot.value, bookedSlots);
                 return (
                   <TouchableOpacity
                     key={slot.value}

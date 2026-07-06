@@ -81,6 +81,19 @@ const parseBookingTime = (input) => {
 
 const minutesToTime = (minutes) => `${pad2(Math.floor(minutes / 60))}:${pad2(minutes % 60)}`;
 
+// Preset slots are spaced 1 hour apart; any chosen time (incl. custom) must be at
+// least this many minutes away from an already-booked time.
+const SLOT_STEP_MINUTES = 60;
+const MIN_GAP_MINUTES = 30;
+const isTooCloseToBooked = (time, booked) => {
+  const m = parseBookingTime(time);
+  if (!Number.isFinite(m)) return false;
+  return (booked || []).some((b) => {
+    const bm = parseBookingTime(b);
+    return Number.isFinite(bm) && Math.abs(bm - m) < MIN_GAP_MINUTES;
+  });
+};
+
 const normalizeDayList = (days, fallback) => {
   const valid = Array.isArray(days) ? days.filter((day) => DAY_SHORT.includes(day)) : [];
   return valid.length ? valid : fallback;
@@ -140,7 +153,7 @@ function generateDates(count = 60, timing = {}) {
   return dates;
 }
 
-function generateTimeSlots(timing = {}, stepMinutes = 30) {
+function generateTimeSlots(timing = {}, stepMinutes = SLOT_STEP_MINUTES) {
   const slots = [];
   getTimingRanges(timing).forEach((range) => {
     for (let minutes = range.startMin; minutes < range.endMin; minutes += stepMinutes) {
@@ -209,7 +222,7 @@ export default function BookingScreen({ route, navigation }) {
         const slots = res.data?.success ? (res.data.data || []) : [];
         if (alive) {
           setBookedSlots(slots);
-          if (selectedTime && slots.includes(selectedTime)) {
+          if (selectedTime && isTooCloseToBooked(selectedTime, slots)) {
             setSelectedTime(null);
             setCustomTimeLabel('');
           }
@@ -242,8 +255,8 @@ export default function BookingScreen({ route, navigation }) {
       Alert.alert('Unavailable Time', 'This time is outside the doctor clinic timings. Please choose an available slot.');
       return;
     }
-    if (bookedSlots.includes(value)) {
-      Alert.alert('Slot Booked', 'This time slot is already booked. Please choose another available slot.');
+    if (isTooCloseToBooked(value, bookedSlots)) {
+      Alert.alert('Slot Unavailable', 'This time is within 30 minutes of another booking. Please pick a time at least 30 minutes apart.');
       return;
     }
     setSelectedTime(value);
@@ -263,8 +276,8 @@ export default function BookingScreen({ route, navigation }) {
     if (!isDateAllowedByTiming(selectedDate, clinicTiming) || !isTimeAllowedByTiming(selectedTime, clinicTiming)) {
       return Alert.alert('Unavailable Slot', 'Please choose a date and time inside the doctor clinic timings.');
     }
-    if (bookedSlots.includes(selectedTime)) {
-      return Alert.alert('Slot Booked', 'This time slot is already booked. Please choose another available slot.');
+    if (isTooCloseToBooked(selectedTime, bookedSlots)) {
+      return Alert.alert('Slot Unavailable', 'This time is within 30 minutes of another booking. Please pick a time at least 30 minutes apart.');
     }
     if (selectedTreatments.length === 0) {
       return Alert.alert('Missing Info', 'Please select at least one treatment.');
@@ -315,6 +328,16 @@ export default function BookingScreen({ route, navigation }) {
   };
 
   const isReady = selectedDate && selectedTime && selectedTreatments.length > 0;
+
+  // Inline hint shown above the confirm button so the user knows what's still
+  // required (the button is disabled until everything is selected).
+  const missingItems = [];
+  if (!selectedDate) missingItems.push('a date');
+  if (!selectedTime) missingItems.push('a time');
+  if (selectedTreatments.length === 0) missingItems.push('at least one treatment');
+  const missingMsg = missingItems.length
+    ? `Please select ${missingItems.join(', ').replace(/,([^,]*)$/, ' and$1')} to continue.`
+    : '';
 
   // ── Doctor guard ────────────────────────────────────────────────────────────
   if (userRole === 'doctor') {
@@ -528,7 +551,7 @@ export default function BookingScreen({ route, navigation }) {
                 </View>
               ) : timeSlots.map((slot) => {
                 const sel = selectedTime === slot.value;
-                const disabled = !selectedDate || bookedSlots.includes(slot.value);
+                const disabled = !selectedDate || isTooCloseToBooked(slot.value, bookedSlots);
                 return (
                   <TouchableOpacity
                     key={slot.value}
@@ -653,6 +676,12 @@ export default function BookingScreen({ route, navigation }) {
           )}
 
           {/* ── CONFIRM BUTTON ───────────────────────────────────────────── */}
+          {!isReady && !!missingMsg && (
+            <View style={styles.missingHint}>
+              <Ionicons name="information-circle-outline" size={16} color="#B45309" style={{ marginRight: 6 }} />
+              <Text style={styles.missingHintText}>{missingMsg}</Text>
+            </View>
+          )}
           <TouchableOpacity
             style={[styles.confirmBtn, !isReady && styles.confirmBtnDisabled]}
             disabled={!isReady || loading}
@@ -926,4 +955,16 @@ const styles = StyleSheet.create({
   },
   confirmBtnDisabled: { backgroundColor: '#94A3B8', shadowOpacity: 0 },
   confirmBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+  missingHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  missingHintText: { flex: 1, color: '#B45309', fontSize: 13, fontWeight: '600' },
 });

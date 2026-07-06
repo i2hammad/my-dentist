@@ -2,12 +2,30 @@ const Appointment = require('../models/Appointment');
 const PatientProfile = require('../models/PatientProfile');
 const DoctorProfile = require('../models/DoctorProfile');
 const Notification = require('../models/Notification');
-const { isDateTimeInClinicTiming } = require('../utils/clinicTiming');
+const { isDateTimeInClinicTiming, parseTimeToMinutes } = require('../utils/clinicTiming');
 
 // Statuses that still occupy a time slot (a rescheduled appointment is still a
 // live, upcoming booking — it must block its slot and be reschedulable again).
 // 'completed' and 'cancelled' free the slot.
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
+
+// Two appointments for the same doctor must be at least this many minutes apart.
+const MIN_GAP_MINUTES = 30;
+
+// True if the requested date/time falls within MIN_GAP_MINUTES of an existing
+// active appointment for this doctor (exact match OR too-close custom time).
+// `excludeId` skips the appointment being rescheduled.
+async function hasSlotConflict(doctorId, date, time, excludeId) {
+  const reqMin = parseTimeToMinutes(time);
+  if (!Number.isFinite(reqMin)) return false; // invalid time — clinic-timing check handles it
+  const query = { doctorId, date: new Date(date), status: { $in: ACTIVE_STATUSES } };
+  if (excludeId) query._id = { $ne: excludeId };
+  const sameDay = await Appointment.find(query).select('time').lean();
+  return sameDay.some((a) => {
+    const m = parseTimeToMinutes(a.time);
+    return Number.isFinite(m) && Math.abs(m - reqMin) < MIN_GAP_MINUTES;
+  });
+}
 
 // @desc    Create a new appointment
 // @route   POST /api/appointments
@@ -41,18 +59,12 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    // Check for conflicting appointment (same doctor, same date and time)
-    const existingAppointment = await Appointment.findOne({
-      doctorId,
-      date: new Date(date),
-      time,
-      status: { $in: ACTIVE_STATUSES }
-    });
-
-    if (existingAppointment) {
+    // Reject if the time collides with, or is within 30 minutes of, an existing
+    // booking for this doctor (blocks e.g. 10:10 when 10:00 is already booked).
+    if (await hasSlotConflict(doctorId, date, time)) {
       return res.status(409).json({
         success: false,
-        message: 'This time slot is already booked. Please choose a different time.'
+        message: 'This time is too close to another booking. Please choose a slot at least 30 minutes apart.'
       });
     }
 
@@ -305,19 +317,12 @@ const rescheduleAppointment = async (req, res) => {
       });
     }
 
-    // Check for conflicting appointment at new time
-    const conflict = await Appointment.findOne({
-      _id: { $ne: appointment._id },
-      doctorId: appointment.doctorId._id,
-      date: new Date(date),
-      time,
-      status: { $in: ACTIVE_STATUSES }
-    });
-
-    if (conflict) {
+    // Reject if the new time collides with, or is within 30 minutes of, another
+    // active booking for this doctor.
+    if (await hasSlotConflict(appointment.doctorId._id, date, time, appointment._id)) {
       return res.status(409).json({
         success: false,
-        message: 'The new time slot is already booked. Please choose a different time.'
+        message: 'The new time is too close to another booking. Please choose a slot at least 30 minutes apart.'
       });
     }
 

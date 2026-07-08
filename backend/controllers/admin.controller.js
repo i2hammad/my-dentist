@@ -538,6 +538,37 @@ exports.backupData = async (req, res) => {
   } catch (e) { fail(res, 500, e.message); }
 };
 
+// ─── Image backup (uploaded files as .tar.gz) ───────────────
+// Super-admin only. Streams the on-disk uploads folder as a gzipped tarball via
+// the system `tar` (no npm dependency, memory-friendly for large folders).
+exports.backupImages = async (req, res) => {
+  try {
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can export a backup');
+
+    const path = require('path');
+    const fs = require('fs');
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadsDir) || fs.readdirSync(uploadsDir).length === 0) {
+      return fail(res, 404, 'No uploaded images to back up yet.');
+    }
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="mydentist-images-${stamp}.tar.gz"`);
+
+    const { spawn } = require('child_process');
+    const tar = spawn('tar', ['-czf', '-', '-C', uploadsDir, '.']);
+    tar.stdout.pipe(res);
+    tar.stderr.on('data', (d) => console.error('[backup-images] tar:', d.toString()));
+    tar.on('error', (e) => {
+      if (!res.headersSent) fail(res, 500, `Could not create archive (tar unavailable): ${e.message}`);
+      else res.end();
+    });
+    logAudit(req, { action: 'export', entity: 'backup', description: 'Exported uploaded images archive' }).catch(() => {});
+  } catch (e) { if (!res.headersSent) fail(res, 500, e.message); }
+};
+
 // ─── Data restore (import a backup JSON) ────────────────────
 // Super-admin only. SAFE by design: it UPSERTS each record by id in FK-dependency
 // order (parents first) — it recreates missing rows and updates matching ones,
@@ -579,6 +610,36 @@ exports.restoreData = async (req, res) => {
     await logAudit(req, { action: 'import', entity: 'backup', description: `Restored backup — ${totalOk} records (${totalFail} failed)` });
     ok(res, { restored: totalOk, failed: totalFail, summary });
   } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Image restore (extract an images .tar.gz into uploads/) ─
+// Super-admin only. Merges the archive into the uploads folder (overwrites files
+// with the same path; doesn't delete others) — mirrors the DB upsert restore.
+exports.restoreImages = async (req, res) => {
+  try {
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can restore a backup');
+    if (!req.file) return fail(res, 400, 'Please upload the images .tar.gz file (field "archive")');
+
+    const path = require('path');
+    const fs = require('fs');
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
+
+    const tmp = req.file.path; // multer wrote the upload to a temp file
+    await new Promise((resolve, reject) => {
+      const { spawn } = require('child_process');
+      const tar = spawn('tar', ['-xzf', tmp, '-C', uploadsDir]);
+      let err = '';
+      tar.stderr.on('data', (d) => { err += d.toString(); });
+      tar.on('error', reject);
+      tar.on('close', (code) => (code === 0 ? resolve() : reject(new Error(err.trim() || `tar exited ${code}`))));
+    });
+    await fs.promises.unlink(tmp).catch(() => {});
+
+    await logAudit(req, { action: 'import', entity: 'backup', description: 'Restored uploaded images archive' });
+    ok(res, { restored: true });
+  } catch (e) { fail(res, 500, `Image restore failed: ${e.message}`); }
 };
 
 // ─── App settings (singleton) ───────────────────────────────

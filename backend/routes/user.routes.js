@@ -31,14 +31,10 @@ router.post('/referral/apply', protect, applyReferral);
 router.get('/doctor-referral', protect, authorize('doctor'), getDoctorReferral);
 router.post('/doctor-referral/apply', protect, authorize('doctor'), applyDoctorReferral);
 
-// All routes below require authentication
-router.use(protect);
-
-// @route   GET /api/users/me
-router.get('/me', getMe);
-
 // @route   GET /api/users/platform-settings
-// @desc    Return public platform payment accounts (set by admin) to any logged-in user
+// @access  PUBLIC — guests browsing the web app need this clinic config too.
+// @desc    Public platform config: payment accounts, payment methods, facilities
+//          catalogue and clinic-tier score ranges. No secrets are returned.
 router.get('/platform-settings', async (req, res) => {
   try {
     const s = await getOrCreateSettings();
@@ -71,6 +67,12 @@ router.get('/platform-settings', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+
+// All routes below require authentication
+router.use(protect);
+
+// @route   GET /api/users/me
+router.get('/me', getMe);
 
 // @route   PUT /api/users/me
 router.put(

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ensureAuth } from "../utils/authGuard";
 import {
   View,
   Text,
@@ -394,6 +395,7 @@ export default function HomeScreen({ navigation }) {
   }, [campaigns, rotationInterval]);
 
   const toggleFavorite = async (id) => {
+    if (!(await ensureAuth(navigation))) return;
     const isFav = !!favorites[String(id)];
     const newFavs = { ...favorites };
     if (isFav) delete newFavs[String(id)];
@@ -716,7 +718,7 @@ export default function HomeScreen({ navigation }) {
                   doc={doc}
                   isFavorite={!!favorites[doc._id]}
                   onToggleFavorite={toggleFavorite}
-                  onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id })}
+                  onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
                   style={isWide ? { marginHorizontal: 0 } : null}
                   patientCoords={patientCoords}
                 />

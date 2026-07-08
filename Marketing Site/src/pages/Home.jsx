@@ -8,7 +8,7 @@ import {
   Star, Check, ArrowRight, Sparkle, MapPin, Stethoscope, CaretRight, Quotes,
   AppleLogo, GooglePlayLogo, SealCheck,
 } from '@phosphor-icons/react';
-import { getDoctors, imgUrl, APP_URL, APP_LOGIN, BRAND } from '../lib/api';
+import { getDoctors, imgUrl, APP_URL, APP_LOGIN, BRAND, doctorUrl } from '../lib/api';
 import appLogo from '../assets/app-logo.png';
 import heroDentalBooking from '../assets/hero-dental-booking.png';
 
@@ -342,10 +342,10 @@ export default function Home() {
 }
 
 function DocCard({ d, big }) {
-  // Whole card → app: viewing/booking a real dentist needs an account.
+  // Whole card → opens THIS dentist's profile in the app (works for guests).
   const tier = (d.clinicTier || '').toLowerCase();
   return (
-    <a className={`doc-result ${big ? 'big' : ''}`} href={APP_URL}>
+    <a className={`doc-result ${big ? 'big' : ''}`} href={doctorUrl(d._id)}>
       <div className="dr-top">
         {d.photo ? <img src={imgUrl(d.photo)} alt={d.fullName} /> : <div className="dr-ph"><Tooth size={28} weight="fill" /></div>}
         {d.isPopular && (

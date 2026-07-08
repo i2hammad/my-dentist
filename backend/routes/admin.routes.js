@@ -1,8 +1,14 @@
 const express = require('express');
+const os = require('os');
+const multer = require('multer');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 const admin = require('../controllers/admin.controller');
+
+// For restoring the images archive — writes the upload to a temp file (not RAM),
+// accepts any type, up to 500 MB.
+const archiveUpload = multer({ dest: os.tmpdir(), limits: { fileSize: 500 * 1024 * 1024 } });
 
 // All admin routes require an authenticated admin.
 router.use(protect, authorize('admin'));
@@ -81,7 +87,11 @@ router.get('/search', admin.globalSearch);
 
 // Full data backup (JSON export) — super-admin only (checked in the controller).
 router.get('/backup', admin.backupData);
+// Uploaded images backup (.tar.gz of the uploads folder).
+router.get('/backup/images', admin.backupImages);
 // Restore from a backup JSON. Larger body limit since backup files can be big.
 router.post('/restore', express.json({ limit: '50mb' }), admin.restoreData);
+// Restore uploaded images from a .tar.gz (extracted into the uploads folder).
+router.post('/restore/images', archiveUpload.single('archive'), admin.restoreImages);
 
 module.exports = router;

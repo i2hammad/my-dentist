@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,6 +51,7 @@ function formatTime(t) {
 }
 
 export default function AppointmentsScreen({ navigation }) {
+  useRequireLogin();
   const { isWide, isWeb } = useResponsive();
   const [upcoming, setUpcoming] = useState([]);
   const [past, setPast]         = useState([]);

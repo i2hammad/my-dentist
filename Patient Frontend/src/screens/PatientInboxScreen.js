@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, Image, ActivityIndicator, Platform
@@ -14,6 +15,7 @@ import { SkeletonRowList } from '../components/Skeleton';
 import webContent from '../config/webLayout';
 
 export default function PatientInboxScreen({ navigation }) {
+  useRequireLogin();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

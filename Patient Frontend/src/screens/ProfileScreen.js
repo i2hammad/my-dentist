@@ -400,7 +400,7 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarContainer}>
                 {profileImage ? (
-                  <Image source={{ uri: profileImage }} style={{ width: '100%', height: '100%', borderRadius: 40 }} />
+                  <Image source={{ uri: profileImage }} style={{ width: '100%', height: '100%', borderRadius: 46 }} />
                 ) : (
                   <Ionicons name="person" size={40} color="#2563EB" />
                 )}
@@ -411,15 +411,26 @@ export default function ProfileScreen({ navigation }) {
                 )}
               </View>
               <TouchableOpacity style={styles.addPhotoBadge} onPress={handlePickImage} disabled={uploadingImage}>
-                <Ionicons name="add" size={16} color="#2563EB" />
+                <Ionicons name="camera" size={15} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.pageTitle}>Create Patient Profile</Text>
-            <Text style={styles.pageSubtitle}>Let's create your profile to get started</Text>
+            <Text style={styles.pageTitle}>
+              {profileExists ? (fullName?.trim() || 'Your Profile') : 'Create Patient Profile'}
+            </Text>
+            <Text style={styles.pageSubtitle}>
+              {profileExists ? 'Keep your details up to date' : "Let's create your profile to get started"}
+            </Text>
+
+            {profileExists && (
+              <View style={styles.verifiedChip}>
+                <Ionicons name="shield-checkmark" size={13} color="#0EA5E9" />
+                <Text style={styles.verifiedChipText}>Patient Account</Text>
+              </View>
+            )}
 
             {/* Marketing banner */}
-            <PromoCard style={{ marginHorizontal: -20 }} />
+            <PromoCard style={{ marginHorizontal: -20, marginTop: 20 }} />
 
             <View style={styles.formCard}>
               {/* Section Header */}
@@ -783,53 +794,75 @@ const styles = StyleSheet.create({
   },
   avatarWrapper: {
     alignSelf: 'center',
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: 16,
+    marginBottom: 12,
     position: 'relative',
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E0E7FF',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: '#EEF3FF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#DBEAFE',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     overflow: 'hidden',
+    shadowColor: '#0052FF',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
   },
   avatarUploadOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 40,
+    borderRadius: 46,
     backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addPhotoBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#E0E7FF',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#0052FF',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#FFFFFF',
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 23,
+    fontWeight: '800',
     color: '#0A1551',
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   pageSubtitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 24,
+    marginTop: 4,
+  },
+  verifiedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 5,
+    backgroundColor: '#E0F2FE',
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  verifiedChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369A1',
   },
   formCard: {
     backgroundColor: '#FFFFFF',

@@ -242,7 +242,7 @@ export default function OrthodonticsScreen({ navigation }) {
               doc={doc}
               isFavorite={!!favorites[doc._id]}
               onToggleFavorite={toggleFavorite}
-              onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id })}
+              onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
             />
           ))
         )}

@@ -6,9 +6,12 @@ export const BRAND = 'My Dentist';
 
 // The patient/doctor web app. "Book" / "Get the App" / "Favorite" link here.
 export const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.mydentistpk.com';
-// "Log in" target — the app entry (shows login for logged-out users). Override
-// with VITE_APP_LOGIN_URL if a dedicated login URL exists later.
-export const APP_LOGIN = import.meta.env.VITE_APP_LOGIN_URL || APP_URL;
+// "Log in" target — opens the app's login screen directly (the app reads the
+// ?login=1 param on load). Override with VITE_APP_LOGIN_URL if needed.
+export const APP_LOGIN = import.meta.env.VITE_APP_LOGIN_URL || `${APP_URL}/?login=1`;
+
+// Deep-link to a specific dentist's profile in the app (opens for guests too).
+export const doctorUrl = (id) => `${APP_URL}/?doctor=${encodeURIComponent(id)}`;
 
 export async function getDoctors(params = {}) {
   const qs = new URLSearchParams(params).toString();

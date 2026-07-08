@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +10,7 @@ import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
 
 export default function SavedDoctorsScreen({ navigation }) {
+  useRequireLogin();
   const [savedDoctors, setSavedDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
 

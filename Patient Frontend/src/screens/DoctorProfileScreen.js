@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ensureAuth } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
   Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable, StatusBar, Clipboard
@@ -79,7 +80,17 @@ function formatClinicTiming(t) {
 }
 
 export default function DoctorProfileScreen({ route, navigation }) {
-  const { isWide } = useResponsive();
+  const { isDesktop, width: winWidth } = useResponsive();
+  const isWeb = Platform.OS === 'web';
+  // Explicit pixel width for the single-column web wrapper. A percentage/maxWidth
+  // won't contain RN-web's horizontal tab ScrollView (its content min-width forces
+  // the flex parent to grow), so we pin an exact width and clip overflow. Cap at
+  // 860 so the column doesn't stretch uncomfortably wide on ~1000px windows.
+  const webColWidth = Math.min(winWidth, 860);
+  // Two-column (sticky rail + main) needs real width to breathe — only use it on
+  // desktop. Below 1024px (tablet / small web windows) the fixed 340px rail makes
+  // the layout overflow horizontally, so fall back to the single-column mobile UI.
+  const isWide = isDesktop;
   const insets = useSafeAreaInsets();
   const [loading, setLoading]       = useState(!route.params?.doctor);
   const [doctor, setDoctor]         = useState(route.params?.doctor || null);
@@ -94,8 +105,13 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const [payingBillId, setPayingBillId] = useState(null);
 
   const [activeTab, setActiveTab] = useState('About');
+  const [isGuest, setIsGuest] = useState(false); // no token → hide account-only tabs
   const [tabsScrollEnd, setTabsScrollEnd] = useState(false);
   const [tabsScrollStart, setTabsScrollStart] = useState(true); // at the far-left start
+
+  useEffect(() => {
+    (async () => { const t = await storage.getItem('userToken'); setIsGuest(!t); })();
+  }, []);
   const [tabsScrollable, setTabsScrollable] = useState(false); // content wider than viewport
   const tabsLayoutW = useRef(0);
   const tabsScrollRef = useRef(null);
@@ -198,6 +214,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
   }, []);
 
   const toggleFavorite = useCallback(async () => {
+    if (!(await ensureAuth(navigation))) return;
     const docId = doctor?._id;
     if (!docId) return;
     const newVal = !isFavorite;
@@ -216,6 +233,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const toggleSaved = useCallback(async () => {
     const docId = doctor?._id;
     if (!docId) return;
+    if (!(await ensureAuth(navigation))) return; // guests → login
     const newVal = !saved;
     setSaved(newVal);
     try {
@@ -242,7 +260,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
     'Bills & Bill History': 'receipt-outline',
   };
 
-  const tabs = ['About', 'Treatments', 'Gallery', 'Facilities', 'Reviews', 'Appointments', 'Bills & Bill History'];
+  // Guests browsing a dentist can't have appointments/bills — hide those tabs.
+  const tabs = ['About', 'Treatments', 'Gallery', 'Facilities', 'Reviews', 'Appointments', 'Bills & Bill History']
+    .filter((t) => !isGuest || (t !== 'Appointments' && t !== 'Bills & Bill History'));
 
   useEffect(() => {
     fetchDoctorData();
@@ -699,12 +719,10 @@ export default function DoctorProfileScreen({ route, navigation }) {
             )}
           </View>
         )}
-        {(activeTab === 'Treatments' || activeTab === 'Appointments') && (
-          <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
-            <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.bookBtnTxt}>Book Appointment</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
+          <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+          <Text style={styles.bookBtnTxt}>Book Appointment</Text>
+        </TouchableOpacity>
         <View style={styles.webRailActions}>
           <TouchableOpacity style={styles.webRailAction} onPress={() => {
             const docUserId = doctor.userId?._id || doctor.userId;
@@ -749,9 +767,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
             </View>
           </View>
         )}
-        <View style={isWide ? styles.webGrid : undefined}>
+        <View style={isWide ? styles.webGrid : (isWeb ? styles.webSingleColWrap : undefined)}>
           {isWide && leftRail}
-          <View style={isWide ? styles.webMain : undefined}>
+          <View style={isWide ? styles.webMain : (isWeb ? [styles.webSingleCol, { width: webColWidth, maxWidth: webColWidth }] : undefined)}>
         {/* Header — About tab, phone only */}
         {activeTab === 'About' && !isWide && (
           <View style={{ backgroundColor: '#FFFFFF', paddingTop: insets.top + 6, paddingHorizontal: 16, paddingBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -871,10 +889,10 @@ export default function DoctorProfileScreen({ route, navigation }) {
 
         {/* Action buttons — About tab, phone only */}
         {activeTab === 'About' && !isWide && (
-          <View style={{ flexDirection: 'row', marginHorizontal: 14, marginTop: 10, gap: 8 }}>
+          <View style={{ flexDirection: 'row', marginHorizontal: 14, marginTop: 10, gap: 8, alignItems: 'center' }}>
             {/* Book Appointment — primary CTA */}
             <TouchableOpacity
-              style={{ flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 13, gap: 6 }}
+              style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 13, gap: 6 }}
               onPress={() => navigation.navigate('Booking', { doctor })}
             >
               <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
@@ -882,7 +900,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
             </TouchableOpacity>
             {/* Chat */}
             <TouchableOpacity
-              style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
+              style={{ flexGrow: 0, flexShrink: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
               onPress={() => {
                 const docUserId = doctor.userId?._id || doctor.userId;
                 if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
@@ -894,7 +912,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
             {/* Directions — only if GPS location is set */}
             {doctorHasLocation && (
               <TouchableOpacity
-                style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
+                style={{ flexGrow: 0, flexShrink: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
                 onPress={handleOpenMap}
               >
                 <Ionicons name="navigate-outline" size={20} color="#0052FF" />
@@ -902,7 +920,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
             )}
             {/* Save */}
             <TouchableOpacity
-              style={{ flex: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: saved ? '#0052FF' : '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: saved ? '#0052FF' : '#DBEAFE' }}
+              style={{ flexGrow: 0, flexShrink: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: saved ? '#0052FF' : '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: saved ? '#0052FF' : '#DBEAFE' }}
               onPress={toggleSaved}
             >
               <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={20} color={saved ? '#FFFFFF' : '#0052FF'} />
@@ -932,7 +950,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
             </TouchableOpacity>
           ));
           return (
-            <View style={{ position: 'relative' }}>
+            <View style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
               <ScrollView
                 ref={tabsScrollRef}
                 horizontal
@@ -3021,6 +3039,10 @@ const styles = StyleSheet.create({
   webCrumbMuted: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
   webCrumbActive: { fontSize: 14, color: '#0052FF', fontWeight: '700' },
   webGrid: { flexDirection: 'row', alignItems: 'flex-start', gap: 28 },
+  // Single-column web (tablet / small windows): center the mobile-style column
+  // and clip it to the viewport so the Book button + tabs can't bleed off-screen.
+  webSingleColWrap: { width: '100%', alignItems: 'center' },
+  webSingleCol: { alignSelf: 'center', overflow: 'hidden' },
   webRail: { width: 340, flexShrink: 0, position: 'sticky', top: 20 },
   webMain: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden' },
   webRailCard: { backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', padding: 24, alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } },

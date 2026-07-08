@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image,
 } from 'react-native';
@@ -85,6 +86,7 @@ function ReviewCard({ review, onPressDoctor }) {
 }
 
 export default function MyReviewsScreen({ navigation }) {
+  useRequireLogin();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 

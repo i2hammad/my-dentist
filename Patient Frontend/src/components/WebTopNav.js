@@ -16,12 +16,12 @@ import useResponsive from '../hooks/useResponsive';
 // Tab definitions per role. `tab` routes navigate into the role's tab navigator;
 // `stack` routes are pushed on the root stack.
 const PATIENT_TABS = [
-  { name: 'Home', label: 'Home', icon: 'home', tabsRoute: 'MainTabs' },
+  { name: 'Home', label: 'Home', icon: 'home', tabsRoute: 'MainTabs', guest: true },
   { name: 'Rewards', label: 'Rewards', icon: 'gift', tabsRoute: 'MainTabs' },
   { name: 'Campaigns', label: 'Appointments', icon: 'calendar', tabsRoute: 'MainTabs' },
   { name: 'MyReviews', label: 'My Reviews', icon: 'star', tabsRoute: 'MainTabs' },
-  { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs' },
-  { name: 'Orthodontics', label: 'Orthodontics', icon: 'options', tabsRoute: 'MainTabs' },
+  { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs', guest: true },
+  { name: 'Orthodontics', label: 'Orthodontics', icon: 'options', tabsRoute: 'MainTabs', guest: true },
 ];
 const DOCTOR_TABS = [
   { name: 'DoctorHome', label: 'Home', icon: 'home', tabsRoute: 'DoctorTabs' },
@@ -46,6 +46,7 @@ export default function WebTopNav({ navRef, navInfo }) {
   const showLinks = width >= 1024;
   const [userPhoto, setUserPhoto] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [isGuest, setIsGuest] = useState(false);
   const rootRoute = navInfo?.root;
 
   useEffect(() => {
@@ -53,7 +54,8 @@ export default function WebTopNav({ navRef, navInfo }) {
     const loadUser = async () => {
       try {
         const token = await storage.getItem('userToken');
-        if (!token) { setUserPhoto(null); setUserRole(null); return; }
+        if (!token) { setUserPhoto(null); setUserRole(null); setIsGuest(true); return; }
+        setIsGuest(false);
         const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -74,11 +76,14 @@ export default function WebTopNav({ navRef, navInfo }) {
   // like Notifications/Chat have a non-tab rootRoute, so route-based detection
   // alone wrongly fell back to patient — the user's role fixes that. Route check
   // is only a fallback while the role loads.
+  // NOTE: `DoctorProfile` is the screen for VIEWING a dentist (patient/guest
+  // context) — NOT the doctor's own dashboard — so it must not count as doctor
+  // context, or guests browsing a dentist would get the doctor nav + Logout.
   const isDoctorContext = userRole
     ? userRole === 'doctor'
-    : (rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup' || rootRoute === 'DoctorProfile');
+    : (rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup');
   const isPatient = !isDoctorContext;
-  const tabs = isPatient ? PATIENT_TABS : DOCTOR_TABS;
+  const tabs = isPatient ? PATIENT_TABS.filter((t) => !isGuest || t.guest) : DOCTOR_TABS;
   const profileTabsRoute = isPatient ? 'MainTabs' : 'DoctorTabs';
 
   // Active highlight: the focused tab if we're on the tabs route, else the root.
@@ -118,8 +123,18 @@ export default function WebTopNav({ navRef, navInfo }) {
           <View style={{ flex: 1 }} />
         )}
 
+        {/* RIGHT: Guest — single Log in action */}
+        {isPatient && isGuest && (
+          <View style={styles.iconGroup}>
+            <Pressable style={styles.loginPill} onPress={() => navigate('Login', { role: 'patient' })}>
+              <Ionicons name="log-in-outline" size={19} color="#FFFFFF" />
+              <Text style={styles.loginLabel}>Log in</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* RIGHT: Patient icons */}
-        {isPatient && (
+        {isPatient && !isGuest && (
             <View style={styles.iconGroup}>
               {/* Chat */}
               <Pressable style={styles.iconPill} onPress={() => goStack('PatientInbox')}>
@@ -264,6 +279,12 @@ const styles = StyleSheet.create({
   // Icon-only (mobile web): a round red-tinted button so it matches the bell/avatar circles.
   logoutPillBare: { width: 36, height: 36, borderRadius: 18, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center', alignItems: 'center', borderColor: '#FEE2E2', backgroundColor: '#FEF2F2' },
   logoutLabel: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
+  loginPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12,
+    backgroundColor: '#0052FF',
+  },
+  loginLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
   badge: {
     position: 'absolute', top: 2, right: 2,

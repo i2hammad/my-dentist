@@ -53,21 +53,33 @@ function BackupTab({ isSuper }) {
 
   if (!isSuper) return <div className="card"><div className="empty">Only super admins can back up or restore data.</div></div>;
 
+  const grab = async (endpoint, fallbackName, okMsg) => {
+    const res = await api.get(endpoint, { responseType: 'blob' });
+    const cd = res.headers['content-disposition'] || '';
+    const m = cd.match(/filename="?([^"]+)"?/);
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url; a.download = m ? m[1] : fallbackName;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast(okMsg);
+  };
+
   const download = async () => {
     setBusy(true);
-    try {
-      const res = await api.get('/api/admin/backup', { responseType: 'blob' });
-      const cd = res.headers['content-disposition'] || '';
-      const m = cd.match(/filename="?([^"]+)"?/);
-      const name = m ? m[1] : 'mydentist-backup.json';
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = name;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-      toast('Backup downloaded');
-    } catch (e) {
-      toast(e.response?.data?.message || 'Backup failed', 'error');
+    try { await grab('/api/admin/backup', 'mydentist-backup.json', 'Database backup downloaded'); }
+    catch (e) { toast(e.response?.data?.message || 'Backup failed', 'error'); }
+    finally { setBusy(false); }
+  };
+
+  const downloadImages = async () => {
+    setBusy(true);
+    try { await grab('/api/admin/backup/images', 'mydentist-images.tar.gz', 'Images backup downloaded'); }
+    catch (e) {
+      // blob error bodies aren't JSON — read the message out if present
+      let msg = 'Images backup failed';
+      try { const t = await e.response?.data?.text?.(); if (t) msg = JSON.parse(t).message || msg; } catch {}
+      toast(msg, 'error');
     } finally { setBusy(false); }
   };
 
@@ -75,7 +87,7 @@ function BackupTab({ isSuper }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!window.confirm('Restore from this backup?\n\nRecords with matching IDs will be recreated or overwritten. Nothing is deleted, but this cannot be undone. Continue?')) return;
+    if (!window.confirm('Restore the database from this backup?\n\nRecords with matching IDs will be recreated or overwritten. Nothing is deleted, but this cannot be undone. Continue?')) return;
     setRestoring(true);
     try {
       const backup = JSON.parse(await file.text());
@@ -85,6 +97,22 @@ function BackupTab({ isSuper }) {
       toast(`Restored ${d.restored} records${d.failed ? ` · ${d.failed} skipped` : ''}`);
     } catch (e) {
       toast(e.response?.data?.message || 'Restore failed — is this a valid backup file?', 'error');
+    } finally { setRestoring(false); }
+  };
+
+  const restoreImages = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!window.confirm('Restore images from this .tar.gz?\n\nFiles are extracted into the uploads folder — matching paths are overwritten, nothing is deleted. Continue?')) return;
+    setRestoring(true);
+    try {
+      const fd = new FormData();
+      fd.append('archive', file);
+      await api.post('/api/admin/restore/images', fd);
+      toast('Images restored');
+    } catch (e) {
+      toast(e.response?.data?.message || 'Image restore failed', 'error');
     } finally { setRestoring(false); }
   };
 
@@ -100,9 +128,18 @@ function BackupTab({ isSuper }) {
           ⚠ This file contains all account data (including password hashes). Store it securely and
           never share it.
         </div>
-        <button className="btn primary" disabled={busy} onClick={download}>
-          {busy ? 'Preparing…' : 'Download Backup'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn primary" disabled={busy} onClick={download}>
+            {busy ? 'Preparing…' : 'Download Database (JSON)'}
+          </button>
+          <button className="btn" disabled={busy} onClick={downloadImages}>
+            {busy ? 'Preparing…' : 'Download Images (.tar.gz)'}
+          </button>
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: 12.5, margin: '12px 0 0', lineHeight: 1.5 }}>
+          A full backup is <b>both</b> files — the database (record data) and the images
+          (uploaded photos the records point to).
+        </p>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
@@ -111,10 +148,16 @@ function BackupTab({ isSuper }) {
           Upload a backup file to restore it. Records are matched by ID — missing ones are
           recreated, matching ones are overwritten. <b>Nothing is deleted.</b>
         </p>
-        <label className="btn" style={{ cursor: 'pointer', display: 'inline-block' }}>
-          {restoring ? 'Restoring…' : 'Choose backup file…'}
-          <input type="file" accept="application/json,.json" hidden disabled={restoring} onChange={restore} />
-        </label>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <label className="btn" style={{ cursor: 'pointer', display: 'inline-block' }}>
+            {restoring ? 'Restoring…' : 'Database (.json)…'}
+            <input type="file" accept="application/json,.json" hidden disabled={restoring} onChange={restore} />
+          </label>
+          <label className="btn" style={{ cursor: 'pointer', display: 'inline-block' }}>
+            {restoring ? 'Restoring…' : 'Images (.tar.gz)…'}
+            <input type="file" accept=".gz,.tgz,application/gzip,application/x-gzip" hidden disabled={restoring} onChange={restoreImages} />
+          </label>
+        </div>
       </div>
     </div>
   );

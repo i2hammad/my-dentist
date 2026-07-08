@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +8,7 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 
 export default function ChatScreen({ route, navigation }) {
+  useRequireLogin();
   const { userId, userName } = route.params || {};
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);

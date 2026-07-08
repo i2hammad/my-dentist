@@ -1,20 +1,47 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Animated, StyleSheet, Easing, Image } from 'react-native';
 
-// Lightweight shimmer skeleton for React Native loading states.
+// Shimmer skeleton for React Native loading states.
+// A light "sheen" band sweeps left→right across each placeholder block for a
+// modern loading feel — no native gradient dependency required.
 function Shimmer({ style }) {
-  const opacity = useRef(new Animated.Value(0.4)).current;
+  const [w, setW] = useState(0);
+  const progress = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
+      Animated.timing(progress, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
     );
     loop.start();
     return () => loop.stop();
-  }, [opacity]);
-  return <Animated.View style={[styles.block, style, { opacity }]} />;
+  }, [progress]);
+
+  // Sweep the sheen from just off the left edge to just off the right edge.
+  const translateX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-w * 0.6, w * 1.6],
+  });
+
+  return (
+    <View
+      style={[styles.block, style, { overflow: 'hidden' }]}
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+    >
+      {w > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            width: w * 0.5,
+            backgroundColor: 'rgba(255,255,255,0.55)',
+            transform: [{ translateX }, { skewX: '-20deg' }],
+          }}
+        />
+      )}
+    </View>
+  );
 }
 
 /**
@@ -130,32 +157,41 @@ export function SkeletonTreatmentList({ count = 5 }) {
   );
 }
 
-// Patient profile / edit-profile screen skeleton: avatar + titles + form card.
+// Patient profile / edit-profile screen skeleton — mirrors the real hero
+// (centered avatar + badge, name, subtitle, account chip) and the form card
+// (section header + labelled fields) so the load state matches the screen.
 export function SkeletonProfile({ fields = 5 }) {
   return (
     <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-      {/* Avatar */}
-      <View style={{ alignItems: 'center', marginTop: 8 }}>
-        <SkeletonCircle size={84} />
+      {/* Avatar with camera badge */}
+      <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 12 }}>
+        <View style={{ position: 'relative' }}>
+          <Shimmer style={{ width: 92, height: 92, borderRadius: 46 }} />
+          <View style={pStyles.badgeMask}>
+            <Shimmer style={{ width: 24, height: 24, borderRadius: 12 }} />
+          </View>
+        </View>
       </View>
-      {/* Title + subtitle */}
-      <View style={{ alignItems: 'center', marginTop: 16 }}>
-        <SkeletonLine width={180} height={16} />
-        <SkeletonLine width={220} height={11} style={{ marginTop: 10 }} />
+      {/* Name + subtitle + account chip — all centered */}
+      <View style={{ alignItems: 'center' }}>
+        <SkeletonLine width={200} height={20} style={{ borderRadius: 8 }} />
+        <SkeletonLine width={170} height={12} style={{ marginTop: 8 }} />
+        <SkeletonLine width={130} height={26} style={{ marginTop: 12, borderRadius: 13 }} />
       </View>
       {/* Form card */}
       <View style={pStyles.formCard}>
-        <View style={[styles.row, { marginBottom: 18 }]}>
-          <SkeletonCircle size={40} />
+        {/* Section header: icon tile + title + subtitle */}
+        <View style={[styles.row, { marginBottom: 20 }]}>
+          <Shimmer style={{ width: 40, height: 40, borderRadius: 12 }} />
           <View style={{ marginLeft: 12 }}>
-            <SkeletonLine width={150} height={13} />
-            <SkeletonLine width={110} height={10} style={{ marginTop: 7 }} />
+            <SkeletonLine width={160} height={14} />
+            <SkeletonLine width={120} height={10} style={{ marginTop: 7 }} />
           </View>
         </View>
         {Array.from({ length: fields }).map((_, i) => (
           <View key={i} style={{ marginBottom: 16 }}>
-            <SkeletonLine width="32%" height={11} />
-            <SkeletonLine width="100%" height={46} style={{ marginTop: 8, borderRadius: 12 }} />
+            <SkeletonLine width={`${28 + (i % 3) * 8}%`} height={11} />
+            <SkeletonLine width="100%" height={48} style={{ marginTop: 8, borderRadius: 12 }} />
           </View>
         ))}
       </View>
@@ -234,10 +270,15 @@ const dStyles = StyleSheet.create({
 
 const pStyles = StyleSheet.create({
   formCard: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#F1F5F9', padding: 18, marginTop: 22 },
+  // White ring around the camera badge so it reads as a separate chip on the avatar.
+  badgeMask: {
+    position: 'absolute', bottom: 2, right: 2,
+    backgroundColor: '#FFFFFF', borderRadius: 15, padding: 3,
+  },
 });
 
 const styles = StyleSheet.create({
-  block: { backgroundColor: '#E2E8F0' },
+  block: { backgroundColor: '#E6EBF2' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9', padding: 16, marginBottom: 14 },
   row: { flexDirection: 'row', alignItems: 'center' },
   tRow: { flexDirection: 'row', alignItems: 'flex-start' },

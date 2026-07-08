@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, ScrollView, BackHandler } from 'react-native';
+import { View, Text, ScrollView, BackHandler, Platform } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { NotificationProvider } from './src/context/NotificationContext';
 import './src/config/alertOverride'; // route Alert.alert through the branded dialog
@@ -11,6 +11,22 @@ import ImpersonationBanner from './src/components/ImpersonationBanner';
 // Mock deprecated/removed BackHandler.removeEventListener to prevent older packages from crashing the app
 if (BackHandler && !BackHandler.removeEventListener) {
   BackHandler.removeEventListener = () => {};
+}
+
+// Web: show a slim right-side scrollbar. The app's ScrollViews set
+// showsVerticalScrollIndicator={false} (right for native touch), which also
+// hides the bar on web — this re-enables a styled scrollbar globally without
+// editing every screen. No effect on native.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    * { scrollbar-width: thin !important; scrollbar-color: #c3cfe0 transparent; }
+    *::-webkit-scrollbar { display: block !important; width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: #c3cfe0; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+    *::-webkit-scrollbar-thumb:hover { background: #a3b4cc; background-clip: padding-box; }
+  `;
+  document.head.appendChild(style);
 }
 
 class ErrorBoundary extends React.Component {

@@ -1,59 +1,25 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Image, StyleSheet, ActivityIndicator, Animated, Easing, Text, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Image, StyleSheet, ActivityIndicator, Text, Platform } from 'react-native';
 import storage from '../config/storage';
 import { isWeb } from '../config/webLayout';
 
 export default function SplashScreen({ navigation }) {
-  // ── Animated web splash values ──────────────────────────────
-  const card = useRef(new Animated.Value(0)).current;     // whole-card fade/scale in
-  const pulse = useRef(new Animated.Value(0)).current;    // radar ring behind logo
-  const bar = useRef(new Animated.Value(0)).current;      // indeterminate progress
-  const driftA = useRef(new Animated.Value(0)).current;   // background blob drift
-  const driftB = useRef(new Animated.Value(0)).current;
-  const orbit = useRef(new Animated.Value(0)).current;    // dots circling the logo
-  const float = useRef(new Animated.Value(0)).current;    // logo "breathing"
-  // Staggered reveal for logo → brand → tagline → progress.
-  const reveal = useRef([0, 1, 2, 3].map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    if (!isWeb) return;
-    const yoyo = (v, d) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(v, { toValue: 1, duration: d, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
-          Animated.timing(v, { toValue: 0, duration: d, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
-        ])
-      );
-
-    // Entrance: card in, then inner elements cascade.
-    Animated.timing(card, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    Animated.stagger(
-      130,
-      reveal.map((v) => Animated.timing(v, { toValue: 1, duration: 560, delay: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }))
-    ).start();
-
-    // Continuous loops.
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1900, easing: Easing.out(Easing.ease), useNativeDriver: false }),
-        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: false }),
-      ])
-    ).start();
-    Animated.loop(Animated.timing(bar, { toValue: 1, duration: 1300, easing: Easing.linear, useNativeDriver: false })).start();
-    Animated.loop(Animated.timing(orbit, { toValue: 1, duration: 3800, easing: Easing.linear, useNativeDriver: false })).start();
-    yoyo(float, 2200).start();
-    yoyo(driftA, 6000).start();
-    yoyo(driftB, 7500).start();
-  }, []);
-
   useEffect(() => {
     let isCancelled = false;
 
+    // Web deep-link params (from the marketing site): ?doctor=<id> opens that
+    // dentist's profile, ?login=1 opens the login screen directly.
+    let deepDoctorId = null;
+    let wantLogin = false;
+
     const checkLoginStatus = async () => {
-      // Web-only impersonation bootstrap: if an "impersonate" param is present in the
-      // URL, adopt it as the userToken before the normal login-status check reads it.
+      // Web-only param bootstrap: impersonation token + deep-link params.
       if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.search) {
-        const impersonateToken = new URLSearchParams(window.location.search).get('impersonate');
+        const params = new URLSearchParams(window.location.search);
+        deepDoctorId = params.get('doctor');
+        wantLogin = params.get('login') === '1' || params.get('screen') === 'login';
+
+        const impersonateToken = params.get('impersonate');
         if (impersonateToken) {
           await storage.setItem('userToken', impersonateToken);
           await storage.setItem('impersonating', '1');
@@ -62,14 +28,19 @@ export default function SplashScreen({ navigation }) {
         }
       }
 
-      // Branded splash: full 3s on native; a short, tasteful 1.2s on web so the
-      // animated intro is actually seen without making the site feel slow.
-      const delay = new Promise(resolve => setTimeout(resolve, Platform.OS === 'web' ? 1200 : 3000));
+      // No splash on web — route immediately. Native keeps its 3s branded splash.
+      const delay = new Promise(resolve => setTimeout(resolve, Platform.OS === 'web' ? 0 : 3000));
 
       const checkStatus = async () => {
         try {
           const token = await storage.getItem('userToken');
-          if (!token) return { route: 'RoleSelection' };
+          // Web: let guests browse — land on Home (patient tabs) instead of the
+          // login wall. Native keeps Role Selection.
+          if (!token) {
+            return Platform.OS === 'web'
+              ? { route: 'MainTabs', params: { screen: 'Home' } }
+              : { route: 'RoleSelection' };
+          }
 
           // Fetch user details from the backend to verify the token and get the role/profile
           const axios = require('axios');
@@ -118,11 +89,19 @@ export default function SplashScreen({ navigation }) {
 
       if (isCancelled) return;
 
-      // Skip the one-time consent notice for returning users who already agreed.
+      // Skip the one-time consent notice for returning users who already agreed
+      // and on web (guests/visitors go straight in).
       const agreed = await storage.getItem('hasAgreedNotice');
-      if (agreed === 'true') {
+      if (Platform.OS === 'web' || agreed === 'true') {
         if (navData.params) navigation.replace(navData.route, navData.params);
         else navigation.replace(navData.route);
+
+        // Web deep-links: open the requested screen on top of the base route so
+        // Back returns to Home. Login takes priority over a doctor link.
+        if (Platform.OS === 'web') {
+          if (wantLogin) navigation.navigate('Login', { role: 'patient' });
+          else if (deepDoctorId) navigation.navigate('DoctorProfile', { doctorId: deepDoctorId });
+        }
       } else {
         navigation.replace('Notice', { nextRoute: navData.route, nextParams: navData.params });
       }
@@ -135,72 +114,10 @@ export default function SplashScreen({ navigation }) {
     };
   }, []);
 
-  // ── Web splash — animated, "living" brand intro ─────────────
+  // ── Web: no splash — route immediately. Render a plain blank while the
+  //    (instant) auth check resolves, so there's no branded splash flash.
   if (isWeb) {
-    const cardStyle = {
-      opacity: card,
-      transform: [
-        { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
-        { scale: card.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) },
-      ],
-    };
-    // Each inner element rises + fades on its own stagger step.
-    const rise = (i) => ({
-      opacity: reveal[i],
-      transform: [{ translateY: reveal[i].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-    });
-    const ringStyle = {
-      opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
-      transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 2.3] }) }],
-    };
-    const floatStyle = { transform: [{ scale: float.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) }] };
-    const orbitStyle = { transform: [{ rotate: orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] };
-    const barStyle = { transform: [{ translateX: bar.interpolate({ inputRange: [0, 1], outputRange: [-96, 232] }) }] };
-    const drift = (v, ax, ay) => ({
-      transform: [
-        { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [-ax, ax] }) },
-        { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [ay, -ay] }) },
-      ],
-    });
-
-    return (
-      <View style={styles.webContainer}>
-        {/* Slowly drifting background blobs — a living backdrop */}
-        <Animated.View style={[styles.blob, styles.blobA, drift(driftA, 22, 18)]} />
-        <Animated.View style={[styles.blob, styles.blobB, drift(driftB, 20, 24)]} />
-        <Animated.View style={[styles.blob, styles.blobC, drift(driftA, 14, -16)]} />
-
-        <Animated.View style={[styles.webCard, cardStyle]}>
-          <Animated.View style={[styles.logoWrap, rise(0)]}>
-            {/* radar pulse expanding out from behind the logo */}
-            <Animated.View style={[styles.pulseRing, ringStyle]} pointerEvents="none" />
-            {/* dots orbiting the logo */}
-            <Animated.View style={[styles.orbit, orbitStyle]} pointerEvents="none">
-              <View style={[styles.orbitDot, styles.orbitDotTop]} />
-              <View style={[styles.orbitDot, styles.orbitDotBottom]} />
-            </Animated.View>
-            <Animated.View style={[styles.logoBadge, floatStyle]}>
-              <Image source={require('../../assets/logo-mark.png')} style={styles.webLogo} resizeMode="contain" />
-            </Animated.View>
-          </Animated.View>
-
-          <Animated.Text style={[styles.webBrand, rise(1)]}>
-            <Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text>
-          </Animated.Text>
-          <Animated.Text style={[styles.webTagline, rise(2)]}>Find &amp; book trusted dentists across Pakistan</Animated.Text>
-
-          {/* Indeterminate shimmer progress bar */}
-          <Animated.View style={rise(3)}>
-            <View style={styles.progressTrack}>
-              <Animated.View style={[styles.progressFill, barStyle]} />
-            </View>
-            <Text style={styles.webLoaderText}>Getting things ready…</Text>
-          </Animated.View>
-        </Animated.View>
-
-        <Text style={styles.webFooter}>© 2026 My Dentist</Text>
-      </View>
-    );
+    return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
   }
 
   // ── Phone splash — minimal, white, polished ──

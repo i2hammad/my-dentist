@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   Alert, Share,
@@ -21,6 +22,7 @@ const earnRules = [
 ];
 
 export default function PatientRewardsScreen() {
+  useRequireLogin();
   const [loading, setLoading] = useState(true);
   const [rewards, setRewards] = useState({ totalPoints: 0, equivalentPKR: 0, recentHistory: [] });
   const [showHistory, setShowHistory] = useState(false);
@@ -259,7 +261,7 @@ function SectionTitle({ color, title }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#0052FF' },
   body: { flex: 1, backgroundColor: '#F4F6FA' },
-  bodyContent: { paddingBottom: 32 },
+  bodyContent: { paddingTop: 16, paddingBottom: 32 },
   center: { paddingVertical: 60, alignItems: 'center' },
   heroCard: {
     marginHorizontal: 16,

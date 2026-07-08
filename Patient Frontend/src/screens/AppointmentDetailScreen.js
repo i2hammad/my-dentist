@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, ActivityIndicator, Linking, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { webContent } from '../config/webLayout';
+import imgUrl from '../config/imgUrl';
 import PromoCard from '../components/PromoCard';
 
 const isWeb = Platform.OS === 'web';
@@ -130,52 +131,80 @@ export default function AppointmentDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.safe}>
-      {/* Header */}
-      <View style={[styles.header, !isWeb && { paddingTop: insets.top + 8 }]}>
+      {/* Header — clean white bar */}
+      <View style={[styles.header, !isWeb && { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color="#FFF" />
+          <Ionicons name="arrow-back" size={20} color="#0052FF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Appointment Details</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Appointment Details</Text>
+          <Text style={styles.headerSub}>{fmtDate(appt.date)}</Text>
+        </View>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, webContent]} showsVerticalScrollIndicator={false}>
         {/* Marketing banner */}
-        <PromoCard style={{ marginTop: 0, marginHorizontal: -16, marginBottom: 14 }} />
+        <PromoCard style={{ marginTop: 0, marginHorizontal: -16, marginBottom: 16 }} />
 
-        {/* Status */}
-        <View style={[styles.statusPill, { backgroundColor: cfg.bg, alignSelf: 'flex-start' }]}>
-          <Ionicons name={cfg.icon} size={15} color={cfg.text} />
-          <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
-        </View>
+        {/* Hero — doctor + status + date/time strip */}
+        <View style={styles.hero}>
+          <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
+            <Ionicons name={cfg.icon} size={14} color={cfg.text} />
+            <Text style={[styles.statusText, { color: cfg.text }]}>{cfg.label}</Text>
+          </View>
 
-        {/* Doctor card */}
-        <View style={styles.card}>
           <View style={styles.docRow}>
-            <View style={styles.docAvatar}><Ionicons name="person" size={24} color="#0052FF" /></View>
+            <View style={styles.avatarRing}>
+              {(appt.doctorId?.photo || appt.doctorId?.avatar) ? (
+                <Image source={{ uri: imgUrl(appt.doctorId.photo || appt.doctorId.avatar) }} style={styles.docAvatar} />
+              ) : (
+                <View style={styles.docAvatar}><Ionicons name="person" size={26} color="#0052FF" /></View>
+              )}
+            </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.docName}>{appt.doctorId?.fullName || 'Doctor'}</Text>
-              <Text style={styles.docSpec}>{appt.doctorId?.specialization || 'Specialist'}</Text>
+              <Text style={styles.docName} numberOfLines={1}>{appt.doctorId?.fullName || 'Doctor'}</Text>
+              <Text style={styles.docSpec} numberOfLines={1}>{appt.doctorId?.specialization || 'Specialist'}</Text>
             </View>
             <TouchableOpacity
               style={styles.viewBtn}
               onPress={() => navigation.navigate('DoctorProfile', { doctorId: appt.doctorId?._id || appt.doctorId, doctor: appt.doctorId })}
             >
               <Text style={styles.viewBtnText}>View</Text>
+              <Ionicons name="chevron-forward" size={14} color="#0052FF" />
             </TouchableOpacity>
+          </View>
+
+          {/* Date / time highlight — the two facts that matter most */}
+          <View style={styles.whenStrip}>
+            <View style={styles.whenBox}>
+              <Ionicons name="calendar" size={16} color="#0052FF" />
+              <View style={{ marginLeft: 10 }}>
+                <Text style={styles.whenLabel}>Date</Text>
+                <Text style={styles.whenValue}>{new Date(appt.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+              </View>
+            </View>
+            <View style={styles.whenDivider} />
+            <View style={styles.whenBox}>
+              <Ionicons name="time" size={16} color="#0052FF" />
+              <View style={{ marginLeft: 10 }}>
+                <Text style={styles.whenLabel}>Time</Text>
+                <Text style={styles.whenValue}>{fmtTime(appt.time)}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Details */}
         <View style={styles.card}>
-          <DetailRow icon="calendar-outline" label="Date" value={fmtDate(appt.date)} />
-          <DetailRow icon="time-outline" label="Time" value={fmtTime(appt.time)} />
+          <Text style={styles.sectionLabel}>Appointment</Text>
           <DetailRow
             icon={appt.consultationType === 'online' ? 'videocam-outline' : 'business-outline'}
+            tint="#6366F1"
             label="Type"
-            value={appt.consultationType === 'online' ? 'Video Call' : 'In-Clinic'}
+            chip={appt.consultationType === 'online' ? 'Video Call' : 'In-Clinic'}
           />
-          <DetailRow icon="medkit-outline" label="Treatments" value={treatments.join(', ')} last />
+          <DetailRow icon="medkit-outline" tint="#0EA5E9" label="Treatments" value={treatments.join(', ')} last />
         </View>
 
         {/* Clinic & contact */}
@@ -183,10 +212,10 @@ export default function AppointmentDetailScreen({ route, navigation }) {
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>Clinic & Contact</Text>
             {!!appt.doctorId?.clinicName && (
-              <DetailRow icon="business-outline" label="Clinic" value={appt.doctorId.clinicName} />
+              <DetailRow icon="business-outline" tint="#0052FF" label="Clinic" value={appt.doctorId.clinicName} />
             )}
             {!!clinicAddress && (
-              <DetailRow icon="location-outline" label="Address" value={clinicAddress} />
+              <DetailRow icon="location-outline" tint="#EF4444" label="Address" value={clinicAddress} />
             )}
             {!isApproved ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginTop: 8, gap: 8 }}>
@@ -267,40 +296,67 @@ export default function AppointmentDetailScreen({ route, navigation }) {
   );
 }
 
-function DetailRow({ icon, label, value, last }) {
+function DetailRow({ icon, label, value, chip, tint = '#0052FF', last }) {
   return (
-    <View style={[styles.detailRow, last && { borderBottomWidth: 0 }]}>
-      <View style={styles.detailIcon}><Ionicons name={icon} size={18} color="#0052FF" /></View>
+    <View style={[styles.detailRow, last && { borderBottomWidth: 0, paddingBottom: 0 }]}>
+      <View style={[styles.detailIcon, { backgroundColor: tint + '18' }]}>
+        <Ionicons name={icon} size={17} color={tint} />
+      </View>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
+      {chip ? (
+        <View style={[styles.valueChip, { backgroundColor: tint + '18' }]}>
+          <Text style={[styles.valueChipText, { color: tint }]}>{chip}</Text>
+        </View>
+      ) : (
+        <Text style={styles.detailValue}>{value}</Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: isWeb ? '#F1F5F9' : '#0052FF' },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#0052FF', paddingHorizontal: 16, paddingBottom: 16, paddingTop: 14,
-    borderBottomLeftRadius: 22, borderBottomRightRadius: 22,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingBottom: 14, paddingTop: 14,
+    borderBottomWidth: 1, borderBottomColor: '#E8EFFF',
   },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#FFF' },
+  headerBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
+  headerSub: { fontSize: 12.5, color: '#64748B', marginTop: 2, fontWeight: '600' },
   content: { padding: 16, paddingBottom: 40, backgroundColor: '#F1F5F9', flexGrow: 1 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginBottom: 14 },
-  statusText: { fontSize: 13, fontWeight: '700' },
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#EEF2F7' },
+
+  // Hero card
+  hero: {
+    backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginBottom: 14,
+    borderWidth: 1, borderColor: '#EEF2F7',
+    shadowColor: '#0F172A', shadowOpacity: 0.06, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 2,
+  },
+  statusPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, marginBottom: 14 },
+  statusText: { fontSize: 12.5, fontWeight: '800', letterSpacing: 0.2 },
   docRow: { flexDirection: 'row', alignItems: 'center' },
-  docAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  docName: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+  avatarRing: { width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: '#E0EAFF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  docAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+  docName: { fontSize: 16.5, fontWeight: '800', color: '#0F172A' },
   docSpec: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  viewBtn: { borderWidth: 1, borderColor: '#0052FF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
-  viewBtnText: { color: '#0052FF', fontWeight: '700', fontSize: 13 },
+  viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#EFF4FF', borderRadius: 10, paddingLeft: 12, paddingRight: 8, paddingVertical: 7 },
+  viewBtnText: { color: '#0052FF', fontWeight: '800', fontSize: 13 },
+
+  // Date / time strip
+  whenStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F8FF', borderRadius: 14, borderWidth: 1, borderColor: '#E8EFFF', padding: 12, marginTop: 14 },
+  whenBox: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  whenDivider: { width: 1, height: 30, backgroundColor: '#DDE6FA', marginHorizontal: 12 },
+  whenLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  whenValue: { fontSize: 14, color: '#0A1551', fontWeight: '800', marginTop: 1 },
+
+  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#EEF2F7' },
   detailRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  detailIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  detailIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   detailLabel: { fontSize: 13, color: '#64748B', fontWeight: '600' },
-  detailValue: { flex: 1, textAlign: 'right', fontSize: 14, fontWeight: '700', color: '#0F172A' },
-  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginBottom: 6 },
+  detailValue: { flex: 1, textAlign: 'right', fontSize: 14, fontWeight: '700', color: '#0F172A', marginLeft: 8 },
+  valueChip: { marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  valueChipText: { fontSize: 12.5, fontWeight: '800' },
+  sectionLabel: { fontSize: 12, fontWeight: '800', color: '#94A3B8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   contactBtnRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 12, paddingVertical: 11 },
   whatsappBtn: { backgroundColor: '#25D366' },

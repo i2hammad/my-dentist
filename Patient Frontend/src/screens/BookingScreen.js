@@ -1,15 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, KeyboardAvoidingView, Platform, Alert
+  TextInput, KeyboardAvoidingView, Platform, Alert, Modal
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
-import { webContent, isWeb } from '../config/webLayout';
+import { webContent, webForm, isWeb } from '../config/webLayout';
+import useResponsive from '../hooks/useResponsive';
 import PromoCard from '../components/PromoCard';
 
 const getTreatIcon = (name = '') => {
@@ -165,6 +167,11 @@ function generateTimeSlots(timing = {}, stepMinutes = SLOT_STEP_MINUTES) {
 }
 
 export default function BookingScreen({ route, navigation }) {
+  useRequireLogin();
+  const { width } = useResponsive();
+  const insets = useSafeAreaInsets(); // bottom inset so the action bar clears the nav bar
+  // Two columns only when there's room (wide web); otherwise stack (mobile web + native).
+  const twoCol = isWeb && width >= 900;
   const doctor = route.params?.doctor || {};
 
   const [selectedDate, setSelectedDate]             = useState(null);
@@ -180,6 +187,7 @@ export default function BookingScreen({ route, navigation }) {
   const [showTimePicker, setShowTimePicker]         = useState(false);
   const [customDateLabel, setCustomDateLabel]       = useState('');
   const [customTimeLabel, setCustomTimeLabel]       = useState('');
+  const [successInfo, setSuccessInfo]               = useState(null); // shows the success modal
 
   const clinicTiming = doctor.clinicTiming || {};
   const clinicTimingKey = JSON.stringify(clinicTiming);
@@ -269,6 +277,11 @@ export default function BookingScreen({ route, navigation }) {
     );
   };
 
+  const goToAppointments = () => {
+    setSuccessInfo(null);
+    navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Campaigns' } }] });
+  };
+
   const handleBooking = async () => {
     if (!selectedDate || !selectedTime) {
       return Alert.alert('Missing Info', 'Please select a date and time for your appointment.');
@@ -299,24 +312,13 @@ export default function BookingScreen({ route, navigation }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      const goToAppointments = () => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs', params: { screen: 'Campaigns' } }],
-        });
-      };
-
-      if (isWeb) {
-        window.alert('Your appointment has been booked successfully. The doctor will confirm shortly.');
-        goToAppointments();
-      } else {
-        Alert.alert(
-          'Appointment Booked!',
-          'Your appointment has been booked successfully. The doctor will confirm shortly.',
-          [{ text: 'OK', onPress: goToAppointments }],
-          { cancelable: false }
-        );
-      }
+      // Branded success modal (works on web + native).
+      setSuccessInfo({
+        doctor: doctor.fullName || 'your dentist',
+        date: customDateLabel || dateLabel(selectedDate),
+        time: customTimeLabel || timeLabel(selectedTime),
+        treatments: selectedTreatments.join(', '),
+      });
     } catch (error) {
       const msg = error.response?.data?.message
         || error.response?.data?.errors?.map(e => e.msg).join(', ')
@@ -349,7 +351,7 @@ export default function BookingScreen({ route, navigation }) {
           </View>
           <Text style={{ fontSize: 20, fontWeight: '800', color: '#0A1551', textAlign: 'center', marginBottom: 10 }}>Doctors Cannot Book</Text>
           <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
-            Campaign booking is for patients only. Please login with a patient account.
+            Appointment booking is for patients only. Please login with a patient account.
           </Text>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -362,25 +364,71 @@ export default function BookingScreen({ route, navigation }) {
     );
   }
 
+  // Confirm + hint are reused: in the sticky aside on wide web, and in a sticky
+  // bottom action bar on mobile (native + narrow web).
+  const missingHint = (!isReady && !!missingMsg) ? (
+    <View style={styles.missingHint}>
+      <Ionicons name="information-circle-outline" size={16} color="#B45309" style={{ marginRight: 6 }} />
+      <Text style={styles.missingHintText}>{missingMsg}</Text>
+    </View>
+  ) : null;
+
+  const confirmButton = (
+    <TouchableOpacity
+      style={[styles.confirmBtn, !isReady && styles.confirmBtnDisabled]}
+      disabled={!isReady || loading}
+      onPress={handleBooking}
+      activeOpacity={0.85}
+    >
+      {loading ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Ionicons name="hourglass-outline" size={20} color="#FFF" />
+          <Text style={styles.confirmBtnText}>Booking…</Text>
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+          <Text style={styles.confirmBtnText}>Confirm Appointment</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.headerInner, webContent]}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={22} color="#FFF" />
-            </TouchableOpacity>
-            <View>
-              <Text style={styles.headerTitle}>Book Appointment</Text>
-              <Text style={styles.headerSub}>Schedule your dental appointment</Text>
+        {/* Header — native only. On web the top nav is present, so we drop the
+            full-width blue bar and use a compact in-content title instead. */}
+        {!isWeb && (
+          <View style={styles.header}>
+            <View style={styles.headerInner}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <Ionicons name="arrow-back" size={22} color="#0052FF" />
+              </TouchableOpacity>
+              <View>
+                <Text style={styles.headerTitle}>Book Appointment</Text>
+                <Text style={styles.headerSub}>Schedule your dental appointment</Text>
+              </View>
+              <View style={{ width: 38 }} />
             </View>
-            <View style={{ width: 38 }} />
           </View>
-        </View>
+        )}
 
-        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, webContent]} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isWeb && styles.contentWeb]} showsVerticalScrollIndicator={false}>
+
+          {isWeb && (
+            <View style={styles.webHead}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.webBackBtn} activeOpacity={0.75}>
+                <Ionicons name="arrow-back" size={18} color="#0052FF" />
+                <Text style={styles.webBackText}>Back</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.webTitle}>Book Appointment</Text>
+                <Text style={styles.webSub}>Schedule your dental appointment</Text>
+              </View>
+            </View>
+          )}
 
           {/* Marketing banner — reusable PromoCard (full-bleed, so offset the content padding) */}
           <PromoCard style={{ marginTop: 0, marginHorizontal: -16, marginBottom: 4 }} />
@@ -402,6 +450,11 @@ export default function BookingScreen({ route, navigation }) {
               </View>
             )}
           </View>
+
+          {/* Two-column on web: form (left) + live summary/confirm (aside). On
+              native these wrappers are transparent (plain column Views). */}
+          <View style={twoCol ? styles.webRow : null}>
+          <View style={twoCol ? styles.webMain : null}>
 
           {/* ── TREATMENTS (from doctor's list) ─────────────────────────── */}
           <View style={styles.section}>
@@ -648,10 +701,13 @@ export default function BookingScreen({ route, navigation }) {
             />
           </View>
 
-          {/* ── SUMMARY ─────────────────────────────────────────────────── */}
-          {isReady && (
+          </View>{/* end web main column */}
+          <View style={twoCol ? styles.webAside : null}>
+
+          {/* ── SUMMARY ─── always visible on web (live recap), gated on native ── */}
+          {(isWeb || isReady) && (
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Campaign Summary</Text>
+              <Text style={styles.summaryTitle}>Appointment Summary</Text>
               <View style={styles.summaryRow}>
                 <Ionicons name="person-circle-outline" size={16} color="#0052FF" />
                 <Text style={styles.summaryLabel}>Doctor</Text>
@@ -660,49 +716,80 @@ export default function BookingScreen({ route, navigation }) {
               <View style={styles.summaryRow}>
                 <Ionicons name="calendar-outline" size={16} color="#0052FF" />
                 <Text style={styles.summaryLabel}>Date</Text>
-                <Text style={styles.summaryValue}>{customDateLabel || selectedDate}</Text>
+                <Text style={[styles.summaryValue, !(customDateLabel || selectedDate) && styles.summaryPlaceholder]}>{customDateLabel || selectedDate || 'Select a date'}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Ionicons name="time-outline" size={16} color="#7C3AED" />
                 <Text style={styles.summaryLabel}>Time</Text>
-                <Text style={styles.summaryValue}>{customTimeLabel || selectedTime}</Text>
+                <Text style={[styles.summaryValue, !(customTimeLabel || selectedTime) && styles.summaryPlaceholder]}>{customTimeLabel || selectedTime || 'Select a time'}</Text>
               </View>
               <View style={[styles.summaryRow, { flexWrap: 'wrap' }]}>
                 <Ionicons name="medkit-outline" size={16} color="#7C3AED" />
                 <Text style={styles.summaryLabel}>Treatments</Text>
-                <Text style={styles.summaryValue}>{selectedTreatments.join(', ')}</Text>
+                <Text style={[styles.summaryValue, !selectedTreatments.length && styles.summaryPlaceholder]}>{selectedTreatments.join(', ') || 'Select treatment(s)'}</Text>
               </View>
             </View>
           )}
 
-          {/* ── CONFIRM BUTTON ───────────────────────────────────────────── */}
-          {!isReady && !!missingMsg && (
-            <View style={styles.missingHint}>
-              <Ionicons name="information-circle-outline" size={16} color="#B45309" style={{ marginRight: 6 }} />
-              <Text style={styles.missingHintText}>{missingMsg}</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={[styles.confirmBtn, !isReady && styles.confirmBtnDisabled]}
-            disabled={!isReady || loading}
-            onPress={handleBooking}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Ionicons name="hourglass-outline" size={20} color="#FFF" />
-                <Text style={styles.confirmBtnText}>Booking Campaign…</Text>
-              </View>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                <Text style={styles.confirmBtnText}>Confirm Appointment</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* Wide web: confirm lives in the sticky aside. Mobile uses the bottom bar. */}
+          {twoCol && missingHint}
+          {twoCol && confirmButton}
 
-          <View style={{ height: 40 }} />
+          </View>{/* end web aside */}
+          </View>{/* end web row */}
+
+          <View style={{ height: twoCol ? 40 : 8 }} />
         </ScrollView>
+
+        {/* Sticky bottom action bar — mobile (native + narrow web) */}
+        {!twoCol && (
+          <View style={[styles.mobileBar, { paddingBottom: Math.max(insets.bottom, 12) + 4 }]}>
+            {missingHint}
+            {confirmButton}
+          </View>
+        )}
+
+        {/* ── Success confirmation modal ─────────────────────────────── */}
+        <Modal visible={!!successInfo} transparent animationType="fade" onRequestClose={goToAppointments}>
+          <View style={styles.successOverlay}>
+            <View style={styles.successCard}>
+              <View style={styles.successGlow} />
+              <View style={styles.successIcon}>
+                <Ionicons name="checkmark" size={42} color="#FFFFFF" />
+              </View>
+              <Text style={styles.successTitle}>Appointment Booked!</Text>
+              <Text style={styles.successSub}>Your request has been sent. The clinic will confirm it shortly.</Text>
+
+              {successInfo && (
+                <View style={styles.successDetails}>
+                  <View style={styles.successRow}>
+                    <Ionicons name="person-circle-outline" size={17} color="#0052FF" />
+                    <Text style={styles.successRowText}>Dr. {successInfo.doctor}</Text>
+                  </View>
+                  <View style={styles.successRow}>
+                    <Ionicons name="calendar-outline" size={17} color="#0052FF" />
+                    <Text style={styles.successRowText}>{successInfo.date}</Text>
+                  </View>
+                  <View style={styles.successRow}>
+                    <Ionicons name="time-outline" size={17} color="#7C3AED" />
+                    <Text style={styles.successRowText}>{successInfo.time}</Text>
+                  </View>
+                  {!!successInfo.treatments && (
+                    <View style={[styles.successRow, { borderBottomWidth: 0 }]}>
+                      <Ionicons name="medkit-outline" size={17} color="#7C3AED" />
+                      <Text style={styles.successRowText}>{successInfo.treatments}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <TouchableOpacity style={styles.successBtn} onPress={goToAppointments} activeOpacity={0.85}>
+                <Text style={styles.successBtnText}>View My Appointments</Text>
+                <Ionicons name="arrow-forward" size={17} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -712,29 +799,116 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F0F4FF' },
 
   header: {
-    backgroundColor: '#0052FF',
-    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8EFFF',
   },
   headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     width: '100%',
   },
   backBtn: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: '#EFF4FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
-  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)' },
+  headerTitle: { fontSize: 19, fontWeight: '800', color: '#0A1551' },
+  headerSub: { fontSize: 12, color: '#64748B' },
 
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 20 },
+  content: { padding: 16, paddingBottom: 28, ...(isWeb ? { paddingTop: 24 } : null) },
+
+  // Web-only compact header (replaces the full-width blue bar)
+  webHead: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+  webBackBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12,
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  webBackText: { fontSize: 14, fontWeight: '700', color: '#0052FF' },
+  webTitle: { fontSize: 24, fontWeight: '800', color: '#0A1551', letterSpacing: -0.3 },
+  webSub: { fontSize: 13.5, color: '#64748B', marginTop: 2 },
+
+  // Web layout: centered width + two columns (form left, summary aside).
+  contentWeb: { maxWidth: 1040, width: '100%', alignSelf: 'center' },
+  webRow: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  webMain: { flex: 1.7, minWidth: 0 },
+  webAside: {
+    flex: 1, minWidth: 300,
+    ...(typeof document !== 'undefined' ? { position: 'sticky', top: 84 } : {}),
+  },
+  summaryPlaceholder: { color: '#94A3B8', fontWeight: '500' },
+
+  // Success confirmation modal
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(6,24,63,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingTop: 30,
+    paddingBottom: 22,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: '#06183F',
+    shadowOpacity: 0.3,
+    shadowRadius: 40,
+    shadowOffset: { width: 0, height: 20 },
+    elevation: 12,
+  },
+  successGlow: {
+    position: 'absolute', top: -60, alignSelf: 'center',
+    width: 200, height: 200, borderRadius: 100, backgroundColor: '#DCFCE7', opacity: 0.6,
+  },
+  successIcon: {
+    width: 76, height: 76, borderRadius: 38,
+    backgroundColor: '#16A34A',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 18,
+    shadowColor: '#16A34A', shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 },
+  },
+  successTitle: { fontSize: 21, fontWeight: '800', color: '#0A1551', textAlign: 'center' },
+  successSub: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 6, lineHeight: 20, marginBottom: 18 },
+  successDetails: {
+    width: '100%', backgroundColor: '#F7FAFF', borderRadius: 14,
+    borderWidth: 1, borderColor: '#E8EFFF', paddingHorizontal: 14, marginBottom: 20,
+  },
+  successRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#EEF3FB',
+  },
+  successRowText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#0A1551' },
+  successBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 15,
+    shadowColor: '#0052FF', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 8 },
+  },
+  successBtnText: { color: '#FFFFFF', fontSize: 15.5, fontWeight: '800' },
+
+  // Mobile (native + narrow web): sticky bottom action bar holding the confirm button.
+  mobileBar: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E8EFFF',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 26 : 14,
+    ...(typeof document !== 'undefined' ? { position: 'sticky', bottom: 0, boxShadow: '0 -6px 20px rgba(9,24,51,0.10)' } : {}),
+  },
 
   // Doctor card
   doctorCard: {

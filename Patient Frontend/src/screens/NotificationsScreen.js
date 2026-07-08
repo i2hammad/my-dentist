@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, Image,
@@ -14,6 +15,7 @@ import { SkeletonRowList } from '../components/Skeleton';
 import webContent, { isWeb } from '../config/webLayout';
 
 export default function NotificationsScreen({ navigation, route }) {
+  useRequireLogin();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   // Prefer the role passed by the caller (authoritative, no race); else fetch it.

@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useRequireLogin } from "../utils/authGuard";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput,
 } from 'react-native';
@@ -124,6 +125,7 @@ function BillCard({ bill, onPress, onPay, onDownload, paying }) {
 }
 
 export default function BillsHistoryScreen({ navigation }) {
+  useRequireLogin();
   const [bills, setBills] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);

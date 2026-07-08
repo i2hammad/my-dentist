@@ -79,4 +79,9 @@ router.get('/rewards', admin.listRewards);
 
 router.get('/search', admin.globalSearch);
 
+// Full data backup (JSON export) — super-admin only (checked in the controller).
+router.get('/backup', admin.backupData);
+// Restore from a backup JSON. Larger body limit since backup files can be big.
+router.post('/restore', express.json({ limit: '50mb' }), admin.restoreData);
+
 module.exports = router;

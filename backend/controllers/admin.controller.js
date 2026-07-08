@@ -141,8 +141,18 @@ exports.updateDentist = async (req, res) => {
     const data = {};
     for (const k of ['pmdcVerified', 'clinicTier', 'fullName', 'specialization', 'approvalStatus', 'isBlocked', 'blockReason']) if (k in req.body) data[k] = req.body[k];
     if (data.approvalStatus === 'approved') data.pmdcVerified = true;
+
+    const before = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, select: { approvalStatus: true } });
     const doc = await prisma.doctorProfile.update({ where: { id: req.params.id }, data }).catch(() => null);
     if (!doc) return fail(res, 404, 'Dentist not found');
+
+    // Email the doctor only on the transition INTO "approved".
+    if (data.approvalStatus === 'approved' && before?.approvalStatus !== 'approved') {
+      prisma.user.findUnique({ where: { id: doc.userId }, select: { email: true } })
+        .then((u) => { if (u?.email) require('../utils/emails').sendDoctorApprovedEmail({ to: u.email, name: doc.fullName }); })
+        .catch(() => {});
+    }
+
     ok(res, serialize(doc));
   } catch (e) { fail(res, 500, e.message); }
 };
@@ -503,7 +513,71 @@ exports.changeMyPassword = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user._id } });
     if (!user || !(await bcrypt.compare(currentPassword, user.password))) return fail(res, 400, 'Current password is incorrect');
     await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(newPassword) } });
+    // Best-effort security notification.
+    require('../utils/emails').sendPasswordChangedEmail({ to: user.email });
     ok(res, { changed: true });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Data backup (full JSON export) ─────────────────────────
+// Super-admin only. Streams every table as a downloadable JSON file — works on
+// shared hosting without pg_dump/shell. NOTE: includes password hashes so a
+// restore can preserve logins; keep the file secure.
+exports.backupData = async (req, res) => {
+  try {
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can export a backup');
+
+    const { payload, total } = await require('../utils/backup').buildBackup();
+    await logAudit(req, { action: 'export', entity: 'backup', description: `Exported full data backup (${total} records)` });
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="mydentist-backup-${stamp}.json"`);
+    return res.send(payload);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// ─── Data restore (import a backup JSON) ────────────────────
+// Super-admin only. SAFE by design: it UPSERTS each record by id in FK-dependency
+// order (parents first) — it recreates missing rows and updates matching ones,
+// but NEVER deletes, so it can't wipe the DB. Records added after the backup are
+// left untouched. Each row is attempted independently; failures are counted, not
+// fatal.
+exports.restoreData = async (req, res) => {
+  try {
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can restore a backup');
+
+    if (req.body?.app && req.body.app !== 'my-dentist') return fail(res, 400, 'This file is not a My Dentist backup.');
+    const data = req.body?.data;
+    if (!data || typeof data !== 'object') return fail(res, 400, 'Invalid backup file — missing "data".');
+
+    // Parents before children so foreign keys resolve during upsert.
+    const ORDER = [
+      'user', 'adminProfile', 'doctorProfile', 'patientProfile', 'treatment', 'gallery',
+      'campaign', 'scheduledBroadcast', 'appSettings', 'paymentMethod', 'appointment', 'bill',
+      'review', 'reward', 'favorite', 'commissionLog', 'chatMessage', 'notification', 'auditLog',
+    ];
+
+    const summary = {};
+    let totalOk = 0, totalFail = 0;
+    for (const m of ORDER) {
+      const rows = Array.isArray(data[m]) ? data[m] : [];
+      let restored = 0, failed = 0;
+      for (const row of rows) {
+        if (!row || !row.id) { failed++; continue; }
+        try {
+          await prisma[m].upsert({ where: { id: row.id }, create: row, update: row });
+          restored++;
+        } catch (_) { failed++; }
+      }
+      if (rows.length) summary[m] = { restored, failed };
+      totalOk += restored; totalFail += failed;
+    }
+
+    await logAudit(req, { action: 'import', entity: 'backup', description: `Restored backup — ${totalOk} records (${totalFail} failed)` });
+    ok(res, { restored: totalOk, failed: totalFail, summary });
   } catch (e) { fail(res, 500, e.message); }
 };
 
@@ -577,11 +651,20 @@ exports.testEmail = async (req, res) => {
     const v = await verifyConnection();
     if (!v.ok) return fail(res, 400, `SMTP connection failed: ${v.error}`);
 
+    const { renderEmail, emailPanel } = require('../utils/emailTemplate');
     const r = await sendEmail({
       to,
-      subject: 'My Dentist — SMTP test',
-      text: 'This is a test email from My Dentist. If you received it, forgot-password emails will work.',
-      html: '<p>This is a <b>test email</b> from My Dentist. If you received it, forgot-password emails will work.</p>',
+      subject: 'My Dentist email delivery confirmed',
+      text: `Hello,\n\nGreat news — email for My Dentist is set up correctly. Transactional emails like password resets, appointment updates, and account notifications will be delivered reliably from this address.\n\n• SMTP connection verified\n• Delivery working\n\nNo action is needed — an administrator ran this delivery check from the admin panel.\n\n— The My Dentist Team\nmydentistpk.com`,
+      html: renderEmail({
+        preheader: 'Your My Dentist email is set up and working.',
+        heading: 'Email delivery confirmed',
+        bodyHtml: `
+          <p style="margin:0 0 14px;">Hello,</p>
+          <p style="margin:0 0 18px;">Great news — email for <b>My Dentist</b> is set up correctly. Transactional emails like <b>password resets</b>, <b>appointment updates</b>, and <b>account notifications</b> will be delivered reliably from this address.</p>
+          ${emailPanel('&#10003;&nbsp; SMTP connection verified &nbsp;&nbsp;·&nbsp;&nbsp; &#10003;&nbsp; Delivery working', 'success')}
+          <p style="margin:0;color:#64748b;font-size:13px;">No action is needed — an administrator ran this delivery check from the admin panel.</p>`,
+      }),
     });
     ok(res, { sent: r.sent, to });
   } catch (e) { fail(res, 500, e.message); }

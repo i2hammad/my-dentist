@@ -30,6 +30,20 @@ const protect = async (req, res, next) => {
       });
     }
 
+    // Enforce account suspension: a blocked patient is denied access everywhere
+    // (even with an existing token). Doctors are intentionally NOT hard-blocked
+    // here — they need access to view/clear commission dues.
+    if (user.role === 'patient') {
+      const p = await prisma.patientProfile.findUnique({ where: { userId: user.id }, select: { isBlocked: true, blockReason: true } });
+      if (p?.isBlocked) {
+        return res.status(403).json({
+          success: false,
+          blocked: true,
+          message: p.blockReason || 'Your account has been suspended. Please contact support.',
+        });
+      }
+    }
+
     // Expose `_id` too so existing controllers (req.user._id) keep working.
     req.user = { ...user, _id: user.id };
     next();

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { UserCircle, Lock, ShieldCheck, Gear } from '@phosphor-icons/react';
+import { UserCircle, Lock, ShieldCheck, Gear, Database } from '@phosphor-icons/react';
 import api, { imgUrl, API_URL } from '../lib/api';
 import { useAuth } from '../lib/auth.jsx';
 import { useToast } from '../components/feedback.jsx';
@@ -17,6 +17,7 @@ export default function Settings() {
     { id: 'password', label: 'Change Password', Icon: Lock },
     { id: 'permissions', label: 'Permissions & Roles', Icon: ShieldCheck },
     { id: 'app', label: 'App Settings', Icon: Gear },
+    ...(isSuper ? [{ id: 'backup', label: 'Backup', Icon: Database }] : []),
   ];
 
   return (
@@ -38,7 +39,82 @@ export default function Settings() {
           {tab === 'password' && <PasswordTab />}
           {tab === 'permissions' && <PermissionsTab isSuper={isSuper} />}
           {tab === 'app' && <AppTab isSuper={isSuper} />}
+          {tab === 'backup' && <BackupTab isSuper={isSuper} />}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function BackupTab({ isSuper }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  if (!isSuper) return <div className="card"><div className="empty">Only super admins can back up or restore data.</div></div>;
+
+  const download = async () => {
+    setBusy(true);
+    try {
+      const res = await api.get('/api/admin/backup', { responseType: 'blob' });
+      const cd = res.headers['content-disposition'] || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const name = m ? m[1] : 'mydentist-backup.json';
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast('Backup downloaded');
+    } catch (e) {
+      toast(e.response?.data?.message || 'Backup failed', 'error');
+    } finally { setBusy(false); }
+  };
+
+  const restore = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!window.confirm('Restore from this backup?\n\nRecords with matching IDs will be recreated or overwritten. Nothing is deleted, but this cannot be undone. Continue?')) return;
+    setRestoring(true);
+    try {
+      const backup = JSON.parse(await file.text());
+      if (!backup?.data) throw new Error('bad');
+      const res = await api.post('/api/admin/restore', backup);
+      const d = res.data.data;
+      toast(`Restored ${d.restored} records${d.failed ? ` · ${d.failed} skipped` : ''}`);
+    } catch (e) {
+      toast(e.response?.data?.message || 'Restore failed — is this a valid backup file?', 'error');
+    } finally { setRestoring(false); }
+  };
+
+  return (
+    <div style={{ maxWidth: 520 }}>
+      <div className="card">
+        <div className="card-head"><h3>Data Backup</h3></div>
+        <p style={{ color: 'var(--muted)', fontSize: 14, margin: '4px 0 16px', lineHeight: 1.6 }}>
+          Download a full JSON export of the database — users, doctors, patients, appointments,
+          bills, reviews, rewards, settings, and more.
+        </p>
+        <div style={{ background: '#fff8e1', border: '1px solid #fde68a', color: '#92400e', fontSize: 13, padding: '10px 14px', margin: '0 0 16px', borderRadius: 10 }}>
+          ⚠ This file contains all account data (including password hashes). Store it securely and
+          never share it.
+        </div>
+        <button className="btn primary" disabled={busy} onClick={download}>
+          {busy ? 'Preparing…' : 'Download Backup'}
+        </button>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-head"><h3>Restore</h3></div>
+        <p style={{ color: 'var(--muted)', fontSize: 14, margin: '4px 0 16px', lineHeight: 1.6 }}>
+          Upload a backup file to restore it. Records are matched by ID — missing ones are
+          recreated, matching ones are overwritten. <b>Nothing is deleted.</b>
+        </p>
+        <label className="btn" style={{ cursor: 'pointer', display: 'inline-block' }}>
+          {restoring ? 'Restoring…' : 'Choose backup file…'}
+          <input type="file" accept="application/json,.json" hidden disabled={restoring} onChange={restore} />
+        </label>
       </div>
     </div>
   );

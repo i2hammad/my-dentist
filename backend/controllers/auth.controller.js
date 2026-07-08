@@ -52,6 +52,9 @@ const register = async (req, res) => {
     const tokens = generateTokens(user.id);
     await prisma.user.update({ where: { id: user.id }, data: { refreshToken: tokens.refreshToken } });
 
+    // Best-effort welcome email (non-blocking).
+    require('../utils/emails').sendWelcomeEmail({ to: user.email, role: userRole });
+
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
@@ -87,6 +90,14 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+
+    // Block suspended patients from signing in.
+    if (user.role === 'patient') {
+      const p = await prisma.patientProfile.findUnique({ where: { userId: user.id }, select: { isBlocked: true, blockReason: true } });
+      if (p?.isBlocked) {
+        return res.status(403).json({ success: false, blocked: true, message: p.blockReason || 'Your account has been suspended. Please contact support.' });
+      }
     }
 
     const tokens = generateTokens(user.id);
@@ -174,16 +185,21 @@ const forgotPassword = async (req, res) => {
     await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(newPassword) } });
 
     const { sendEmail } = require('../utils/mailer');
+    const { renderEmail, emailCode, emailButton } = require('../utils/emailTemplate');
     await sendEmail({
       to: user.email,
-      subject: 'My Dentist — Your New Password',
-      text: `Your password has been reset.\n\nNew password: ${newPassword}\n\nPlease log in and change it from your profile for security.`,
-      html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
-        <h2 style="color:#2563EB">My Dentist</h2>
-        <p>Your password has been reset as requested.</p>
-        <p style="font-size:16px">New password: <b style="background:#EFF6FF;padding:4px 10px;border-radius:6px">${newPassword}</b></p>
-        <p style="color:#64748B;font-size:13px">For your security, please log in and change this password from your profile.</p>
-      </div>`,
+      subject: 'Your My Dentist password was reset',
+      text: `Hello,\n\nWe reset your My Dentist password as you requested. Use the temporary password below to sign in, then change it from your profile.\n\nTemporary password: ${newPassword}\n\nOpen the app: https://app.mydentistpk.com\n\nDidn't request this? You can safely ignore this email, or contact us at support@mydentistpk.com.\n\n— The My Dentist Team\nmydentistpk.com`,
+      html: renderEmail({
+        preheader: 'Your temporary My Dentist password is inside.',
+        heading: 'Password reset',
+        bodyHtml: `
+          <p style="margin:0 0 14px;">Hello,</p>
+          <p style="margin:0 0 2px;">We reset your <b>My Dentist</b> password as you requested. Use the temporary password below to sign in, then change it from your profile for security.</p>
+          ${emailCode(newPassword)}
+          ${emailButton({ href: 'https://app.mydentistpk.com', label: 'Open My Dentist →' })}
+          <p style="margin:16px 0 0;color:#64748b;font-size:13px;">Didn't request this? You can safely ignore this email, or contact <a href="mailto:support@mydentistpk.com" style="color:#0052ff;">support@mydentistpk.com</a>.</p>`,
+      }),
     });
 
     res.status(200).json({

@@ -68,6 +68,16 @@ const createAppointment = async (req, res) => {
       relatedId: appointment.id,
     });
 
+    // Best-effort emails (non-blocking): confirm to patient, notify doctor.
+    const emails = require('../utils/emails');
+    emails.sendAppointmentBookedEmail({
+      to: req.user.email, patientName: patientProfile.fullName, doctorName: doctorProfile.fullName,
+      treatment: treatmentType, date, time,
+    });
+    prisma.user.findUnique({ where: { id: doctorProfile.userId }, select: { email: true } })
+      .then((u) => { if (u?.email) emails.sendAppointmentRequestEmail({ to: u.email, doctorName: doctorProfile.fullName, patientName: patientProfile.fullName, treatment: treatmentType, date, time }); })
+      .catch(() => {});
+
     res.status(201).json({ success: true, message: 'Appointment created successfully', data: serialize(appointment) });
   } catch (error) {
     console.error('Create appointment error:', error);
@@ -210,6 +220,9 @@ const rescheduleAppointment = async (req, res) => {
       relatedId: appointment.id,
     });
 
+    // Best-effort: email the patient about the new time.
+    require('../utils/emails').sendAppointmentStatusEmail({ userId: appointment.patient.userId, status: 'rescheduled', treatment: appointment.treatmentType, date, time, name: appointment.doctor.fullName });
+
     res.status(200).json({ success: true, message: 'Appointment rescheduled successfully', data: serialize(updated) });
   } catch (error) {
     console.error('Reschedule error:', error);
@@ -244,6 +257,9 @@ const cancelAppointment = async (req, res) => {
       message: `Your appointment on ${new Date(appointment.date).toLocaleDateString()} at ${appointment.time} has been cancelled by ${cancelledBy}.`,
       relatedId: appointment.id,
     });
+
+    // Best-effort: email the other party that it was cancelled.
+    require('../utils/emails').sendAppointmentStatusEmail({ userId: recipientUserId, status: 'cancelled', treatment: appointment.treatmentType, date: appointment.date, time: appointment.time, name: cancelledBy });
 
     res.status(200).json({ success: true, message: 'Appointment cancelled successfully', data: serialize(updated) });
   } catch (error) {
@@ -384,6 +400,12 @@ const confirmAppointment = async (req, res) => {
       data.rescheduleRequest = { requested: false, date: null, time: null, requestedAt: null };
     }
     const updated = await prisma.appointment.update({ where: { id: appointment.id }, data });
+
+    // Best-effort: email the patient that the appointment is confirmed.
+    prisma.patientProfile.findUnique({ where: { id: updated.patientId }, select: { userId: true } })
+      .then((p) => { if (p?.userId) require('../utils/emails').sendAppointmentStatusEmail({ userId: p.userId, status: 'confirmed', treatment: updated.treatmentType, date: updated.date, time: updated.time, name: doctorProfile.fullName }); })
+      .catch(() => {});
+
     res.status(200).json({ success: true, data: serialize(updated) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

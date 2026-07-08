@@ -36,24 +36,32 @@ app.use('/api/favorites', require('./routes/favorite.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/campaigns', require('./routes/campaign.routes'));
 
-// ─── Cron: process due scheduled broadcasts ────────────────
-// Called by a scheduler (e.g. Vercel Cron). Guarded by CRON_SECRET when set so
-// it isn't publicly triggerable. Add a Vercel Cron entry hitting this path.
-app.all('/api/cron/process-broadcasts', async (req, res) => {
+// ─── Cron jobs ──────────────────────────────────────────────
+// Triggered by an external scheduler (cPanel Cron / Vercel Cron) hitting these
+// paths. Guarded by CRON_SECRET when set (via ?secret=, x-cron-secret header,
+// or Bearer) so they aren't publicly triggerable.
+const cronAuthorized = (req) => {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return true; // no secret configured → open (set CRON_SECRET in prod)
+  const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+  const provided = req.headers['x-cron-secret'] || req.query.secret || bearer;
+  return provided === secret;
+};
+const cronJob = (fn) => async (req, res) => {
+  if (!cronAuthorized(req)) return res.status(401).json({ success: false, message: 'Unauthorized' });
   try {
-    const secret = process.env.CRON_SECRET;
-    if (secret) {
-      const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-      const provided = req.headers['x-cron-secret'] || req.query.secret || bearer;
-      if (provided !== secret) return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    const { runDueScheduledBroadcasts } = require('./controllers/admin.controller');
-    const result = await runDueScheduledBroadcasts();
-    res.json({ success: true, data: result });
+    res.json({ success: true, data: await fn() });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
-});
+};
+
+// Process due scheduled broadcasts.
+app.all('/api/cron/process-broadcasts', cronJob(() => require('./controllers/admin.controller').runDueScheduledBroadcasts()));
+// Email patients whose appointment is tomorrow (idempotent).
+app.all('/api/cron/appointment-reminders', cronJob(() => require('./utils/cronJobs').runAppointmentReminders()));
+// Write a rotated JSON backup snapshot to disk.
+app.all('/api/cron/auto-backup', cronJob(() => require('./utils/cronJobs').runAutoBackup()));
 
 // ─── Health Check ──────────────────────────────────────────
 app.get('/', (req, res) => {

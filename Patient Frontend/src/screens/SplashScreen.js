@@ -103,6 +103,11 @@ export default function SplashScreen({ navigation }) {
           await storage.removeItem('userToken');
           return { route: 'RoleSelection' };
         } catch (err) {
+          // Suspended account → log out cleanly so they can't proceed.
+          if (err?.response?.status === 403 && err?.response?.data?.blocked) {
+            await storage.removeItem('userToken');
+            return { route: 'RoleSelection' };
+          }
           console.log('Error checking status in splash:', err);
           return { route: 'RoleSelection' }; // Default fallback on connection issue/error
         }

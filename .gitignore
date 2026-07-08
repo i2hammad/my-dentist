@@ -32,6 +32,7 @@ expo-env.d.ts
 
 # ─── Backend uploads (user-generated) ────────────────────────
 backend/uploads/
+backend/backups/
 
 # ─── Generated Prisma client + engine binaries (rebuilt via `prisma generate`) ─
 backend/generated/

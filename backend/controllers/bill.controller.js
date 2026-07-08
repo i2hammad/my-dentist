@@ -145,6 +145,8 @@ const createBill = async (req, res) => {
         }
       }
       await reconcileBillCommission(bill.id);
+      // Best-effort: email the patient a receipt.
+      require('../utils/emails').sendBillReceiptEmail({ userId: patientProfile.userId, patientName: patientProfile.fullName, invoiceNumber: bill.invoiceNumber, treatmentName, amount: finalAmount, rewardPoints: pts });
     }
 
     if (status !== 'draft') {
@@ -231,6 +233,9 @@ const payBill = async (req, res) => {
       data: { billId: String(bill.id) },
     });
 
+    // Best-effort: email the patient a receipt.
+    require('../utils/emails').sendBillReceiptEmail({ userId: bill.patient.userId, patientName: bill.patient.fullName, invoiceNumber: bill.invoiceNumber, treatmentName: bill.treatmentName, amount: bill.finalAmount || bill.amount, rewardPoints });
+
     res.status(200).json({ success: true, message: 'Bill paid successfully', data: { bill: serialize(updated), rewardPointsEarned: rewardPoints } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to process payment', error: error.message });
@@ -269,6 +274,9 @@ const confirmPayment = async (req, res) => {
       relatedId: bill.id,
       data: { billId: String(bill.id) },
     });
+
+    // Best-effort: email the patient a receipt.
+    require('../utils/emails').sendBillReceiptEmail({ userId: bill.patient.userId, patientName: bill.patient.fullName, invoiceNumber: bill.invoiceNumber, treatmentName: bill.treatmentName, amount: bill.finalAmount || bill.amount, rewardPoints });
 
     res.status(200).json({ success: true, message: 'Payment confirmed', data: { bill: serialize(updated), rewardPointsEarned: rewardPoints } });
   } catch (error) {

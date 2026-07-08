@@ -97,7 +97,10 @@ export default function DentistDetail() {
   };
   const viewAs = async () => {
     try {
-      const r = await api.post('/api/admin/impersonate/' + (doc.userId?._id || doc.userId));
+      // userId may be a populated object ({ _id/id }) or a raw string FK.
+      const uid = doc.userId?._id || doc.userId?.id || (typeof doc.userId === 'string' ? doc.userId : null);
+      if (!uid) { toast('Could not resolve this user', 'error'); return; }
+      const r = await api.post('/api/admin/impersonate/' + uid);
       const token = r.data.data.token;
       const appUrl = import.meta.env.VITE_APP_WEB_URL;
       if (appUrl) {

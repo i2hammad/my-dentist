@@ -408,7 +408,7 @@ exports.updateTreatment = async (req, res) => {
 // ─── Detail views ───────────────────────────────────────────
 exports.getDentist = async (req, res) => {
   try {
-    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, include: { user: { select: { email: true, role: true, createdAt: true } } } });
+    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, include: { user: { select: { id: true, email: true, role: true, createdAt: true } } } });
     if (!doctor) return fail(res, 404, 'Dentist not found');
     const [treatments, reviews, appointments, gallery, bills, commissionLog, ratingAgg, settings] = await Promise.all([
       prisma.treatment.findMany({ where: { doctorId: doctor.id } }),
@@ -452,7 +452,7 @@ exports.getDentist = async (req, res) => {
 
 exports.getPatient = async (req, res) => {
   try {
-    const patient = await prisma.patientProfile.findUnique({ where: { id: req.params.id }, include: { user: { select: { email: true, role: true, createdAt: true } } } });
+    const patient = await prisma.patientProfile.findUnique({ where: { id: req.params.id }, include: { user: { select: { id: true, email: true, role: true, createdAt: true } } } });
     if (!patient) return fail(res, 404, 'Patient not found');
     const [appointments, bills, rewards] = await Promise.all([
       prisma.appointment.findMany({ where: { patientId: patient.id }, include: { doctor: { select: { fullName: true, photo: true } } }, orderBy: { createdAt: 'desc' }, take: 10 }),

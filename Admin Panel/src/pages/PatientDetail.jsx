@@ -46,7 +46,10 @@ export default function PatientDetail() {
 
   const viewAs = async () => {
     try {
-      const r = await api.post(`/api/admin/impersonate/${p.userId?._id || p.userId}`);
+      // userId may be a populated object ({ _id/id }) or a raw string FK.
+      const uid = p.userId?._id || p.userId?.id || (typeof p.userId === 'string' ? p.userId : null);
+      if (!uid) { toast('Could not resolve this user', 'error'); return; }
+      const r = await api.post(`/api/admin/impersonate/${uid}`);
       const token = r.data.data.token;
       const webUrl = import.meta.env.VITE_APP_WEB_URL;
       if (webUrl) {

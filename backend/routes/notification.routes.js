@@ -34,7 +34,7 @@ router.put(
   '/:id/read',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid notification ID'),
   ],
   validate,

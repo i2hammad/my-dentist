@@ -1,10 +1,51 @@
-import React, { useEffect, useState } from 'react';
-import { View, Image, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, Text, Platform } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Image, StyleSheet, ActivityIndicator, Animated, Easing, Text, Platform } from 'react-native';
 import storage from '../config/storage';
-import useResponsive from '../hooks/useResponsive';
+import { isWeb } from '../config/webLayout';
 
 export default function SplashScreen({ navigation }) {
-  const { isWide } = useResponsive();
+  // ── Animated web splash values ──────────────────────────────
+  const card = useRef(new Animated.Value(0)).current;     // whole-card fade/scale in
+  const pulse = useRef(new Animated.Value(0)).current;    // radar ring behind logo
+  const bar = useRef(new Animated.Value(0)).current;      // indeterminate progress
+  const driftA = useRef(new Animated.Value(0)).current;   // background blob drift
+  const driftB = useRef(new Animated.Value(0)).current;
+  const orbit = useRef(new Animated.Value(0)).current;    // dots circling the logo
+  const float = useRef(new Animated.Value(0)).current;    // logo "breathing"
+  // Staggered reveal for logo → brand → tagline → progress.
+  const reveal = useRef([0, 1, 2, 3].map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    if (!isWeb) return;
+    const yoyo = (v, d) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(v, { toValue: 1, duration: d, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+          Animated.timing(v, { toValue: 0, duration: d, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+        ])
+      );
+
+    // Entrance: card in, then inner elements cascade.
+    Animated.timing(card, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    Animated.stagger(
+      130,
+      reveal.map((v) => Animated.timing(v, { toValue: 1, duration: 560, delay: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }))
+    ).start();
+
+    // Continuous loops.
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1900, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: false }),
+      ])
+    ).start();
+    Animated.loop(Animated.timing(bar, { toValue: 1, duration: 1300, easing: Easing.linear, useNativeDriver: false })).start();
+    Animated.loop(Animated.timing(orbit, { toValue: 1, duration: 3800, easing: Easing.linear, useNativeDriver: false })).start();
+    yoyo(float, 2200).start();
+    yoyo(driftA, 6000).start();
+    yoyo(driftB, 7500).start();
+  }, []);
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -21,9 +62,10 @@ export default function SplashScreen({ navigation }) {
         }
       }
 
-      // Branded splash delay on native; near-instant on web (users expect a fast site).
-      const delay = new Promise(resolve => setTimeout(resolve, Platform.OS === 'web' ? 0 : 3000));
-      
+      // Branded splash: full 3s on native; a short, tasteful 1.2s on web so the
+      // animated intro is actually seen without making the site feel slow.
+      const delay = new Promise(resolve => setTimeout(resolve, Platform.OS === 'web' ? 1200 : 3000));
+
       const checkStatus = async () => {
         try {
           const token = await storage.getItem('userToken');
@@ -32,7 +74,7 @@ export default function SplashScreen({ navigation }) {
           // Fetch user details from the backend to verify the token and get the role/profile
           const axios = require('axios');
           const API_BASE_URL = require('../config/api').default;
-          
+
           const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
             headers: { Authorization: `Bearer ${token}` }
           });
@@ -88,30 +130,68 @@ export default function SplashScreen({ navigation }) {
     };
   }, []);
 
-  // ── Web / large-screen splash: branded, centered card on a gradient ──
-  if (isWide) {
+  // ── Web splash — animated, "living" brand intro ─────────────
+  if (isWeb) {
+    const cardStyle = {
+      opacity: card,
+      transform: [
+        { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
+        { scale: card.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) },
+      ],
+    };
+    // Each inner element rises + fades on its own stagger step.
+    const rise = (i) => ({
+      opacity: reveal[i],
+      transform: [{ translateY: reveal[i].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+    });
+    const ringStyle = {
+      opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
+      transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 2.3] }) }],
+    };
+    const floatStyle = { transform: [{ scale: float.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) }] };
+    const orbitStyle = { transform: [{ rotate: orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] };
+    const barStyle = { transform: [{ translateX: bar.interpolate({ inputRange: [0, 1], outputRange: [-96, 232] }) }] };
+    const drift = (v, ax, ay) => ({
+      transform: [
+        { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [-ax, ax] }) },
+        { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [ay, -ay] }) },
+      ],
+    });
+
     return (
       <View style={styles.webContainer}>
-        {/* decorative soft blobs */}
-        <View style={[styles.blob, styles.blobA]} />
-        <View style={[styles.blob, styles.blobB]} />
+        {/* Slowly drifting background blobs — a living backdrop */}
+        <Animated.View style={[styles.blob, styles.blobA, drift(driftA, 22, 18)]} />
+        <Animated.View style={[styles.blob, styles.blobB, drift(driftB, 20, 24)]} />
+        <Animated.View style={[styles.blob, styles.blobC, drift(driftA, 14, -16)]} />
 
-        <View style={styles.webCard}>
-          <View style={styles.logoBadge}>
-            <Image
-              source={require('../../assets/logo-mark.png')}
-              style={styles.webLogo}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={styles.webBrand}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text></Text>
-          <Text style={styles.webTagline}>Find &amp; book trusted dentists across Pakistan</Text>
+        <Animated.View style={[styles.webCard, cardStyle]}>
+          <Animated.View style={[styles.logoWrap, rise(0)]}>
+            {/* radar pulse expanding out from behind the logo */}
+            <Animated.View style={[styles.pulseRing, ringStyle]} pointerEvents="none" />
+            {/* dots orbiting the logo */}
+            <Animated.View style={[styles.orbit, orbitStyle]} pointerEvents="none">
+              <View style={[styles.orbitDot, styles.orbitDotTop]} />
+              <View style={[styles.orbitDot, styles.orbitDotBottom]} />
+            </Animated.View>
+            <Animated.View style={[styles.logoBadge, floatStyle]}>
+              <Image source={require('../../assets/logo-mark.png')} style={styles.webLogo} resizeMode="contain" />
+            </Animated.View>
+          </Animated.View>
 
-          <View style={styles.webLoaderRow}>
-            <ActivityIndicator size="small" color="#2563EB" />
+          <Animated.Text style={[styles.webBrand, rise(1)]}>
+            <Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text>
+          </Animated.Text>
+          <Animated.Text style={[styles.webTagline, rise(2)]}>Find &amp; book trusted dentists across Pakistan</Animated.Text>
+
+          {/* Indeterminate shimmer progress bar */}
+          <Animated.View style={rise(3)}>
+            <View style={styles.progressTrack}>
+              <Animated.View style={[styles.progressFill, barStyle]} />
+            </View>
             <Text style={styles.webLoaderText}>Getting things ready…</Text>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
 
         <Text style={styles.webFooter}>© 2026 My Dentist</Text>
       </View>
@@ -180,21 +260,8 @@ const styles = StyleSheet.create({
   brandTagline: { fontSize: 13.5, color: '#64748B', textAlign: 'center', lineHeight: 19 },
   loaderRow: { position: 'absolute', bottom: 56, flexDirection: 'row', alignItems: 'center' },
   loaderText: { marginLeft: 8, fontSize: 13, color: '#94A3B8', fontWeight: '600' },
-  skipButton: {
-    position: 'absolute',
-    bottom: 40,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 24,
-  },
-  skipText: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '600',
-  },
 
-  // ── Web / large-screen splash ──
+  // ── Web / large-screen animated splash ──
   webContainer: {
     flex: 1,
     backgroundColor: '#EAF1FC',
@@ -202,24 +269,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  blob: { position: 'absolute', borderRadius: 9999, opacity: 0.5 },
-  blobA: { width: 420, height: 420, backgroundColor: '#DBEAFE', top: -120, right: -100 },
-  blobB: { width: 320, height: 320, backgroundColor: '#C7E0FF', bottom: -90, left: -80 },
+  blob: { position: 'absolute', borderRadius: 9999, opacity: 0.55 },
+  blobA: { width: 460, height: 460, backgroundColor: '#DBEAFE', top: -140, right: -120 },
+  blobB: { width: 360, height: 360, backgroundColor: '#C7E0FF', bottom: -110, left: -90 },
+  blobC: { width: 240, height: 240, backgroundColor: '#E9D5FF', top: '55%', right: '18%', opacity: 0.35 },
   webCard: {
-    width: 420,
+    width: 440,
     maxWidth: '90%',
     backgroundColor: '#FFFFFF',
     borderRadius: 28,
-    paddingVertical: 48,
+    paddingVertical: 52,
     paddingHorizontal: 40,
     alignItems: 'center',
     shadowColor: '#0F172A',
-    shadowOpacity: 0.12,
-    shadowRadius: 40,
-    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.14,
+    shadowRadius: 48,
+    shadowOffset: { width: 0, height: 28 },
     borderWidth: 1,
     borderColor: '#E8EEF8',
   },
+  logoWrap: { width: 168, height: 168, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  pulseRing: {
+    position: 'absolute',
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    borderWidth: 3,
+    borderColor: '#60A5FA',
+  },
+  orbit: { position: 'absolute', width: 168, height: 168, borderRadius: 84 },
+  orbitDot: { position: 'absolute', width: 11, height: 11, borderRadius: 6, left: '50%', marginLeft: -5.5 },
+  orbitDotTop: { top: -1, backgroundColor: '#2563EB' },
+  orbitDotBottom: { bottom: -1, backgroundColor: '#93C5FD' },
   logoBadge: {
     width: 132,
     height: 132,
@@ -227,20 +308,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F7FE',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
   },
   webLogo: { width: 96, height: 96 },
-  webBrand: { fontSize: 28, fontWeight: '800', color: '#0B1F4D', letterSpacing: -0.5 },
-  webTagline: { fontSize: 15, color: '#5A6B8C', marginTop: 8, textAlign: 'center', maxWidth: 280 },
-  webLoaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 32 },
-  webLoaderText: { color: '#64748B', fontSize: 14 },
-  webSkipButton: {
-    marginTop: 28,
-    paddingHorizontal: 28,
-    paddingVertical: 13,
-    backgroundColor: '#2563EB',
-    borderRadius: 999,
+  webBrand: { fontSize: 30, fontWeight: '800', color: '#0B1F4D', letterSpacing: -0.5 },
+  webTagline: { fontSize: 15, color: '#5A6B8C', marginTop: 8, textAlign: 'center', maxWidth: 300 },
+  progressTrack: {
+    width: 220,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E6EEF9',
+    overflow: 'hidden',
+    marginTop: 34,
   },
-  webSkipText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  progressFill: { width: 96, height: 6, borderRadius: 3, backgroundColor: '#2563EB' },
+  webLoaderText: { color: '#64748B', fontSize: 13.5, marginTop: 14 },
   webFooter: { position: 'absolute', bottom: 28, color: '#94A3B8', fontSize: 13 },
 });

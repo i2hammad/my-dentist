@@ -166,12 +166,26 @@ function AppTab({ isSuper }) {
   const toast = useToast();
   const [s, setS] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [testTo, setTestTo] = useState('');
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => { api.get('/api/admin/settings').then((r) => setS(r.data.data)).catch(() => {}); }, []);
   if (!s) return <div className="card"><div className="loading">Loading…</div></div>;
 
   const set = (k) => (v) => setS((x) => ({ ...x, [k]: v }));
   const setPay = (k) => (v) => setS((x) => ({ ...x, payments: { ...x.payments, [k]: v } }));
+  const setSmtp = (k) => (v) => setS((x) => ({ ...x, smtp: { ...(x.smtp || {}), [k]: v } }));
+
+  const sendTest = async () => {
+    if (!testTo.trim()) return toast('Enter a recipient email to test', 'error');
+    setTesting(true);
+    try {
+      await api.patch('/api/admin/settings', { smtp: s.smtp }); // save current SMTP first
+      const r = await api.post('/api/admin/settings/test-email', { to: testTo.trim() });
+      toast(r.data?.data?.sent ? `Test email sent to ${testTo.trim()}` : 'SMTP not configured', r.data?.data?.sent ? 'success' : 'error');
+    } catch (e) { toast(e.response?.data?.message || 'Test failed', 'error'); }
+    finally { setTesting(false); }
+  };
 
   // Which patient payment types are enabled (defaults to all when unset on old settings).
   const PM_TYPES = [['visa', 'Visa'], ['mastercard', 'Mastercard'], ['easypaisa', 'EasyPaisa'], ['jazzcash', 'JazzCash'], ['bank', 'Bank Account']];
@@ -191,9 +205,11 @@ function AppTab({ isSuper }) {
         popularPointsThreshold: Number(s.popularPointsThreshold ?? 20000),
         defaultConsultationFee: Number(s.defaultConsultationFee),
         commissionRate: Number(s.commissionRate),
+        commissionBlockThreshold: Number(s.commissionBlockThreshold ?? 50000),
         supportEmail: s.supportEmail, payments: s.payments,
         enabledPaymentMethods: enabledPM,
         maintenanceMode: !!s.maintenanceMode,
+        smtp: s.smtp,
       });
       toast('Settings saved');
     } catch (e) { toast(e.response?.data?.message || 'Failed', 'error'); }
@@ -218,7 +234,8 @@ function AppTab({ isSuper }) {
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Platform Fee</h4>
         <div className="field-row">
           <Field label="Platform Fee Rate (%)" type="number" value={s.commissionRate ?? 10} onChange={set('commissionRate')} />
-          <div />
+          <Field label="Auto-block Dues Threshold (PKR)" type="number" value={s.commissionBlockThreshold ?? 50000} onChange={set('commissionBlockThreshold')}
+            hint="A doctor is auto-blocked once outstanding platform-fee dues reach this amount." />
         </div>
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>General</h4>
         <div className="field-row">
@@ -252,6 +269,35 @@ function AppTab({ isSuper }) {
             </label>
           ))}
         </div>
+        <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Email (SMTP)</h4>
+        <p className="muted" style={{ fontSize: 12, marginTop: -6, marginBottom: 10 }}>
+          Used for password-reset emails. For a domain mailbox (cPanel/Namecheap): host <code>mail.yourdomain.com</code>, port 465 (SSL) or 587, user = full mailbox address.
+        </p>
+        <div className="field-row">
+          <Field label="SMTP Host" value={s.smtp?.host || ''} onChange={setSmtp('host')} placeholder="mail.mydentistpk.com" />
+          <Field label="Port" type="number" value={s.smtp?.port ?? 465} onChange={setSmtp('port')} hint="465 = SSL · 587 = STARTTLS" />
+        </div>
+        <div className="field-row">
+          <Field label="Username (mailbox)" value={s.smtp?.user || ''} onChange={setSmtp('user')} placeholder="no-reply@mydentistpk.com" />
+          <Field label="Password" type="password" value={s.smtp?.pass || ''} onChange={setSmtp('pass')}
+            placeholder={s.smtp?.passSet ? '•••••••• (leave blank to keep)' : 'Mailbox password'} />
+        </div>
+        <div className="field-row">
+          <Field label="From" value={s.smtp?.from || ''} onChange={setSmtp('from')} placeholder="My Dentist <no-reply@mydentistpk.com>" />
+          <div />
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: isSuper ? 'pointer' : 'default', marginBottom: 10 }}>
+          <input type="checkbox" checked={!!s.smtp?.insecure} onChange={(e) => setSmtp('insecure')(e.target.checked)} />
+          <span style={{ fontWeight: 600 }}>Allow self-signed / mismatched TLS certificate</span>
+        </label>
+        <p className="muted" style={{ fontSize: 12, marginTop: -4, marginBottom: 10 }}>Enable only if you get a certificate error (common on shared cPanel hosts).</p>
+        {isSuper && (
+          <div className="field-row" style={{ alignItems: 'flex-end', marginBottom: 14 }}>
+            <Field label="Send test email to" value={testTo} onChange={setTestTo} placeholder="you@example.com" />
+            <button className="btn ghost" disabled={testing} onClick={sendTest} style={{ height: 40 }}>{testing ? 'Sending…' : 'Send Test Email'}</button>
+          </div>
+        )}
+
         <h4 style={{ margin: '8px 0 12px', fontSize: 14 }}>Maintenance</h4>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: isSuper ? 'pointer' : 'default', marginBottom: 6 }}>
           <input type="checkbox" checked={!!s.maintenanceMode} onChange={(e) => set('maintenanceMode')(e.target.checked)} />

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://my-dentist-pk-website.vercel.app/sitemap.xml
+Sitemap: https://mydentistpk.com/sitemap.xml

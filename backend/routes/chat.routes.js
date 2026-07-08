@@ -25,7 +25,7 @@ router.get(
   '/messages/:userId',
   [
     param('userId')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid user ID format'),
   ],
   validate,
@@ -40,7 +40,7 @@ router.post(
     body('receiverId')
       .notEmpty()
       .withMessage('Receiver ID is required')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid receiver ID format'),
     body('message')
       .notEmpty()
@@ -59,7 +59,7 @@ router.put(
   '/messages/:id/read',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid message ID'),
   ],
   validate,

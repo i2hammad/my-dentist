@@ -1,7 +1,5 @@
-const Campaign = require('../models/Campaign');
-const DoctorProfile = require('../models/DoctorProfile');
-const PatientProfile = require('../models/PatientProfile');
-const AppSettings = require('../models/AppSettings');
+const prisma = require('../config/prisma');
+const { serialize } = require('../utils/serialize');
 
 const ok = (res, data, extra = {}) => res.json({ success: true, data, ...extra });
 const fail = (res, code, message) => res.status(code).json({ success: false, message });
@@ -14,6 +12,8 @@ const ALLOWED = [
 const pickFields = (body) => {
   const out = {};
   for (const k of ALLOWED) if (k in body) out[k] = body[k];
+  if (out.startAt) out.startAt = new Date(out.startAt);
+  if (out.endAt) out.endAt = new Date(out.endAt);
   return out;
 };
 
@@ -33,189 +33,163 @@ const buildCounts = (data) => ({
   totalClicks: data.reduce((s, c) => s + (c.clicks || 0), 0),
 });
 
-// ── Admin: list all campaigns with analytics ──
-// GET /api/campaigns/admin
+// Match: no cities targeted (empty) OR the city is in the list.
+const cityMatch = (city) => ({ OR: [{ cities: { isEmpty: true } }, { cities: { has: city } }] });
+
+// ── Admin: list all doctor campaigns with analytics ──
 exports.listCampaigns = async (req, res) => {
   try {
-    const campaigns = await Campaign.find({ targetAudience: { $ne: 'patient' } }).sort({ createdAt: -1 }).lean();
-    const now = new Date();
-    const data = withAnalytics(campaigns);
+    const campaigns = await prisma.campaign.findMany({ where: { targetAudience: { not: 'patient' } }, orderBy: { createdAt: 'desc' } });
+    const data = withAnalytics(serialize(campaigns));
     ok(res, data, { counts: buildCounts(data) });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// GET /api/campaigns/admin/:id
 exports.getCampaign = async (req, res) => {
   try {
-    const c = await Campaign.findById(req.params.id).lean();
+    const c = await prisma.campaign.findUnique({ where: { id: req.params.id } });
     if (!c) return fail(res, 404, 'Campaign not found');
-    c.ctr = c.views ? Math.round((c.clicks / c.views) * 1000) / 10 : 0;
-    ok(res, c);
+    const out = serialize(c);
+    out.ctr = out.views ? Math.round((out.clicks / out.views) * 1000) / 10 : 0;
+    ok(res, out);
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// POST /api/campaigns/admin
 exports.createCampaign = async (req, res) => {
   try {
     const fields = pickFields(req.body);
     if (!fields.title) return fail(res, 400, 'Title is required');
     if (!fields.startAt || !fields.endAt) return fail(res, 400, 'Start and end dates are required');
-    const c = await Campaign.create(fields);
-    ok(res, c);
+    const c = await prisma.campaign.create({ data: fields });
+    ok(res, serialize(c));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// PATCH /api/campaigns/admin/:id
 exports.updateCampaign = async (req, res) => {
   try {
-    const c = await Campaign.findByIdAndUpdate(req.params.id, pickFields(req.body), { new: true, runValidators: true });
+    const c = await prisma.campaign.update({ where: { id: req.params.id }, data: pickFields(req.body) }).catch(() => null);
     if (!c) return fail(res, 404, 'Campaign not found');
-    ok(res, c);
+    ok(res, serialize(c));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// DELETE /api/campaigns/admin/:id
 exports.deleteCampaign = async (req, res) => {
   try {
-    const c = await Campaign.findByIdAndDelete(req.params.id);
+    const c = await prisma.campaign.delete({ where: { id: req.params.id } }).catch(() => null);
     if (!c) return fail(res, 404, 'Campaign not found');
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ── Doctor: get the active banner for this doctor (city-filtered, in window) ──
-// GET /api/campaigns/active   (protected; doctor)
-// Records a view for the served campaign.
+// ── Doctor: single active banner ──
 exports.getActiveForDoctor = async (req, res) => {
   try {
-    const profile = await DoctorProfile.findOne({ userId: req.user._id }).select('city').lean();
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: req.user._id }, select: { city: true } });
     const city = profile?.city || '';
     const now = new Date();
 
-    // Live campaigns: active, within window, and (no cities targeted OR includes doctor's city).
-    const campaign = await Campaign.findOne({
-      isActive: true,
-      startAt: { $lte: now },
-      endAt: { $gte: now },
-      $or: [{ cities: { $size: 0 } }, { cities: city }],
-    }).sort({ createdAt: -1 });
-
+    const campaign = await prisma.campaign.findFirst({
+      where: { isActive: true, startAt: { lte: now }, endAt: { gte: now }, ...cityMatch(city) },
+      orderBy: { createdAt: 'desc' },
+    });
     if (!campaign) return ok(res, null);
 
-    // Count a view (best-effort, non-blocking shape).
-    Campaign.updateOne({ _id: campaign._id }, { $inc: { views: 1 } }).catch(() => {});
-
-    ok(res, campaign);
+    prisma.campaign.update({ where: { id: campaign.id }, data: { views: { increment: 1 } } }).catch(() => {});
+    ok(res, serialize(campaign));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// GET /api/campaigns/active-all  (protected; doctor) — all active campaigns for rotation
+// ── Doctor: all active campaigns for rotation ──
 exports.getActiveAllForDoctor = async (req, res) => {
   try {
-    const profile = await DoctorProfile.findOne({ userId: req.user._id }).select('city').lean();
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: req.user._id }, select: { city: true } });
     const city = profile?.city || '';
     const now = new Date();
 
-    const campaigns = await Campaign.find({
-      isActive: true,
-      targetAudience: { $ne: 'patient' },
-      startAt: { $lte: now },
-      endAt: { $gte: now },
-      $or: [{ cities: { $size: 0 } }, { cities: city }],
-    }).sort({ createdAt: -1 }).limit(10);
+    const campaigns = await prisma.campaign.findMany({
+      where: { isActive: true, targetAudience: { not: 'patient' }, startAt: { lte: now }, endAt: { gte: now }, ...cityMatch(city) },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
 
-    const settings = await AppSettings.findOne({ key: 'global' }).lean();
-    // Doctor promos use their own interval (falls back to the shared one).
+    const settings = await prisma.appSettings.findUnique({ where: { key: 'global' } });
     const rotationInterval = settings?.doctorCampaignRotationInterval ?? settings?.campaignRotationInterval ?? 10;
     if (!campaigns.length) return ok(res, { campaigns: [], rotationInterval });
-    const ids = campaigns.map(c => c._id);
-    Campaign.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(() => {});
-    ok(res, { campaigns, rotationInterval });
+    prisma.campaign.updateMany({ where: { id: { in: campaigns.map((c) => c.id) } }, data: { views: { increment: 1 } } }).catch(() => {});
+    ok(res, { campaigns: serialize(campaigns), rotationInterval });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// POST /api/campaigns/:id/click  (protected; doctor) — records a click.
 exports.recordClick = async (req, res) => {
   try {
-    const c = await Campaign.findByIdAndUpdate(req.params.id, { $inc: { clicks: 1 } }, { new: true });
+    const c = await prisma.campaign.update({ where: { id: req.params.id }, data: { clicks: { increment: 1 } } }).catch(() => null);
     if (!c) return fail(res, 404, 'Campaign not found');
     ok(res, { clicks: c.clicks });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ── Admin: patient campaigns ──
-// GET /api/campaigns/patient-admin
 exports.listPatientCampaigns = async (req, res) => {
   try {
-    const campaigns = await Campaign.find({ targetAudience: 'patient' }).sort({ createdAt: -1 }).lean();
-    const data = withAnalytics(campaigns);
+    const campaigns = await prisma.campaign.findMany({ where: { targetAudience: 'patient' }, orderBy: { createdAt: 'desc' } });
+    const data = withAnalytics(serialize(campaigns));
     ok(res, data, { counts: buildCounts(data) });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// POST /api/campaigns/patient-admin
 exports.createPatientCampaign = async (req, res) => {
   try {
     const fields = pickFields(req.body);
     fields.targetAudience = 'patient';
     if (!fields.title) return fail(res, 400, 'Title is required');
     if (!fields.startAt || !fields.endAt) return fail(res, 400, 'Start and end dates are required');
-    const c = await Campaign.create(fields);
-    ok(res, c);
+    const c = await prisma.campaign.create({ data: fields });
+    ok(res, serialize(c));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// PATCH /api/campaigns/patient-admin/:id
 exports.updatePatientCampaign = async (req, res) => {
   try {
-    const c = await Campaign.findOneAndUpdate(
-      { _id: req.params.id, targetAudience: 'patient' },
-      pickFields(req.body),
-      { new: true, runValidators: true }
-    );
-    if (!c) return fail(res, 404, 'Campaign not found');
-    ok(res, c);
+    const existing = await prisma.campaign.findFirst({ where: { id: req.params.id, targetAudience: 'patient' } });
+    if (!existing) return fail(res, 404, 'Campaign not found');
+    const c = await prisma.campaign.update({ where: { id: req.params.id }, data: pickFields(req.body) });
+    ok(res, serialize(c));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// DELETE /api/campaigns/patient-admin/:id
 exports.deletePatientCampaign = async (req, res) => {
   try {
-    const c = await Campaign.findOneAndDelete({ _id: req.params.id, targetAudience: 'patient' });
-    if (!c) return fail(res, 404, 'Campaign not found');
+    const existing = await prisma.campaign.findFirst({ where: { id: req.params.id, targetAudience: 'patient' } });
+    if (!existing) return fail(res, 404, 'Campaign not found');
+    await prisma.campaign.delete({ where: { id: req.params.id } });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ── Patient-facing: active campaign ──
-// GET /api/campaigns/active-patient  (protected; patient)
+// ── Patient-facing: active campaigns ──
 exports.getActiveForPatient = async (req, res) => {
   try {
-    const profile = await PatientProfile.findOne({ userId: req.user._id }).select('city').lean();
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user._id }, select: { city: true } });
     const city = profile?.city || '';
     const now = new Date();
 
-    const campaigns = await Campaign.find({
-      targetAudience: 'patient',
-      isActive: true,
-      startAt: { $lte: now },
-      endAt: { $gte: now },
-      $or: [{ cities: { $size: 0 } }, { cities: city }],
-    }).sort({ createdAt: -1 }).limit(10);
+    const campaigns = await prisma.campaign.findMany({
+      where: { targetAudience: 'patient', isActive: true, startAt: { lte: now }, endAt: { gte: now }, ...cityMatch(city) },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
 
-    const settings = await AppSettings.findOne({ key: 'global' }).lean();
+    const settings = await prisma.appSettings.findUnique({ where: { key: 'global' } });
     const rotationInterval = settings?.campaignRotationInterval ?? 10;
     if (!campaigns.length) return ok(res, { campaigns: [], rotationInterval });
-    const ids = campaigns.map(c => c._id);
-    Campaign.updateMany({ _id: { $in: ids } }, { $inc: { views: 1 } }).catch(() => {});
-    ok(res, { campaigns, rotationInterval });
+    prisma.campaign.updateMany({ where: { id: { in: campaigns.map((c) => c.id) } }, data: { views: { increment: 1 } } }).catch(() => {});
+    ok(res, { campaigns: serialize(campaigns), rotationInterval });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// POST /api/campaigns/:id/patient-click  (protected; patient)
 exports.recordPatientClick = async (req, res) => {
   try {
-    const c = await Campaign.findByIdAndUpdate(req.params.id, { $inc: { clicks: 1 } }, { new: true });
+    const c = await prisma.campaign.update({ where: { id: req.params.id }, data: { clicks: { increment: 1 } } }).catch(() => null);
     if (!c) return fail(res, 404, 'Campaign not found');
     ok(res, { clicks: c.clicks });
   } catch (e) { fail(res, 500, e.message); }

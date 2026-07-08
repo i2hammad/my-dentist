@@ -3,6 +3,28 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from '
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import storage from '../config/storage';
+import { isWeb } from '../config/webLayout';
+
+// On web, keep the notice as a centered dialog instead of stretching edge-to-edge.
+// All null on native so the mobile layout is untouched.
+const WEB_CONSENT_MAX_WIDTH = 540;
+const webCol = isWeb
+  ? {
+      width: '100%',
+      maxWidth: WEB_CONSENT_MAX_WIDTH,
+      alignSelf: 'center',
+      padding: 36,
+      borderColor: '#E8EEF5',
+      // Softer, larger elevation reads as a floating dialog on a big screen.
+      shadowColor: '#0F172A',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.1,
+      shadowRadius: 40,
+    }
+  : null;
+const webFooter = isWeb
+  ? { width: '100%', maxWidth: WEB_CONSENT_MAX_WIDTH, alignSelf: 'center', backgroundColor: 'transparent', borderTopWidth: 0, paddingHorizontal: 0 }
+  : null;
 
 export default function NoticeScreen({ navigation, route }) {
   const [agreed, setAgreed] = useState(false);
@@ -30,13 +52,44 @@ export default function NoticeScreen({ navigation, route }) {
     }
   };
 
+  // Checkbox + Continue. On web it flows directly under the card (one centered
+  // dialog); on native it stays pinned to the bottom above the gesture bar.
+  const footer = (
+    <View style={[styles.footer, webFooter, { paddingBottom: isWeb ? 24 : Math.max(insets.bottom, 14) }]}>
+      <TouchableOpacity
+        style={[styles.checkboxRow, agreed && styles.checkboxRowActive]}
+        onPress={() => setAgreed(!agreed)}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+          {agreed && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+        </View>
+        <Text style={[styles.checkboxLabel, agreed && styles.checkboxLabelActive]}>I Agree to the above terms</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, !agreed && styles.buttonDisabled]}
+        onPress={handleContinue}
+        disabled={!agreed}
+      >
+        <Text style={styles.buttonText}>Agree & Continue</Text>
+        <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#E0F2FE' }}>
       <View style={styles.backgroundGraphic} pointerEvents="none">
         <Ionicons name="shield-checkmark-outline" size={140} color="rgba(255, 255, 255, 0.3)" style={styles.shieldIcon} />
       </View>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.card}>
+      <View style={[styles.card, webCol]}>
+        {/* Icon badge — anchors the dialog */}
+        <View style={styles.badge}>
+          <Ionicons name="shield-checkmark" size={30} color="#FFFFFF" />
+        </View>
+
         {/* Urdu Header */}
         <View style={styles.headerRow}>
           <View style={styles.headerLine} />
@@ -84,29 +137,13 @@ export default function NoticeScreen({ navigation, route }) {
           Your privacy is important to us.
         </Text>
       </View>
+
+      {/* Web: controls flow inside the centered column (one cohesive dialog). */}
+      {isWeb && footer}
       </ScrollView>
 
-      {/* Pinned footer — checkbox + Continue, just above the gesture bar */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-        <TouchableOpacity
-          style={[styles.checkboxRow, agreed && styles.checkboxRowActive]}
-          onPress={() => setAgreed(!agreed)}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-            {agreed && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-          </View>
-          <Text style={[styles.checkboxLabel, agreed && styles.checkboxLabelActive]}>I Agree to the above terms</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, !agreed && styles.buttonDisabled]}
-          onPress={handleContinue}
-          disabled={!agreed}
-        >
-          <Text style={styles.buttonText}>Agree & Continue</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Native: pinned footer just above the gesture bar. */}
+      {!isWeb && footer}
     </SafeAreaView>
   );
 }
@@ -155,6 +192,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 20,
     elevation: 5,
+  },
+  badge: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 18,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   headerRow: {
     flexDirection: 'row',
@@ -266,6 +318,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     height: 56,
     borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#2563EB',

@@ -1,11 +1,14 @@
 // My Dentist — oladoc/Marham-style landing page.
+// Live dentist search + top-rated carousel come from the public backend API.
+// Informational tiles (specialties / cities) stay on the page; only actions that
+// need an account (book, favorite, log in, get the app) hand off to the app.
 import { useEffect, useState } from 'react';
 import {
   Tooth, MagnifyingGlass, CalendarCheck, ChatCircleDots, Receipt, Gift, ShieldCheck,
   Star, Check, ArrowRight, Sparkle, MapPin, Stethoscope, CaretRight, Quotes,
   AppleLogo, GooglePlayLogo, SealCheck,
 } from '@phosphor-icons/react';
-import { getDoctors, imgUrl, APP_URL, BRAND } from '../lib/api';
+import { getDoctors, imgUrl, APP_URL, APP_LOGIN, BRAND } from '../lib/api';
 import appLogo from '../assets/app-logo.png';
 import heroDentalBooking from '../assets/hero-dental-booking.png';
 
@@ -35,20 +38,29 @@ export default function Home() {
   const [searching, setSearching] = useState(false);
   const [topDocs, setTopDocs] = useState([]);
 
-  // Load real top/popular doctors for the carousel.
+  // Live top/popular dentists for the carousel.
   useEffect(() => {
     getDoctors({ limit: 8 }).then(setTopDocs).catch(() => setTopDocs([]));
   }, []);
 
-  const runSearch = async (e) => {
+  const scrollToResults = () => {
+    const el = document.getElementById('results');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Live search against the backend — shows results ON this page (no app redirect).
+  const runSearch = async (e, opts = {}) => {
     e?.preventDefault();
+    const spec = opts.specialization ?? query;
+    const cty = opts.city ?? city;
     setSearching(true);
     try {
-      const params = { limit: 6 };
-      if (query) params.specialization = query;
+      const params = { limit: 8 };
+      if (spec) params.specialization = spec;
       const docs = await getDoctors(params);
-      const filtered = city ? docs.filter((d) => (d.city || '').toLowerCase() === city.toLowerCase()) : docs;
+      const filtered = cty ? docs.filter((d) => (d.city || '').toLowerCase() === cty.toLowerCase()) : docs;
       setResults(filtered);
+      setTimeout(scrollToResults, 0);
     } catch { setResults([]); }
     finally { setSearching(false); }
   };
@@ -67,7 +79,7 @@ export default function Home() {
             <a href="#doctors">For Dentists</a>
           </div>
           <div className="nav-cta">
-            <a className="btn btn-ghost" href={APP_URL}>Log in</a>
+            <a className="btn btn-ghost" href={APP_LOGIN}>Log in</a>
             <a className="btn btn-primary" href={APP_URL}>Get the App</a>
           </div>
         </div>
@@ -102,7 +114,7 @@ export default function Home() {
             <div className="quick-specs rise d5">
               <span>Popular:</span>
               {['Orthodontist', 'Implant Specialist', 'Cosmetic Dentist', 'Endodontist'].map((s, index) => (
-                <button className={`pastel-chip pastel-${index + 1}`} key={s} onClick={() => { setQuery(s); setTimeout(runSearch, 0); }}>{s}</button>
+                <button className={`pastel-chip pastel-${index + 1}`} key={s} onClick={() => { setQuery(s); runSearch(null, { specialization: s }); }}>{s}</button>
               ))}
             </div>
           </div>
@@ -125,19 +137,28 @@ export default function Home() {
         </div>
 
         <div className="wrap">
-          {/* inline search results */}
+          {/* live search results */}
           {results && (
-            <div className="search-results rise">
+            <div className="search-results rise" id="results">
               <div className="sr-head">
                 <strong>{results.length}</strong> dentist{results.length !== 1 ? 's' : ''} found{city ? ` in ${city}` : ''}
                 <button className="sr-clear" onClick={() => setResults(null)}>Clear</button>
               </div>
               {results.length ? (
-                <div className="sr-grid">
-                  {results.map((d) => <DocCard key={d._id} d={d} />)}
+                <>
+                  <div className="sr-grid">
+                    {results.map((d) => <DocCard key={d._id} d={d} />)}
+                  </div>
+                  <div className="sr-foot">
+                    <a className="btn btn-primary" href={APP_URL}>See all dentists in the app <ArrowRight size={16} weight="bold" /></a>
+                  </div>
+                </>
+              ) : (
+                <div className="sr-empty">
+                  <MagnifyingGlass size={30} weight="bold" />
+                  <p>No dentists matched. Try a different city or specialty.</p>
                 </div>
-              ) : <p className="muted-note">No dentists matched. Try a different city or specialty.</p>}
-              <a className="btn btn-ghost" href={APP_URL} style={{ marginTop: 14 }}>See all in the app <ArrowRight size={16} weight="bold" /></a>
+              )}
             </div>
           )}
 
@@ -150,7 +171,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* BROWSE BY SPECIALTY */}
+      {/* BROWSE BY SPECIALTY — informational; clicking runs an on-page search */}
       <section className="block" id="specialties">
         <div className="wrap">
           <div className="section-head">
@@ -164,7 +185,8 @@ export default function Home() {
                 <a
                   className={`spec-tile pastel-${(index % 6) + 1}`}
                   key={name}
-                  href={APP_URL}
+                  href="#results"
+                  onClick={(e) => { e.preventDefault(); setQuery(name); runSearch(null, { specialization: name }); }}
                   style={{ '--tile-image': `url(${heroDentalBooking})` }}
                 >
                   <div className="spec-ic"><Icon size={26} weight="fill" /></div>
@@ -177,7 +199,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TOP DOCTORS (real data) */}
+      {/* TOP DOCTORS (live data) */}
       <section className="block how" id="top">
         <div className="wrap">
           <div className="section-head">
@@ -192,7 +214,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* BROWSE BY CITY */}
+      {/* BROWSE BY CITY — informational; clicking runs an on-page search */}
       <section className="block" id="cities">
         <div className="wrap">
           <div className="section-head">
@@ -201,7 +223,7 @@ export default function Home() {
           </div>
           <div className="city-grid">
             {CITIES.map((c) => (
-              <a className="city-tile" key={c} href={APP_URL}>
+              <a className="city-tile" key={c} href="#results" onClick={(e) => { e.preventDefault(); setCity(c); runSearch(null, { city: c }); }}>
                 <MapPin size={18} weight="fill" />
                 <span>Dentists in {c}</span>
               </a>
@@ -320,10 +342,12 @@ export default function Home() {
 }
 
 function DocCard({ d, big }) {
+  // Whole card → app: viewing/booking a real dentist needs an account.
+  const tier = (d.clinicTier || '').toLowerCase();
   return (
     <a className={`doc-result ${big ? 'big' : ''}`} href={APP_URL}>
       <div className="dr-top">
-        {d.photo ? <img src={imgUrl(d.photo)} alt={d.fullName} /> : <div className="dr-ph"><Tooth size={26} weight="fill" /></div>}
+        {d.photo ? <img src={imgUrl(d.photo)} alt={d.fullName} /> : <div className="dr-ph"><Tooth size={28} weight="fill" /></div>}
         {d.isPopular && (
           <span className={`dr-pop ${d.popularType === 'paid' ? 'blue' : 'green'}`}><Star size={10} weight="fill" /> Popular</span>
         )}
@@ -334,12 +358,21 @@ function DocCard({ d, big }) {
           {d.pmdcVerified && <SealCheck size={15} weight="fill" className="dr-verified" />}
         </div>
         <div className="dr-spec">{d.specialization || 'Dentist'}</div>
+        {d.clinicName ? (
+          <div className="dr-clinic">
+            <span>{d.clinicName}</span>
+            {tier ? <span className={`dr-tier ${tier}`}>{tier}</span> : null}
+          </div>
+        ) : null}
         <div className="dr-meta">
-          <MapPin size={13} weight="fill" /> {d.city || '—'}
-          {d.consultationFee ? <span className="dr-fee">Rs. {d.consultationFee}</span> : null}
+          <span><MapPin size={13} weight="fill" /> {d.city || '—'}</span>
+          {d.experience ? <span>{d.experience}+ yrs exp</span> : null}
         </div>
       </div>
-      <span className="dr-book">Book <ArrowRight size={14} weight="bold" /></span>
+      <div className="dr-side">
+        {d.consultationFee ? <span className="dr-fee">Rs. {d.consultationFee}<small>consult</small></span> : null}
+        <span className="dr-book">Book <ArrowRight size={14} weight="bold" /></span>
+      </div>
     </a>
   );
 }

@@ -27,6 +27,7 @@ router.patch('/me', admin.updateMyProfile);
 router.patch('/me/password', admin.changeMyPassword);
 router.get('/settings', admin.getSettings);
 router.patch('/settings', admin.updateSettings);
+router.post('/settings/test-email', admin.testEmail);
 
 router.get('/admins', admin.listAdmins);
 router.post('/admins', admin.createAdmin);

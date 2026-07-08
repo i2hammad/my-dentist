@@ -50,7 +50,7 @@ router.get(
 router.get(
   '/:id',
   [
-    param('id').isMongoId().withMessage('Invalid bill ID')
+    param('id').notEmpty().withMessage('Invalid bill ID')
   ],
   validate,
   getBill
@@ -64,10 +64,10 @@ router.post(
   [
     body('appointmentId')
       .optional()
-      .isMongoId().withMessage('Invalid appointment ID'),
+      .notEmpty().withMessage('Invalid appointment ID'),
     body('patientId')
       .notEmpty().withMessage('Patient ID is required')
-      .isMongoId().withMessage('Invalid patient ID'),
+      .notEmpty().withMessage('Invalid patient ID'),
     body('treatmentName')
       .notEmpty().withMessage('Treatment name is required')
       .trim()
@@ -95,7 +95,7 @@ router.put(
   '/:id',
   authorize('doctor'),
   [
-    param('id').isMongoId().withMessage('Invalid bill ID'),
+    param('id').notEmpty().withMessage('Invalid bill ID'),
     body('treatmentName')
       .optional()
       .trim()
@@ -125,7 +125,7 @@ router.put(
 router.get(
   '/patient/:patientId',
   [
-    param('patientId').isMongoId().withMessage('Invalid patient ID'),
+    param('patientId').notEmpty().withMessage('Invalid patient ID'),
     query('page')
       .optional()
       .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
@@ -143,8 +143,8 @@ router.put(
   '/:id/pay',
   authorize('patient'),
   [
-    param('id').isMongoId().withMessage('Invalid bill ID'),
-    body('paymentMethodId').optional().isMongoId().withMessage('Invalid payment method'),
+    param('id').notEmpty().withMessage('Invalid bill ID'),
+    body('paymentMethodId').optional().notEmpty().withMessage('Invalid payment method'),
     body('paymentType').optional().isIn(['card', 'wallet', 'cash']).withMessage('Invalid payment type'),
   ],
   validate,
@@ -157,7 +157,7 @@ router.put(
   '/:id/confirm-payment',
   authorize('doctor'),
   [
-    param('id').isMongoId().withMessage('Invalid bill ID')
+    param('id').notEmpty().withMessage('Invalid bill ID')
   ],
   validate,
   confirmPayment
@@ -168,7 +168,7 @@ router.put(
 router.get(
   '/:id/download',
   [
-    param('id').isMongoId().withMessage('Invalid bill ID')
+    param('id').notEmpty().withMessage('Invalid bill ID')
   ],
   validate,
   downloadBill

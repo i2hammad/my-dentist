@@ -1,10 +1,13 @@
 // Terms, Privacy, and Support pages for My Dentist.
-import { ArrowLeft, EnvelopeSimple, Phone, ChatCircleDots, ArrowRight } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { ArrowLeft, EnvelopeSimple, Phone, ChatCircleDots, ArrowRight, WhatsappLogo, CaretDown } from '@phosphor-icons/react';
 import appLogo from '../assets/app-logo.png';
 
 const BRAND = 'My Dentist';
 const SUPPORT_EMAIL = 'support@mydentistpk.com';
-const SUPPORT_PHONE = '+92 300 1234567';
+const SUPPORT_PHONE = '+92 336 5257815';
+const SUPPORT_WHATSAPP = '923365257815'; // wa.me format (intl, no +)
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.mydentistpk.com';
 
 function LegalShell({ title, updated, children }) {
   return (
@@ -29,16 +32,18 @@ function LegalShell({ title, updated, children }) {
 
 function LegalFooter() {
   return (
-    <footer>
+    <footer className="legal-footer">
       <div className="wrap">
-        <div className="base" style={{ borderTop: 'none', paddingTop: 0 }}>
-          <span>© 2026 {BRAND}. All rights reserved.</span>
-          <span>
-            <a href="#/terms" style={{ marginRight: 16 }}>Terms</a>
-            <a href="#/privacy" style={{ marginRight: 16 }}>Privacy</a>
+        <div className="lf-inner">
+          <a className="logo" href="#/"><span className="mark"><img src={appLogo} alt="" /></span> {BRAND}</a>
+          <nav className="lf-links">
+            <a href="#/">Home</a>
+            <a href="#/terms">Terms</a>
+            <a href="#/privacy">Privacy</a>
             <a href="#/support">Support</a>
-          </span>
+          </nav>
         </div>
+        <div className="lf-base">© 2026 {BRAND}. All rights reserved. · Pakistan</div>
       </div>
     </footer>
   );
@@ -111,48 +116,93 @@ export function Privacy() {
   );
 }
 
+function FaqItem({ q, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`faq-item${open ? ' open' : ''}`}>
+      <button className="faq-q" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span>{q}</span>
+        <CaretDown className="faq-chevron" size={18} weight="bold" />
+      </button>
+      <div className="faq-a"><div className="faq-a-inner">{children}</div></div>
+    </div>
+  );
+}
+
+const CHANNELS = [
+  {
+    key: 'email', tint: 'email', icon: EnvelopeSimple, title: 'Email Us',
+    line: SUPPORT_EMAIL, cta: 'Send an email', href: `mailto:${SUPPORT_EMAIL}`,
+  },
+  {
+    key: 'whatsapp', tint: 'whatsapp', icon: WhatsappLogo, title: 'WhatsApp',
+    line: 'Chat with us instantly', cta: 'Open WhatsApp',
+    href: `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent('Hello, I need help with My Dentist.')}`,
+    external: true,
+  },
+  {
+    key: 'call', tint: 'call', icon: Phone, title: 'Call Us',
+    line: SUPPORT_PHONE, cta: 'Mon–Sat, 9am–6pm', href: `tel:${SUPPORT_PHONE.replace(/\s/g, '')}`,
+  },
+  {
+    key: 'chat', tint: 'chat', icon: ChatCircleDots, title: 'In-App Chat',
+    line: `Message support inside the ${BRAND} app`, cta: 'Open the app', href: APP_URL, external: true,
+  },
+];
+
 export function Support() {
   return (
-    <LegalShell title="Support">
-      <p>Need help? We’re here for you. Reach out through any of the channels below and our team will respond as soon as possible.</p>
+    <LegalShell title="How can we help?">
+      <p className="support-lede">We’re here for you. Pick the channel that suits you best — our team typically replies within a few hours.</p>
 
       <div className="support-grid">
-        <a className="support-card" href={`mailto:${SUPPORT_EMAIL}`}>
-          <div className="sc-ic"><EnvelopeSimple size={24} weight="fill" /></div>
-          <h3>Email Us</h3>
-          <p>{SUPPORT_EMAIL}</p>
-          <span className="sc-link">Send an email <ArrowRight size={14} weight="bold" /></span>
-        </a>
-        <a className="support-card" href={`tel:${SUPPORT_PHONE.replace(/\s/g, '')}`}>
-          <div className="sc-ic"><Phone size={24} weight="fill" /></div>
-          <h3>Call Us</h3>
-          <p>{SUPPORT_PHONE}</p>
-          <span className="sc-link">Mon–Sat, 9am–6pm</span>
-        </a>
-        <div className="support-card">
-          <div className="sc-ic"><ChatCircleDots size={24} weight="fill" /></div>
-          <h3>In-App Chat</h3>
-          <p>Message support right from the {BRAND} app.</p>
-          <span className="sc-link">Open the app</span>
-        </div>
+        {CHANNELS.map(({ key, tint, icon: Icon, title, line, cta, href, external }) => (
+          <a
+            key={key}
+            className="support-card"
+            href={href}
+            {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          >
+            <div className={`sc-ic ${tint}`}><Icon size={24} weight="fill" /></div>
+            <h3>{title}</h3>
+            <p>{line}</p>
+            <span className="sc-link">{cta} <ArrowRight size={14} weight="bold" /></span>
+          </a>
+        ))}
       </div>
 
-      <h2>Frequently Asked Questions</h2>
+      <h2 className="faq-heading">Frequently asked questions</h2>
+      <div className="faq">
+        <FaqItem q="How do I book an appointment?">
+          Open the {BRAND} app, search for a dentist or specialty, choose an available time slot, and confirm. You’ll get a confirmation and can chat with the clinic directly.
+        </FaqItem>
+        <FaqItem q="How do reward points work?">
+          You earn loyalty points on appointments and payments. Points can be redeemed for discounts on future visits. Check your rewards balance in the app.
+        </FaqItem>
+        <FaqItem q="How do I cancel or reschedule?">
+          Go to your appointments in the app and select the booking. Cancellation and rescheduling policies are set by each clinic.
+        </FaqItem>
+        <FaqItem q="I’m a dentist — how do I join?">
+          Download the app, register as a dentist, complete your clinic profile, and submit your PMDC details for verification. Once approved, patients can find and book you.
+        </FaqItem>
+        <FaqItem q="How do I delete my account?">
+          Go to Settings in the app, or email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we’ll process your request.
+        </FaqItem>
+      </div>
 
-      <h3>How do I book an appointment?</h3>
-      <p>Open the {BRAND} app, search for a dentist or specialty, choose an available time slot, and confirm. You’ll get a confirmation and can chat with the clinic directly.</p>
-
-      <h3>How do reward points work?</h3>
-      <p>You earn loyalty points on appointments and payments. Points can be redeemed for discounts on future visits. Check your rewards balance in the app.</p>
-
-      <h3>How do I cancel or reschedule?</h3>
-      <p>Go to your appointments in the app and select the booking. Cancellation and rescheduling policies are set by each clinic.</p>
-
-      <h3>I’m a dentist — how do I join?</h3>
-      <p>Download the app, register as a dentist, complete your clinic profile, and submit your PMDC details for verification. Once approved, patients can find and book you.</p>
-
-      <h3>How do I delete my account?</h3>
-      <p>Go to Settings in the app, or email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we’ll process your request.</p>
+      <div className="support-cta">
+        <div>
+          <h3>Still need a hand?</h3>
+          <p>Message us on WhatsApp and we’ll get you sorted.</p>
+        </div>
+        <a
+          className="btn btn-whatsapp"
+          href={`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent('Hello, I need help with My Dentist.')}`}
+          target="_blank" rel="noopener noreferrer"
+        >
+          <WhatsappLogo size={18} weight="fill" /> Chat on WhatsApp
+        </a>
+      </div>
     </LegalShell>
   );
 }

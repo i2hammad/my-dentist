@@ -1,58 +1,35 @@
-const { v4: uuidv4 } = require('uuid');
-const Reward = require('../models/Reward');
+const { randomUUID } = require('crypto');
+const prisma = require('../config/prisma');
+const { serialize } = require('../utils/serialize');
+
+const sumUnredeemed = async (patientId) => {
+  const agg = await prisma.reward.aggregate({ where: { patientId, isRedeemed: false }, _sum: { points: true } });
+  return agg._sum.points || 0;
+};
 
 // @desc    Get patient's reward points and recent history
 // @route   GET /api/rewards/my
 // @access  Private (Patient)
 const getMyRewards = async (req, res) => {
   try {
-    const PatientProfile = require('../models/PatientProfile');
-    const patientProfile = await PatientProfile.findOne({ userId: req.user._id });
+    const patientProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user._id } });
     if (!patientProfile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient profile not found. Please create your profile first.',
-      });
+      return res.status(404).json({ success: false, message: 'Patient profile not found. Please create your profile first.' });
     }
 
-    // Aggregate total unredeemed points
-    const pointsAgg = await Reward.aggregate([
-      {
-        $match: {
-          patientId: patientProfile._id,
-          isRedeemed: false,
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalPoints: { $sum: '$points' },
-        },
-      },
-    ]);
-
-    const totalPoints = pointsAgg.length > 0 ? pointsAgg[0].totalPoints : 0;
-
-    // Get recent reward history (last 20 transactions)
-    const recentHistory = await Reward.find({ patientId: patientProfile._id })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean();
+    const totalPoints = await sumUnredeemed(patientProfile.id);
+    const recentHistory = await prisma.reward.findMany({
+      where: { patientId: patientProfile.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
 
     res.status(200).json({
       success: true,
-      data: {
-        totalPoints,
-        equivalentPKR: totalPoints, // 1 point = 1 PKR
-        recentHistory,
-      },
+      data: { totalPoints, equivalentPKR: totalPoints, recentHistory: serialize(recentHistory) },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch rewards',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch rewards', error: error.message });
   }
 };
 
@@ -60,24 +37,10 @@ const getMyRewards = async (req, res) => {
 // @route   GET /api/rewards/earn-rules
 // @access  Public
 const getEarnRules = async (req, res) => {
-  try {
-    const earnRules = {
-      visitPayment: '2% of total amount paid',
-      referral: 100,
-      review: 50,
-    };
-
-    res.status(200).json({
-      success: true,
-      data: earnRules,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch earn rules',
-      error: error.message,
-    });
-  }
+  res.status(200).json({
+    success: true,
+    data: { visitPayment: '2% of total amount paid', referral: 100, review: 50 },
+  });
 };
 
 // @desc    Redeem reward points for a discount code
@@ -86,84 +49,41 @@ const getEarnRules = async (req, res) => {
 const redeemPoints = async (req, res) => {
   try {
     const { points } = req.body;
-
     if (!points || points <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid number of points to redeem',
-      });
+      return res.status(400).json({ success: false, message: 'Please provide a valid number of points to redeem' });
     }
 
-    const PatientProfile = require('../models/PatientProfile');
-    const patientProfile = await PatientProfile.findOne({ userId: req.user._id });
+    const patientProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user._id } });
     if (!patientProfile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient profile not found. Please create your profile first.',
-      });
+      return res.status(404).json({ success: false, message: 'Patient profile not found. Please create your profile first.' });
     }
 
-    // Calculate total unredeemed points
-    const pointsAgg = await Reward.aggregate([
-      {
-        $match: {
-          patientId: patientProfile._id,
-          isRedeemed: false,
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalPoints: { $sum: '$points' },
-        },
-      },
-    ]);
-
-    const totalPoints = pointsAgg.length > 0 ? pointsAgg[0].totalPoints : 0;
-
+    const totalPoints = await sumUnredeemed(patientProfile.id);
     if (totalPoints < points) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient points. You have ${totalPoints} points available`,
-      });
+      return res.status(400).json({ success: false, message: `Insufficient points. You have ${totalPoints} points available` });
     }
 
-    // Generate random 8-character alphanumeric code
-    const referralCode = uuidv4().replace(/-/g, '').substring(0, 8).toUpperCase();
+    const referralCode = randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
 
-    // Mark reward entries as redeemed until we've covered the requested points
+    // Mark unredeemed rewards (oldest first) until the requested amount is covered.
     let pointsToRedeem = points;
-    const unredeemedRewards = await Reward.find({
-      patientId: patientProfile._id,
-      isRedeemed: false,
-    }).sort({ createdAt: 1 });
-
-    for (const reward of unredeemedRewards) {
+    const unredeemed = await prisma.reward.findMany({
+      where: { patientId: patientProfile.id, isRedeemed: false },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const reward of unredeemed) {
       if (pointsToRedeem <= 0) break;
-
-      reward.isRedeemed = true;
-      reward.redeemedAt = new Date();
-      reward.referralCode = referralCode;
-      await reward.save();
-
+      await prisma.reward.update({ where: { id: reward.id }, data: { isRedeemed: true, referralCode } });
       pointsToRedeem -= reward.points;
     }
 
     res.status(200).json({
       success: true,
-      data: {
-        code: referralCode,
-        pointsRedeemed: points,
-        discountPKR: points, // 1 point = 1 PKR
-      },
+      data: { code: referralCode, pointsRedeemed: points, discountPKR: points },
       message: `Successfully redeemed ${points} points for PKR ${points} discount`,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to redeem points',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Failed to redeem points', error: error.message });
   }
 };
 
@@ -173,95 +93,49 @@ const redeemPoints = async (req, res) => {
 const applyCode = async (req, res) => {
   try {
     const { code, billId } = req.body;
-
     if (!code || !billId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide both code and billId',
-      });
+      return res.status(400).json({ success: false, message: 'Please provide both code and billId' });
     }
 
-    // Find rewards with this referral code
-    const rewards = await Reward.find({ referralCode: code, isRedeemed: true });
-
-    if (!rewards || rewards.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Invalid or already used reward code',
-      });
+    const rewards = await prisma.reward.findMany({ where: { referralCode: code, isRedeemed: true } });
+    if (!rewards.length) {
+      return res.status(404).json({ success: false, message: 'Invalid or already used reward code' });
     }
 
-    // Calculate total discount from the code
     const totalDiscount = rewards.reduce((sum, r) => sum + r.points, 0);
+    const bill = await prisma.bill.findUnique({ where: { id: billId } });
+    if (!bill) return res.status(404).json({ success: false, message: 'Bill not found' });
 
-    // Try to find and update the bill
-    const Bill = require('../models/Bill');
-    const bill = await Bill.findById(billId);
-
-    if (!bill) {
-      return res.status(404).json({
-        success: false,
-        message: 'Bill not found',
-      });
-    }
-
-    // Apply discount
-    bill.discount = (bill.discount || 0) + totalDiscount;
-    bill.rewardCodeApplied = code;
-    await bill.save();
-
-    // Mark the reward code as fully used
-    await Reward.updateMany(
-      { referralCode: code },
-      { $set: { codeUsed: true } }
-    );
-
-    res.status(200).json({
-      success: true,
-      data: bill,
-      message: `Discount of PKR ${totalDiscount} applied to bill`,
+    const updated = await prisma.bill.update({
+      where: { id: billId },
+      data: { discountFromRewards: (bill.discountFromRewards || 0) + totalDiscount },
     });
+    await prisma.reward.updateMany({ where: { referralCode: code }, data: { appliedAt: new Date() } });
+
+    res.status(200).json({ success: true, data: serialize(updated), message: `Discount of PKR ${totalDiscount} applied to bill` });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to apply reward code',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Failed to apply reward code', error: error.message });
   }
 };
 
 // @desc    Validate a patient redeem code and return its discount value.
-//          Used by the doctor while creating a bill (before the bill exists).
-//          Marks the code as applied so it can't be reused.
 // @route   POST /api/rewards/validate-code
 // @access  Private (Doctor)
 const validateCode = async (req, res) => {
   try {
     const code = (req.body.code || '').trim().toUpperCase();
-    if (!code) {
-      return res.status(400).json({ success: false, message: 'Please provide a code' });
-    }
+    if (!code) return res.status(400).json({ success: false, message: 'Please provide a code' });
 
-    // Redeemed reward entries carrying this code.
-    const rewards = await Reward.find({ referralCode: code, isRedeemed: true });
-    if (!rewards.length) {
-      return res.status(404).json({ success: false, message: 'Invalid reward code.' });
-    }
-    // Reject if already applied to a bill.
+    const rewards = await prisma.reward.findMany({ where: { referralCode: code, isRedeemed: true } });
+    if (!rewards.length) return res.status(404).json({ success: false, message: 'Invalid reward code.' });
     if (rewards.some((r) => r.appliedAt)) {
       return res.status(409).json({ success: false, message: 'This code has already been used.' });
     }
 
     const discountPKR = rewards.reduce((sum, r) => sum + (r.points || 0), 0);
+    await prisma.reward.updateMany({ where: { referralCode: code }, data: { appliedAt: new Date() } });
 
-    // Mark as applied (1 point = 1 PKR).
-    await Reward.updateMany({ referralCode: code }, { $set: { appliedAt: new Date() } });
-
-    res.status(200).json({
-      success: true,
-      data: { code, discountPKR },
-      message: `Valid code — PKR ${discountPKR} discount.`,
-    });
+    res.status(200).json({ success: true, data: { code, discountPKR }, message: `Valid code — PKR ${discountPKR} discount.` });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to validate code', error: error.message });
   }
@@ -271,32 +145,14 @@ const validateCode = async (req, res) => {
 // @route   POST /api/rewards/refer
 // @access  Private (Patient)
 const generateReferral = async (req, res) => {
-  try {
-    // Generate referral code using uuid (first 8 chars)
-    const referralCode = uuidv4().replace(/-/g, '').substring(0, 8).toUpperCase();
-
-    res.status(200).json({
-      success: true,
-      data: {
-        referralCode,
-        message:
-          'Share this code with your friend. They get 5% off on first visit. You get 100 points when they complete their first visit.',
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate referral code',
-      error: error.message,
-    });
-  }
+  const referralCode = randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
+  res.status(200).json({
+    success: true,
+    data: {
+      referralCode,
+      message: 'Share this code with your friend. They get 5% off on first visit. You get 100 points when they complete their first visit.',
+    },
+  });
 };
 
-module.exports = {
-  getMyRewards,
-  getEarnRules,
-  redeemPoints,
-  applyCode,
-  validateCode,
-  generateReferral,
-};
+module.exports = { getMyRewards, getEarnRules, redeemPoints, applyCode, validateCode, generateReferral };

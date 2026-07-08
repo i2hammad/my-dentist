@@ -2,11 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-// Connect to MongoDB
-connectDB();
+// PostgreSQL via Prisma — the client connects lazily on first query.
+require('./config/prisma');
 
 const app = express();
 

@@ -336,7 +336,7 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
 
       <Modal visible={showReschedule} transparent animationType="slide" onRequestClose={() => setShowReschedule(false)}>
         <View style={styles.modalBackdrop}>
-          <View style={[styles.rescheduleSheet, isWeb && styles.webBlock]}>
+          <View style={[styles.rescheduleSheet, isWeb && styles.webBlock, !isWeb && { paddingBottom: insets.bottom + 18 }]}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Reschedule Appointment</Text>
               <TouchableOpacity onPress={() => setShowReschedule(false)} hitSlop={8}>

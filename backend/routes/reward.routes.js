@@ -55,7 +55,7 @@ router.post(
     body('billId')
       .notEmpty()
       .withMessage('Bill ID is required')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid bill ID format'),
   ],
   validate,

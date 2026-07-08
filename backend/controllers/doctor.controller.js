@@ -1,19 +1,21 @@
-const mongoose = require('mongoose');
-const DoctorProfile = require('../models/DoctorProfile');
-const Treatment = require('../models/Treatment');
+const prisma = require('../config/prisma');
+const { serialize, remapMany } = require('../utils/serialize');
 
-// Lazy-load Review model (may not exist yet)
-const getReviewModel = () => {
-  try {
-    return mongoose.model('Review');
-  } catch {
-    try {
-      return require('../models/Review');
-    } catch {
-      return null;
-    }
-  }
-};
+// Per-doctor treatment count + rating aggregate.
+async function enrich(doctor) {
+  const [treatmentsCount, ratingAgg] = await Promise.all([
+    prisma.treatment.count({ where: { doctorId: doctor.id } }),
+    prisma.review.aggregate({ where: { doctorId: doctor.id, hidden: false }, _avg: { rating: true }, _count: { _all: true } }),
+  ]);
+  return {
+    ...doctor,
+    treatmentsCount,
+    avgRating: ratingAgg._count._all > 0 ? Math.round((ratingAgg._avg.rating || 0) * 10) / 10 : 0,
+    totalReviews: ratingAgg._count._all,
+  };
+}
+
+const popularRank = (d) => (d.popularType === 'paid' ? 2 : d.popularType === 'earned' ? 1 : 0);
 
 // @desc    List all doctors with pagination and filters
 // @route   GET /api/doctors
@@ -24,192 +26,80 @@ const getDoctors = async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
 
-    // Build filter object. Blocked doctors are hidden from patients everywhere.
-    const filter = { isBlocked: { $ne: true } };
+    const where = { isBlocked: false };
+    if (req.query.specialization) where.specialization = req.query.specialization;
+    if (req.query.clinicTier) where.clinicTier = req.query.clinicTier;
+    if (req.query.pmdcVerified !== undefined) where.pmdcVerified = req.query.pmdcVerified === 'true';
+    if (req.query.city) where.city = { contains: req.query.city, mode: 'insensitive' };
 
-    if (req.query.specialization) {
-      filter.specialization = req.query.specialization;
-    }
+    // Popular (paid > earned > none) then facilityScore. Sorted in JS so the
+    // computed popularRank ordering is exact; dataset is small enough.
+    const all = await prisma.doctorProfile.findMany({ where, include: { user: { select: { email: true, role: true } } } });
+    all.sort((a, b) => popularRank(b) - popularRank(a) || (b.facilityScore || 0) - (a.facilityScore || 0));
 
-    if (req.query.clinicTier) {
-      filter.clinicTier = req.query.clinicTier;
-    }
-
-    if (req.query.pmdcVerified !== undefined) {
-      filter.pmdcVerified = req.query.pmdcVerified === 'true';
-    }
-
-    if (req.query.city) {
-      filter.city = { $regex: req.query.city, $options: 'i' };
-    }
-
-    // Get total count for pagination
-    const total = await DoctorProfile.countDocuments(filter);
-
-    // Popular doctors rank to the top: paid (blue) first, then earned (green),
-    // then everyone else — each tier ordered by facilityScore.
-    const doctors = await DoctorProfile.aggregate([
-      { $match: filter },
-      {
-        $addFields: {
-          popularRank: {
-            $switch: {
-              branches: [
-                { case: { $eq: ['$popularType', 'paid'] }, then: 2 },
-                { case: { $eq: ['$popularType', 'earned'] }, then: 1 },
-              ],
-              default: 0,
-            },
-          },
-        },
-      },
-      { $sort: { popularRank: -1, facilityScore: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-    ]);
-    // Populate userId (aggregate doesn't auto-populate)
-    await DoctorProfile.populate(doctors, { path: 'userId', select: 'email role' });
-
-    // Enrich with treatment count and average rating
-    const Review = getReviewModel();
-    const enrichedDoctors = await Promise.all(
-      doctors.map(async (doctor) => {
-        // Count treatments
-        const treatmentsCount = await Treatment.countDocuments({ doctorId: doctor._id });
-
-        // Average rating from reviews
-        let avgRating = 0;
-        let totalReviews = 0;
-
-        if (Review) {
-          const ratingAgg = await Review.aggregate([
-            { $match: { doctorId: doctor._id, hidden: { $ne: true } } },
-            {
-              $group: {
-                _id: null,
-                avgRating: { $avg: '$rating' },
-                totalReviews: { $sum: 1 }
-              }
-            }
-          ]);
-
-          if (ratingAgg.length > 0) {
-            avgRating = Math.round(ratingAgg[0].avgRating * 10) / 10;
-            totalReviews = ratingAgg[0].totalReviews;
-          }
-        }
-
-        return {
-          ...doctor,
-          treatmentsCount,
-          avgRating,
-          totalReviews
-        };
-      })
-    );
+    const total = all.length;
+    const pageItems = all.slice(skip, skip + limit);
+    const enriched = await Promise.all(pageItems.map(enrich));
 
     res.status(200).json({
       success: true,
-      count: enrichedDoctors.length,
+      count: enriched.length,
       total,
       page,
       pages: Math.ceil(total / limit),
-      data: enrichedDoctors
+      data: serialize(remapMany(enriched, { user: 'userId' })),
     });
   } catch (error) {
     console.error('Get doctors error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching doctors'
-    });
+    res.status(500).json({ success: false, message: 'Server error while fetching doctors' });
   }
 };
 
-// @desc    Get nearby doctors (geospatial query)
+// @desc    Get nearby doctors (haversine on lat/lng)
 // @route   GET /api/doctors/nearby
 // @access  Public
 const getNearbyDoctors = async (req, res) => {
   try {
     const { lat, lng, radius } = req.query;
-
-    if (!lat || !lng) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide lat and lng query parameters'
-      });
-    }
+    if (!lat || !lng) return res.status(400).json({ success: false, message: 'Please provide lat and lng query parameters' });
 
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
     const radiusKm = parseFloat(radius) || 10;
-
-    if (isNaN(latitude) || isNaN(longitude)) {
-      return res.status(400).json({
-        success: false,
-        message: 'lat and lng must be valid numbers'
-      });
-    }
-
+    if (isNaN(latitude) || isNaN(longitude)) return res.status(400).json({ success: false, message: 'lat and lng must be valid numbers' });
     if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-      return res.status(400).json({
-        success: false,
-        message: 'lat must be between -90 and 90, lng between -180 and 180'
-      });
+      return res.status(400).json({ success: false, message: 'lat must be between -90 and 90, lng between -180 and 180' });
     }
 
-    // Convert radius from km to meters for $maxDistance
-    const radiusMeters = radiusKm * 1000;
+    // Haversine (km) on the doctor's lat/lng, within radius, nearest first.
+    const rows = await prisma.$queryRaw`
+      SELECT * FROM (
+        SELECT d.*, (6371 * acos(LEAST(1.0,
+          cos(radians(${latitude})) * cos(radians(d.lat)) * cos(radians(d.lng) - radians(${longitude}))
+          + sin(radians(${latitude})) * sin(radians(d.lat))
+        ))) AS distance
+        FROM "DoctorProfile" d
+        WHERE d."isBlocked" = false AND d.lat IS NOT NULL AND d.lng IS NOT NULL
+      ) t
+      WHERE t.distance <= ${radiusKm}
+      ORDER BY t.distance ASC
+    `;
 
-    const doctors = await DoctorProfile.aggregate([
-      {
-        $geoNear: {
-          near: {
-            type: 'Point',
-            coordinates: [longitude, latitude]
-          },
-          distanceField: 'distance',
-          maxDistance: radiusMeters,
-          spherical: true,
-          query: { isBlocked: { $ne: true } } // hide blocked doctors from patients
-        }
-      },
-      {
-        $sort: { distance: 1 }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user',
-          pipeline: [{ $project: { email: 1, role: 1 } }]
-        }
-      },
-      {
-        $unwind: {
-          path: '$user',
-          preserveNullAndEmptyArrays: true
-        }
-      }
-    ]);
+    // Attach the minimal user info (email, role) like the old $lookup did.
+    const userIds = [...new Set(rows.map((r) => r.userId))];
+    const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true, role: true } });
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
-    // Convert distance from meters to km for response
-    const results = doctors.map((doc) => ({
-      ...doc,
-      distanceKm: Math.round((doc.distance / 1000) * 100) / 100
+    const results = rows.map((r) => ({
+      ...r,
+      user: userMap.get(r.userId) ? { email: userMap.get(r.userId).email, role: userMap.get(r.userId).role } : null,
+      distanceKm: Math.round((r.distance || 0) * 100) / 100,
     }));
 
-    res.status(200).json({
-      success: true,
-      count: results.length,
-      data: results
-    });
+    res.status(200).json({ success: true, count: results.length, data: serialize(results) });
   } catch (error) {
     console.error('Get nearby doctors error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching nearby doctors'
-    });
+    res.status(500).json({ success: false, message: 'Server error while fetching nearby doctors' });
   }
 };
 
@@ -219,39 +109,31 @@ const getNearbyDoctors = async (req, res) => {
 const searchDoctors = async (req, res) => {
   try {
     const { q } = req.query;
-
-    if (!q || q.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a search query (q parameter)'
-      });
-    }
-
-    // Escape special regex characters for safety
-    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escapedQuery, 'i');
+    if (!q || q.trim().length === 0) return res.status(400).json({ success: false, message: 'Please provide a search query (q parameter)' });
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
-    const skip = (page - 1) * limit;
+    const term = q.trim();
 
-    const filter = {
-      isBlocked: { $ne: true }, // hide blocked doctors from patient search
-      $or: [
-        { fullName: regex },
-        { clinicName: regex },
-        { specialization: regex }
-      ]
+    const where = {
+      isBlocked: false,
+      OR: [
+        { fullName: { contains: term, mode: 'insensitive' } },
+        { clinicName: { contains: term, mode: 'insensitive' } },
+        { specialization: { contains: term, mode: 'insensitive' } },
+      ],
     };
 
-    const total = await DoctorProfile.countDocuments(filter);
-
-    const doctors = await DoctorProfile.find(filter)
-      .sort({ facilityScore: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('userId', 'email role')
-      .lean();
+    const [total, doctors] = await Promise.all([
+      prisma.doctorProfile.count({ where }),
+      prisma.doctorProfile.findMany({
+        where,
+        orderBy: { facilityScore: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: { user: { select: { email: true, role: true } } },
+      }),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -259,14 +141,11 @@ const searchDoctors = async (req, res) => {
       total,
       page,
       pages: Math.ceil(total / limit),
-      data: doctors
+      data: serialize(remapMany(doctors, { user: 'userId' })),
     });
   } catch (error) {
     console.error('Search doctors error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while searching doctors'
-    });
+    res.status(500).json({ success: false, message: 'Server error while searching doctors' });
   }
 };
 
@@ -275,35 +154,17 @@ const searchDoctors = async (req, res) => {
 // @access  Public
 const getDoctorById = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid doctor ID format'
-      });
-    }
-
-    const doctor = await DoctorProfile.findById(req.params.id)
-      .populate('userId', 'email role')
-      .lean();
-
-    // Blocked doctors are hidden from patients — treat as not found.
-    if (!doctor || doctor.isBlocked) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: doctor
+    const doctor = await prisma.doctorProfile.findUnique({
+      where: { id: req.params.id },
+      include: { user: { select: { email: true, role: true } } },
     });
+    if (!doctor || doctor.isBlocked) return res.status(404).json({ success: false, message: 'Doctor not found' });
+
+    const [data] = serialize(remapMany([doctor], { user: 'userId' }));
+    res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('Get doctor by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching doctor'
-    });
+    res.status(500).json({ success: false, message: 'Server error while fetching doctor' });
   }
 };
 
@@ -312,37 +173,17 @@ const getDoctorById = async (req, res) => {
 // @access  Public
 const getDoctorServices = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid doctor ID format'
-      });
-    }
-
-    const doctor = await DoctorProfile.findById(req.params.id).select('services fullName isBlocked').lean();
-
-    if (!doctor || doctor.isBlocked) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
-    }
+    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, select: { id: true, services: true, fullName: true, isBlocked: true } });
+    if (!doctor || doctor.isBlocked) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
     res.status(200).json({
       success: true,
       count: (doctor.services || []).length,
-      data: {
-        doctorId: doctor._id,
-        fullName: doctor.fullName,
-        services: doctor.services || []
-      }
+      data: { doctorId: doctor.id, fullName: doctor.fullName, services: doctor.services || [] },
     });
   } catch (error) {
     console.error('Get doctor services error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching doctor services'
-    });
+    res.status(500).json({ success: false, message: 'Server error while fetching doctor services' });
   }
 };
 
@@ -351,116 +192,35 @@ const getDoctorServices = async (req, res) => {
 // @access  Public
 const getDoctorStats = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid doctor ID format'
-      });
-    }
+    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, select: { id: true, fullName: true, isBlocked: true } });
+    if (!doctor || doctor.isBlocked) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
-    const doctorId = new mongoose.Types.ObjectId(req.params.id);
-
-    // Verify doctor exists and isn't blocked (blocked doctors are hidden).
-    const doctor = await DoctorProfile.findById(doctorId).select('fullName isBlocked').lean();
-    if (!doctor || doctor.isBlocked) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
-    }
-
-    const Review = getReviewModel();
-
-    // Default stats if Review model is not available
-    const defaultStats = {
-      doctorId,
-      fullName: doctor.fullName,
-      avgRating: 0,
-      totalReviews: 0,
-      ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-      recommendPercentage: 0
-    };
-
-    if (!Review) {
-      return res.status(200).json({
-        success: true,
-        data: defaultStats
-      });
-    }
-
-    // Aggregate review statistics
-    const statsAgg = await Review.aggregate([
-      { $match: { doctorId, hidden: { $ne: true } } },
-      {
-        $group: {
-          _id: null,
-          avgRating: { $avg: '$rating' },
-          totalReviews: { $sum: 1 },
-          recommendCount: {
-            $sum: {
-              $cond: [{ $gte: ['$rating', 4] }, 1, 0]
-            }
-          }
-        }
-      }
+    const where = { doctorId: doctor.id, hidden: false };
+    const [agg, dist, recommendCount] = await Promise.all([
+      prisma.review.aggregate({ where, _avg: { rating: true }, _count: { _all: true } }),
+      prisma.review.groupBy({ by: ['rating'], where, _count: { _all: true } }),
+      prisma.review.count({ where: { ...where, rating: { gte: 4 } } }),
     ]);
 
-    // Rating distribution
-    const distAgg = await Review.aggregate([
-      { $match: { doctorId, hidden: { $ne: true } } },
-      {
-        $group: {
-          _id: '$rating',
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
-
+    const totalReviews = agg._count._all;
     const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    distAgg.forEach((item) => {
-      if (item._id >= 1 && item._id <= 5) {
-        ratingDistribution[item._id] = item.count;
-      }
-    });
-
-    if (statsAgg.length === 0) {
-      return res.status(200).json({
-        success: true,
-        data: defaultStats
-      });
-    }
-
-    const stats = statsAgg[0];
+    dist.forEach((d) => { if (d.rating >= 1 && d.rating <= 5) ratingDistribution[d.rating] = d._count._all; });
 
     res.status(200).json({
       success: true,
       data: {
-        doctorId,
+        doctorId: doctor.id,
         fullName: doctor.fullName,
-        avgRating: Math.round(stats.avgRating * 10) / 10,
-        totalReviews: stats.totalReviews,
+        avgRating: totalReviews > 0 ? Math.round((agg._avg.rating || 0) * 10) / 10 : 0,
+        totalReviews,
         ratingDistribution,
-        recommendPercentage:
-          stats.totalReviews > 0
-            ? Math.round((stats.recommendCount / stats.totalReviews) * 100)
-            : 0
-      }
+        recommendPercentage: totalReviews > 0 ? Math.round((recommendCount / totalReviews) * 100) : 0,
+      },
     });
   } catch (error) {
     console.error('Get doctor stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching doctor stats'
-    });
+    res.status(500).json({ success: false, message: 'Server error while fetching doctor stats' });
   }
 };
 
-module.exports = {
-  getDoctors,
-  getNearbyDoctors,
-  searchDoctors,
-  getDoctorById,
-  getDoctorServices,
-  getDoctorStats
-};
+module.exports = { getDoctors, getNearbyDoctors, searchDoctors, getDoctorById, getDoctorServices, getDoctorStats };

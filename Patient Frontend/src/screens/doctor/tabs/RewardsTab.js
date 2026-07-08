@@ -266,13 +266,31 @@ export default function RewardsTab({ profile, bills = [], setActiveTab, navigati
             <Text style={styles.earnPointsText}>+50 pts</Text>
           </View>
 
-          <View style={[styles.earnRow, {borderBottomWidth: 0, paddingBottom: 0}]}>
+          <View style={styles.earnRow}>
             <View style={[styles.earnIconWrap, {backgroundColor: '#FFFBEB'}]}><Ionicons name="star-outline" size={16} color="#D97706" /></View>
             <View style={{flex: 1}}>
               <Text style={styles.earnRuleTitle}>Patient Review Received</Text>
               <Text style={styles.earnRuleDesc}>When patient submits review</Text>
             </View>
             <Text style={styles.earnPointsText}>+50 pts</Text>
+          </View>
+
+          <View style={styles.earnRow}>
+            <View style={[styles.earnIconWrap, {backgroundColor: '#EDE9FE'}]}><Ionicons name="person-add" size={16} color="#7C3AED" /></View>
+            <View style={{flex: 1}}>
+              <Text style={styles.earnRuleTitle}>Refers a Doctor</Text>
+              <Text style={styles.earnRuleDesc}>When a referred doctor joins</Text>
+            </View>
+            <Text style={styles.earnPointsText}>+100 pts</Text>
+          </View>
+
+          <View style={[styles.earnRow, {borderBottomWidth: 0, paddingBottom: 0}]}>
+            <View style={[styles.earnIconWrap, {backgroundColor: '#DCFCE7'}]}><Ionicons name="people" size={16} color="#16A34A" /></View>
+            <View style={{flex: 1}}>
+              <Text style={styles.earnRuleTitle}>Refers a Patient</Text>
+              <Text style={styles.earnRuleDesc}>When a referred patient joins</Text>
+            </View>
+            <Text style={styles.earnPointsText}>+100 pts</Text>
           </View>
         </View>
       </View>

@@ -24,7 +24,7 @@ router.post(
   '/:doctorId',
   [
     param('doctorId')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format'),
   ],
   validate,
@@ -37,7 +37,7 @@ router.delete(
   '/:doctorId',
   [
     param('doctorId')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format'),
   ],
   validate,

@@ -26,7 +26,7 @@ router.get(
   '/doctor/:doctorId',
   [
     param('doctorId')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format'),
     query('active')
       .optional()
@@ -79,7 +79,7 @@ router.put(
   authorize('doctor'),
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid treatment ID format'),
     body('name')
       .optional()
@@ -110,7 +110,7 @@ router.delete(
   authorize('doctor'),
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid treatment ID format')
   ],
   validate,

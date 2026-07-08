@@ -94,7 +94,7 @@ router.get(
   '/:id',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format')
   ],
   validate,
@@ -106,7 +106,7 @@ router.get(
   '/:id/services',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format')
   ],
   validate,
@@ -118,7 +118,7 @@ router.get(
   '/:id/stats',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format')
   ],
   validate,

@@ -65,7 +65,7 @@ router.delete(
   '/methods/:id',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid payment method ID'),
   ],
   validate,
@@ -78,7 +78,7 @@ router.put(
   '/methods/:id/default',
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid payment method ID'),
   ],
   validate,

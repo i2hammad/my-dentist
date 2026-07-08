@@ -12,7 +12,7 @@ const {
 const { protect } = require('../middleware/auth');
 const { authorize } = require('../middleware/roleCheck');
 const { validate } = require('../middleware/validate');
-const { memoryUpload: upload } = require('../config/cloudinary');
+const { memoryUpload: upload } = require('../config/upload');
 
 // Upload fields for before/after or single image
 const galleryUpload = upload.fields([
@@ -36,7 +36,7 @@ router.get(
   '/doctor/:doctorId',
   [
     param('doctorId')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid doctor ID format'),
   ],
   validate,
@@ -79,7 +79,7 @@ router.delete(
   authorize('doctor'),
   [
     param('id')
-      .isMongoId()
+      .notEmpty()
       .withMessage('Invalid gallery item ID'),
   ],
   validate,

@@ -1,1049 +1,829 @@
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
-const AdminProfile = require('../models/AdminProfile');
-const DoctorProfile = require('../models/DoctorProfile');
-const PatientProfile = require('../models/PatientProfile');
-const Treatment = require('../models/Treatment');
-const Gallery = require('../models/Gallery');
-const Review = require('../models/Review');
-const Appointment = require('../models/Appointment');
-const Bill = require('../models/Bill');
-const Reward = require('../models/Reward');
-const Notification = require('../models/Notification');
-const AuditLog = require('../models/AuditLog');
-const CommissionLog = require('../models/CommissionLog');
-
-// Record a commission dues change for a doctor (best-effort).
-async function logCommission(req, doc, { type, amount, note = '' }) {
-  try {
-    await CommissionLog.create({
-      doctorId: doc._id,
-      doctorName: doc.fullName || '',
-      type, amount,
-      balanceAfter: doc.commissionDue || 0,
-      note,
-      actorName: req.user?.fullName || req.user?.email || 'Admin',
-    });
-  } catch (_) { /* logging must not break the action */ }
-}
-
-// Record an admin action for the activity log. Best-effort (never throws into
-// the request flow). `req` carries the acting admin on req.user.
-async function logAudit(req, { action, entity = '', entityId = '', description = '' }) {
-  try {
-    await AuditLog.create({
-      actorId: req.user?._id,
-      actorName: req.user?.fullName || req.user?.email || 'Admin',
-      action, entity, entityId: String(entityId || ''), description,
-    });
-  } catch (_) { /* logging must not break the action */ }
-}
-
-const startOfMonth = () => {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-};
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const prisma = require('../config/prisma');
+const { serialize, remapRefs, remapMany } = require('../utils/serialize');
+const { recomputePopular } = require('../utils/popular');
+const { targetCommission } = require('../utils/commission');
+const { DEFAULT_FACILITY_CATEGORIES, DEFAULT_TIER_THRESHOLDS, DEFAULT_PAYMENTS } = require('../utils/appDefaults');
 
 const ok = (res, data, extra = {}) => res.json({ success: true, data, ...extra });
 const fail = (res, code, message) => res.status(code).json({ success: false, message });
+const hashPassword = async (plain) => bcrypt.hash(plain, await bcrypt.genSalt(10));
+const startOfMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); };
+const ci = (v) => ({ contains: v, mode: 'insensitive' });
 
-// ─── Dashboard ──────────────────────────────────────────────
-// @route GET /api/admin/dashboard
-exports.getDashboard = async (req, res) => {
+async function logCommission(req, doc, { type, amount, note = '' }) {
   try {
-    const [totalDentists, totalPatients, totalAppointments, paidBills] = await Promise.all([
-      DoctorProfile.countDocuments(),
-      PatientProfile.countDocuments(),
-      Appointment.countDocuments(),
-      Bill.find({ status: 'paid' }).select('finalAmount paidAmount').lean(),
-    ]);
-
-    const totalEarnings = paidBills.reduce(
-      (sum, b) => sum + (b.paidAmount || b.finalAmount || 0), 0
-    );
-
-    // Recent appointments (joined with patient/doctor names)
-    const recent = await Appointment.find()
-      .sort({ createdAt: -1 })
-      .limit(6)
-      .populate('patientId', 'fullName profileImage')
-      .populate('doctorId', 'fullName photo')
-      .lean();
-
-    // Top dentists by review count + rating (exclude moderated/hidden reviews)
-    const topAgg = await Review.aggregate([
-      { $match: { hidden: { $ne: true } } },
-      { $group: { _id: '$doctorId', count: { $sum: 1 }, avg: { $avg: '$rating' } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 },
-    ]);
-    const topDentists = await Promise.all(
-      topAgg.map(async (t) => {
-        const d = await DoctorProfile.findById(t._id).select('fullName photo specialization').lean();
-        return d ? { ...d, reviewCount: t.count, rating: Math.round(t.avg * 10) / 10 } : null;
-      })
-    );
-
-    // Appointments per month (last 6 months) for the chart
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    const apptSeries = await Appointment.aggregate([
-      { $match: { createdAt: { $gte: sixMonthsAgo } } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, count: { $sum: 1 } } },
-      { $sort: { _id: 1 } },
-    ]);
-
-    ok(res, {
-      stats: { totalDentists, totalPatients, totalAppointments, totalEarnings },
-      recentAppointments: recent,
-      topDentists: topDentists.filter(Boolean),
-      appointmentSeries: apptSeries,
+    await prisma.commissionLog.create({
+      data: { doctorId: doc.id, doctorName: doc.fullName || '', type, amount, balanceAfter: doc.commissionDue || 0, note, actorName: req.user?.fullName || req.user?.email || 'Admin' },
     });
-  } catch (e) {
-    fail(res, 500, e.message);
-  }
-};
+  } catch (_) {}
+}
+async function logAudit(req, { action, entity = '', entityId = '', description = '' }) {
+  try {
+    await prisma.auditLog.create({
+      data: { actorId: req.user?._id || '', actorName: req.user?.fullName || req.user?.email || 'Admin', action, entity, entityId: String(entityId || ''), description },
+    });
+  } catch (_) {}
+}
 
-// ─── Generic paginated list helper ──────────────────────────
-async function paginate(Model, { query = {}, page = 1, limit = 10, populate = [], sort = { createdAt: -1 } }) {
-  page = Math.max(1, parseInt(page));
-  limit = Math.max(1, parseInt(limit));
-  let q = Model.find(query).sort(sort).skip((page - 1) * limit).limit(limit);
-  for (const p of populate) q = q.populate(p.path, p.select);
-  const [data, total] = await Promise.all([q.lean(), Model.countDocuments(query)]);
+// Generic paginate → { data (serialized+remapped), total, page, pages }.
+async function paginate(model, { where = {}, page = 1, limit = 10, include, orderBy = { createdAt: 'desc' }, refmap } = {}) {
+  page = Math.max(1, parseInt(page) || 1);
+  limit = Math.max(1, parseInt(limit) || 10);
+  const [rows, total] = await Promise.all([
+    prisma[model].findMany({ where, orderBy, skip: (page - 1) * limit, take: limit, ...(include ? { include } : {}) }),
+    prisma[model].count({ where }),
+  ]);
+  const data = serialize(refmap ? remapMany(rows, refmap) : rows);
   return { data, total, page, pages: Math.ceil(total / limit) };
 }
 
+const USER_SEL = { user: { select: { email: true, role: true, createdAt: true } } };
+
+// ─── Dashboard ──────────────────────────────────────────────
+exports.getDashboard = async (req, res) => {
+  try {
+    const [totalDentists, totalPatients, totalAppointments, paidBills] = await Promise.all([
+      prisma.doctorProfile.count(),
+      prisma.patientProfile.count(),
+      prisma.appointment.count(),
+      prisma.bill.findMany({ where: { status: 'paid' }, select: { finalAmount: true, paidAmount: true } }),
+    ]);
+    const totalEarnings = paidBills.reduce((s, b) => s + (b.paidAmount || b.finalAmount || 0), 0);
+
+    const recent = await prisma.appointment.findMany({
+      orderBy: { createdAt: 'desc' }, take: 6,
+      include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
+    });
+
+    const topAgg = await prisma.review.groupBy({
+      by: ['doctorId'], where: { hidden: false }, _count: { _all: true }, _avg: { rating: true },
+      orderBy: { _count: { doctorId: 'desc' } }, take: 5,
+    });
+    const topDentists = (await Promise.all(topAgg.map(async (t) => {
+      const d = await prisma.doctorProfile.findUnique({ where: { id: t.doctorId }, select: { id: true, fullName: true, photo: true, specialization: true } });
+      return d ? { ...d, reviewCount: t._count._all, rating: Math.round((t._avg.rating || 0) * 10) / 10 } : null;
+    }))).filter(Boolean);
+
+    const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    const apptSeries = await prisma.$queryRaw`SELECT to_char("createdAt", 'YYYY-MM') AS _id, count(*)::int AS count FROM "Appointment" WHERE "createdAt" >= ${sixMonthsAgo} GROUP BY 1 ORDER BY 1`;
+
+    ok(res, {
+      stats: { totalDentists, totalPatients, totalAppointments, totalEarnings },
+      recentAppointments: serialize(remapMany(recent, { patient: 'patientId', doctor: 'doctorId' })),
+      topDentists: serialize(topDentists),
+      appointmentSeries: apptSeries,
+    });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
 // ─── Admins ─────────────────────────────────────────────────
-// @route GET /api/admin/admins
 exports.listAdmins = async (req, res) => {
   try {
     const { page, limit, search, status } = req.query;
-    const query = {};
-    if (status && status !== 'all') query.status = status;
-    if (search) query.fullName = { $regex: search, $options: 'i' };
-    const result = await paginate(AdminProfile, {
-      query, page, limit,
-      populate: [{ path: 'userId', select: 'email role createdAt' }],
-    });
+    const where = {};
+    if (status && status !== 'all') where.status = status;
+    if (search) where.fullName = ci(search);
+    const result = await paginate('adminProfile', { where, page, limit, include: USER_SEL, refmap: { user: 'userId' } });
     const counts = {
-      total: await AdminProfile.countDocuments(),
-      active: await AdminProfile.countDocuments({ status: 'active' }),
-      inactive: await AdminProfile.countDocuments({ status: 'inactive' }),
-      super: await AdminProfile.countDocuments({ adminRole: 'super_admin' }),
+      total: await prisma.adminProfile.count(),
+      active: await prisma.adminProfile.count({ where: { status: 'active' } }),
+      inactive: await prisma.adminProfile.count({ where: { status: 'inactive' } }),
+      super: await prisma.adminProfile.count({ where: { adminRole: 'super_admin' } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/admins/:id  (toggle status / update permissions)
 exports.updateAdmin = async (req, res) => {
   try {
-    const { status, permissions, fullName, adminRole } = req.body;
-    const update = {};
-    if (status) update.status = status;
-    if (permissions) update.permissions = permissions;
-    if (fullName) update.fullName = fullName;
-    if (adminRole) update.adminRole = adminRole;
-    const admin = await AdminProfile.findByIdAndUpdate(req.params.id, update, { new: true });
+    const data = {};
+    for (const k of ['status', 'permissions', 'fullName', 'adminRole']) if (req.body[k] !== undefined) data[k] = req.body[k];
+    const admin = await prisma.adminProfile.update({ where: { id: req.params.id }, data }).catch(() => null);
     if (!admin) return fail(res, 404, 'Admin not found');
-    ok(res, admin);
+    ok(res, serialize(admin));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/admins/:id
 exports.deleteAdmin = async (req, res) => {
   try {
-    const admin = await AdminProfile.findById(req.params.id);
+    const admin = await prisma.adminProfile.findUnique({ where: { id: req.params.id } });
     if (!admin) return fail(res, 404, 'Admin not found');
     if (admin.adminRole === 'super_admin') return fail(res, 400, 'Cannot delete a super admin');
-    await AdminProfile.findByIdAndDelete(req.params.id);
-    await User.findByIdAndDelete(admin.userId);
+    await prisma.user.delete({ where: { id: admin.userId } }).catch(() => {}); // cascade removes profile
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Dentists ───────────────────────────────────────────────
-// @route GET /api/admin/dentists
 exports.listDentists = async (req, res) => {
   try {
     const { page, limit, search, status } = req.query;
-    const query = {};
-    if (search) query.fullName = { $regex: search, $options: 'i' };
-    if (status === 'verified') query.pmdcVerified = true;
-    if (status === 'pending') query.pmdcVerified = false;
-    const result = await paginate(DoctorProfile, {
-      query, page, limit,
-      populate: [{ path: 'userId', select: 'email role createdAt' }],
-    });
+    const where = {};
+    if (search) where.fullName = ci(search);
+    if (status === 'verified') where.pmdcVerified = true;
+    if (status === 'pending') where.pmdcVerified = false;
+    const result = await paginate('doctorProfile', { where, page, limit, include: USER_SEL, refmap: { user: 'userId' } });
     const counts = {
-      total: await DoctorProfile.countDocuments(),
-      verified: await DoctorProfile.countDocuments({ pmdcVerified: true }),
-      pending: await DoctorProfile.countDocuments({ pmdcVerified: false }),
-      newThisMonth: await DoctorProfile.countDocuments({ createdAt: { $gte: startOfMonth() } }),
+      total: await prisma.doctorProfile.count(),
+      verified: await prisma.doctorProfile.count({ where: { pmdcVerified: true } }),
+      pending: await prisma.doctorProfile.count({ where: { pmdcVerified: false } }),
+      newThisMonth: await prisma.doctorProfile.count({ where: { createdAt: { gte: startOfMonth() } } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/dentists/:id  (approve/verify, etc.)
 exports.updateDentist = async (req, res) => {
   try {
-    const allowed = ['pmdcVerified', 'clinicTier', 'fullName', 'specialization', 'approvalStatus', 'isBlocked', 'blockReason'];
-    const update = {};
-    for (const k of allowed) if (k in req.body) update[k] = req.body[k];
-    // Approving a doctor also marks them verified.
-    if (update.approvalStatus === 'approved') update.pmdcVerified = true;
-    const doc = await DoctorProfile.findByIdAndUpdate(req.params.id, update, { new: true });
+    const data = {};
+    for (const k of ['pmdcVerified', 'clinicTier', 'fullName', 'specialization', 'approvalStatus', 'isBlocked', 'blockReason']) if (k in req.body) data[k] = req.body[k];
+    if (data.approvalStatus === 'approved') data.pmdcVerified = true;
+    const doc = await prisma.doctorProfile.update({ where: { id: req.params.id }, data }).catch(() => null);
     if (!doc) return fail(res, 404, 'Dentist not found');
-    ok(res, doc);
+    ok(res, serialize(doc));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/dentists/:id
 exports.deleteDentist = async (req, res) => {
   try {
-    const doc = await DoctorProfile.findById(req.params.id);
+    const doc = await prisma.doctorProfile.findUnique({ where: { id: req.params.id } });
     if (!doc) return fail(res, 404, 'Dentist not found');
-    await DoctorProfile.findByIdAndDelete(req.params.id);
-    await User.findByIdAndDelete(doc.userId);
-    await logAudit(req, { action: 'delete', entity: 'dentist', entityId: doc._id, description: `Deleted dentist "${doc.fullName}"` });
+    await prisma.user.delete({ where: { id: doc.userId } }).catch(() => {});
+    await logAudit(req, { action: 'delete', entity: 'dentist', entityId: doc.id, description: `Deleted dentist "${doc.fullName}"` });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Patients ───────────────────────────────────────────────
-// @route GET /api/admin/patients
 exports.listPatients = async (req, res) => {
   try {
     const { page, limit, search } = req.query;
-    const query = {};
-    if (search) query.fullName = { $regex: search, $options: 'i' };
-    const result = await paginate(PatientProfile, {
-      query, page, limit,
-      populate: [{ path: 'userId', select: 'email role createdAt' }],
-    });
+    const where = {};
+    if (search) where.fullName = ci(search);
+    const result = await paginate('patientProfile', { where, page, limit, include: USER_SEL, refmap: { user: 'userId' } });
     const counts = {
-      total: await PatientProfile.countDocuments(),
-      active: await PatientProfile.countDocuments({ isBlocked: { $ne: true } }),
-      inactive: await PatientProfile.countDocuments({ isBlocked: true }),
-      newThisMonth: await PatientProfile.countDocuments({ createdAt: { $gte: startOfMonth() } }),
+      total: await prisma.patientProfile.count(),
+      active: await prisma.patientProfile.count({ where: { isBlocked: false } }),
+      inactive: await prisma.patientProfile.count({ where: { isBlocked: true } }),
+      newThisMonth: await prisma.patientProfile.count({ where: { createdAt: { gte: startOfMonth() } } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/patients/:id
 exports.deletePatient = async (req, res) => {
   try {
-    const p = await PatientProfile.findById(req.params.id);
+    const p = await prisma.patientProfile.findUnique({ where: { id: req.params.id } });
     if (!p) return fail(res, 404, 'Patient not found');
-    await PatientProfile.findByIdAndDelete(req.params.id);
-    await User.findByIdAndDelete(p.userId);
-    await logAudit(req, { action: 'delete', entity: 'patient', entityId: p._id, description: `Deleted patient "${p.fullName}"` });
+    await prisma.user.delete({ where: { id: p.userId } }).catch(() => {});
+    await logAudit(req, { action: 'delete', entity: 'patient', entityId: p.id, description: `Deleted patient "${p.fullName}"` });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Treatments ─────────────────────────────────────────────
-// @route GET /api/admin/treatments
 exports.listTreatments = async (req, res) => {
   try {
     const { page, limit, search } = req.query;
-    const query = {};
-    if (search) query.name = { $regex: search, $options: 'i' };
-    const result = await paginate(Treatment, {
-      query, page, limit,
-      populate: [{ path: 'doctorId', select: 'fullName' }],
-    });
+    const where = {};
+    if (search) where.name = ci(search);
+    const result = await paginate('treatment', { where, page, limit, include: { doctor: { select: { fullName: true } } }, refmap: { doctor: 'doctorId' } });
     const counts = {
-      total: await Treatment.countDocuments(),
-      active: await Treatment.countDocuments({ isActive: true }),
-      inactive: await Treatment.countDocuments({ isActive: false }),
-      newThisMonth: await Treatment.countDocuments({ createdAt: { $gte: startOfMonth() } }),
+      total: await prisma.treatment.count(),
+      active: await prisma.treatment.count({ where: { isActive: true } }),
+      inactive: await prisma.treatment.count({ where: { isActive: false } }),
+      newThisMonth: await prisma.treatment.count({ where: { createdAt: { gte: startOfMonth() } } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/treatments/:id
 exports.deleteTreatment = async (req, res) => {
   try {
-    const t = await Treatment.findByIdAndDelete(req.params.id);
+    const t = await prisma.treatment.findUnique({ where: { id: req.params.id } });
     if (!t) return fail(res, 404, 'Treatment not found');
-    await logAudit(req, { action: 'delete', entity: 'treatment', entityId: t._id, description: `Deleted treatment "${t.name}"` });
+    await prisma.treatment.delete({ where: { id: t.id } });
+    await logAudit(req, { action: 'delete', entity: 'treatment', entityId: t.id, description: `Deleted treatment "${t.name}"` });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Gallery ────────────────────────────────────────────────
-// @route GET /api/admin/gallery
 exports.listGallery = async (req, res) => {
   try {
     const { page, limit, category } = req.query;
-    const query = {};
-    if (category && category !== 'all') query.category = category;
-    const result = await paginate(Gallery, {
-      query, page, limit,
-      populate: [{ path: 'doctorId', select: 'fullName' }],
-    });
-    const counts = {
-      total: await Gallery.countDocuments(),
-      newThisMonth: await Gallery.countDocuments({ createdAt: { $gte: startOfMonth() } }),
-    };
+    const where = {};
+    if (category && category !== 'all') where.category = category;
+    const result = await paginate('gallery', { where, page, limit, include: { doctor: { select: { fullName: true } } }, refmap: { doctor: 'doctorId' } });
+    const counts = { total: await prisma.gallery.count(), newThisMonth: await prisma.gallery.count({ where: { createdAt: { gte: startOfMonth() } } }) };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/gallery/:id
 exports.deleteGallery = async (req, res) => {
   try {
-    const g = await Gallery.findByIdAndDelete(req.params.id);
+    const g = await prisma.gallery.delete({ where: { id: req.params.id } }).catch(() => null);
     if (!g) return fail(res, 404, 'Gallery item not found');
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Reviews ────────────────────────────────────────────────
-// @route GET /api/admin/reviews
 exports.listReviews = async (req, res) => {
   try {
     const { page, limit, rating } = req.query;
-    const query = {};
-    if (rating && rating !== 'all') query.rating = parseInt(rating, 10);
-    const result = await paginate(Review, {
-      query, page, limit,
-      populate: [
-        { path: 'patientId', select: 'fullName profileImage' },
-        { path: 'doctorId', select: 'fullName photo' },
-      ],
+    const where = {};
+    if (rating && rating !== 'all') where.rating = parseInt(rating, 10);
+    const result = await paginate('review', {
+      where, page, limit,
+      include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
+      refmap: { patient: 'patientId', doctor: 'doctorId' },
     });
-    // Avg rating reflects the PUBLIC rating — hidden (moderated) reviews don't count.
-    const ratingAgg = await Review.aggregate([
-      { $match: { hidden: { $ne: true } } },
-      { $group: { _id: null, avg: { $avg: '$rating' } } },
-    ]);
+    const avg = await prisma.review.aggregate({ where: { hidden: false }, _avg: { rating: true } });
     const counts = {
-      total: await Review.countDocuments(),
-      verified: await Review.countDocuments({ isVerifiedPatient: true }),
-      avgRating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : 0,
+      total: await prisma.review.count(),
+      verified: await prisma.review.count({ where: { isVerifiedPatient: true } }),
+      avgRating: avg._avg.rating ? Math.round(avg._avg.rating * 10) / 10 : 0,
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/reviews/:id
 exports.deleteReview = async (req, res) => {
   try {
-    const r = await Review.findByIdAndDelete(req.params.id);
+    const r = await prisma.review.delete({ where: { id: req.params.id } }).catch(() => null);
     if (!r) return fail(res, 404, 'Review not found');
-    await logAudit(req, { action: 'delete', entity: 'review', entityId: r._id, description: 'Deleted a review' });
+    await logAudit(req, { action: 'delete', entity: 'review', entityId: r.id, description: 'Deleted a review' });
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Appointments ───────────────────────────────────────────
-// @route GET /api/admin/appointments
 exports.listAppointments = async (req, res) => {
   try {
     const { page, limit, status } = req.query;
-    const query = {};
-    if (status && status !== 'all') query.status = status;
-    const result = await paginate(Appointment, {
-      query, page, limit,
-      populate: [
-        { path: 'patientId', select: 'fullName profileImage' },
-        { path: 'doctorId', select: 'fullName photo' },
-      ],
+    const where = {};
+    if (status && status !== 'all') where.status = status;
+    const result = await paginate('appointment', {
+      where, page, limit,
+      include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
+      refmap: { patient: 'patientId', doctor: 'doctorId' },
     });
-    // Attach each appointment's bill (if any) so the admin can see whether it
-    // was billed and paid — one query for the whole page, not N.
     const apptIds = result.data.map((a) => a._id);
     if (apptIds.length) {
-      const bills = await Bill.find({ appointmentId: { $in: apptIds } })
-        .select('appointmentId invoiceNumber status amount finalAmount paidAmount').lean();
+      const bills = await prisma.bill.findMany({ where: { appointmentId: { in: apptIds } }, select: { appointmentId: true, invoiceNumber: true, status: true, amount: true, finalAmount: true, paidAmount: true } });
       const byAppt = {};
-      bills.forEach((b) => { byAppt[String(b.appointmentId)] = b; });
-      result.data.forEach((a) => { a.bill = byAppt[String(a._id)] || null; });
+      bills.forEach((b) => { byAppt[b.appointmentId] = serialize(b); });
+      result.data.forEach((a) => { a.bill = byAppt[a._id] || null; });
     }
     const counts = {
-      total: await Appointment.countDocuments(),
-      completed: await Appointment.countDocuments({ status: 'completed' }),
-      upcoming: await Appointment.countDocuments({ status: { $in: ['pending', 'confirmed'] } }),
-      cancelled: await Appointment.countDocuments({ status: 'cancelled' }),
+      total: await prisma.appointment.count(),
+      completed: await prisma.appointment.count({ where: { status: 'completed' } }),
+      upcoming: await prisma.appointment.count({ where: { status: { in: ['pending', 'confirmed'] } } }),
+      cancelled: await prisma.appointment.count({ where: { status: 'cancelled' } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Bills ──────────────────────────────────────────────────
-// @route GET /api/admin/bills
 exports.listBills = async (req, res) => {
   try {
     const { page, limit, status, search, from, to } = req.query;
-    const query = {};
-    if (status && status !== 'all') query.status = status;
-    if (search) {
-      query.$or = [
-        { invoiceNumber: { $regex: search, $options: 'i' } },
-        { treatmentName: { $regex: search, $options: 'i' } },
-      ];
-    }
+    const where = {};
+    if (status && status !== 'all') where.status = status;
+    if (search) where.OR = [{ invoiceNumber: ci(search) }, { treatmentName: ci(search) }];
     if (from || to) {
-      query.createdAt = {};
-      if (from) query.createdAt.$gte = new Date(from);
-      if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); query.createdAt.$lte = end; }
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); where.createdAt.lte = end; }
     }
-    const result = await paginate(Bill, {
-      query, page, limit,
-      populate: [
-        { path: 'patientId', select: 'fullName profileImage' },
-        { path: 'doctorId', select: 'fullName photo' },
-      ],
+    const result = await paginate('bill', {
+      where, page, limit,
+      include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
+      refmap: { patient: 'patientId', doctor: 'doctorId' },
     });
-    // Summary reflects the CURRENT filter so totals match what's listed.
-    const filtered = await Bill.find(query).select('finalAmount paidAmount status').lean();
+    const filtered = await prisma.bill.findMany({ where, select: { finalAmount: true, paidAmount: true, status: true } });
     const collected = filtered.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
     const billed = filtered.reduce((s, b) => s + (b.finalAmount || 0), 0);
     const counts = {
       total: result.total,
       paid: filtered.filter((b) => b.status === 'paid').length,
       pending: filtered.filter((b) => b.status !== 'paid').length,
-      totalAmount: billed,
-      collected,
-      outstanding: Math.max(0, billed - collected),
+      totalAmount: billed, collected, outstanding: Math.max(0, billed - collected),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Rewards & Payments ─────────────────────────────────────
-// @route GET /api/admin/rewards
+// ─── Rewards ────────────────────────────────────────────────
 exports.listRewards = async (req, res) => {
   try {
     const { page, limit } = req.query;
-    const result = await paginate(Reward, {
-      query: {}, page, limit,
-      populate: [{ path: 'patientId', select: 'fullName profileImage' }],
-    });
-    const all = await Reward.find().select('points').lean();
+    const result = await paginate('reward', { where: {}, page, limit, include: { patient: { select: { fullName: true, profileImage: true } } }, refmap: { patient: 'patientId' } });
+    const totalAgg = await prisma.reward.aggregate({ _sum: { points: true } });
     const counts = {
-      members: await PatientProfile.countDocuments(),
-      totalPoints: all.reduce((s, r) => s + (r.points || 0), 0),
-      transactions: await Reward.countDocuments(),
-      redeemed: await Reward.countDocuments({ isRedeemed: true }),
+      members: await prisma.patientProfile.count(),
+      totalPoints: totalAgg._sum.points || 0,
+      transactions: await prisma.reward.count(),
+      redeemed: await prisma.reward.count({ where: { isRedeemed: true } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Create: Admin ──────────────────────────────────────────
-// @route POST /api/admin/admins
+// ─── Create: Admin / Dentist / Patient ──────────────────────
 exports.createAdmin = async (req, res) => {
   try {
     const { email, password, fullName, adminRole, permissions } = req.body;
     if (!email || !password || !fullName) return fail(res, 400, 'Email, password and full name are required');
-    if (await User.findOne({ email: email.toLowerCase() })) return fail(res, 400, 'Email already in use');
-    const user = await User.create({ email: email.toLowerCase(), password, role: 'admin', isAgreed: true });
-    const profile = await AdminProfile.create({
-      userId: user._id, fullName,
-      adminRole: adminRole === 'super_admin' ? 'super_admin' : 'admin',
-      ...(permissions ? { permissions } : {}),
+    if (await prisma.user.findUnique({ where: { email: email.toLowerCase() } })) return fail(res, 400, 'Email already in use');
+    const user = await prisma.user.create({ data: { email: email.toLowerCase(), password: await hashPassword(password), role: 'admin', isAgreed: true } });
+    const profile = await prisma.adminProfile.create({
+      data: { userId: user.id, fullName, adminRole: adminRole === 'super_admin' ? 'super_admin' : 'admin', ...(permissions ? { permissions } : {}) },
     });
-    ok(res, profile);
+    ok(res, serialize(profile));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Create: Dentist ────────────────────────────────────────
-// @route POST /api/admin/dentists
 exports.createDentist = async (req, res) => {
   try {
     const { email, password, fullName, specialization, city, phone, consultationFee } = req.body;
     if (!email || !password || !fullName) return fail(res, 400, 'Email, password and full name are required');
-    if (await User.findOne({ email: email.toLowerCase() })) return fail(res, 400, 'Email already in use');
-    const user = await User.create({ email: email.toLowerCase(), password, role: 'doctor', isAgreed: true });
-    const profile = await DoctorProfile.create({
-      userId: user._id, fullName,
-      specialization: specialization || 'General',
-      city: city || '', phone: phone || '',
-      consultationFee: consultationFee || 1500,
+    if (await prisma.user.findUnique({ where: { email: email.toLowerCase() } })) return fail(res, 400, 'Email already in use');
+    const user = await prisma.user.create({ data: { email: email.toLowerCase(), password: await hashPassword(password), role: 'doctor', isAgreed: true } });
+    const profile = await prisma.doctorProfile.create({
+      data: { userId: user.id, fullName, specialization: specialization || 'General', city: city || '', phone: phone || '', consultationFee: consultationFee || 1500 },
     });
-    ok(res, profile);
+    ok(res, serialize(profile));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Create: Patient ────────────────────────────────────────
-// @route POST /api/admin/patients
 exports.createPatient = async (req, res) => {
   try {
     const { email, password, fullName, mobileNumber, gender, city } = req.body;
     if (!email || !password || !fullName) return fail(res, 400, 'Email, password and full name are required');
-    if (await User.findOne({ email: email.toLowerCase() })) return fail(res, 400, 'Email already in use');
-    const user = await User.create({ email: email.toLowerCase(), password, role: 'patient', isAgreed: true });
-    const profile = await PatientProfile.create({
-      userId: user._id, fullName,
-      mobileNumber: mobileNumber || '',
-      gender: gender || null, city: city || '',
+    if (await prisma.user.findUnique({ where: { email: email.toLowerCase() } })) return fail(res, 400, 'Email already in use');
+    const user = await prisma.user.create({ data: { email: email.toLowerCase(), password: await hashPassword(password), role: 'patient', isAgreed: true } });
+    const profile = await prisma.patientProfile.create({
+      data: { userId: user.id, fullName, mobileNumber: mobileNumber || '', gender: gender || null, city: city || '' },
     });
-    ok(res, profile);
+    ok(res, serialize(profile));
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Create / Update: Treatment ─────────────────────────────
-// @route POST /api/admin/treatments
 exports.createTreatment = async (req, res) => {
   try {
     const { doctorId, name, priceMin, priceMax, isActive } = req.body;
     if (!doctorId || !name) return fail(res, 400, 'Dentist and treatment name are required');
-    const t = await Treatment.create({
-      doctorId, name,
-      priceMin: priceMin || 0, priceMax: priceMax || 0,
-      isActive: isActive !== false,
-    });
-    ok(res, t);
+    const t = await prisma.treatment.create({ data: { doctorId, name, priceMin: priceMin || 0, priceMax: priceMax || 0, isActive: isActive !== false } });
+    ok(res, serialize(t));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/treatments/:id
 exports.updateTreatment = async (req, res) => {
   try {
-    const allowed = ['name', 'priceMin', 'priceMax', 'isActive'];
-    const update = {};
-    for (const k of allowed) if (k in req.body) update[k] = req.body[k];
-    const t = await Treatment.findByIdAndUpdate(req.params.id, update, { new: true });
+    const data = {};
+    for (const k of ['name', 'priceMin', 'priceMax', 'isActive']) if (k in req.body) data[k] = req.body[k];
+    const t = await prisma.treatment.update({ where: { id: req.params.id }, data }).catch(() => null);
     if (!t) return fail(res, 404, 'Treatment not found');
-    ok(res, t);
+    ok(res, serialize(t));
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Detail views ───────────────────────────────────────────
-// @route GET /api/admin/dentists/:id
 exports.getDentist = async (req, res) => {
   try {
-    const doctor = await DoctorProfile.findById(req.params.id).populate('userId', 'email role createdAt').lean();
+    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, include: { user: { select: { email: true, role: true, createdAt: true } } } });
     if (!doctor) return fail(res, 404, 'Dentist not found');
-    const [treatments, reviews, appointments, gallery, bills, commissionLog] = await Promise.all([
-      Treatment.find({ doctorId: doctor._id }).lean(),
-      Review.find({ doctorId: doctor._id }).populate('patientId', 'fullName profileImage').sort({ createdAt: -1 }).limit(10).lean(),
-      Appointment.find({ doctorId: doctor._id }).populate('patientId', 'fullName').sort({ createdAt: -1 }).limit(10).lean(),
-      Gallery.find({ doctorId: doctor._id }).lean(),
-      Bill.find({ doctorId: doctor._id }).populate('patientId', 'fullName profileImage').sort({ createdAt: -1 }).lean(),
-      CommissionLog.find({ doctorId: doctor._id }).sort({ createdAt: -1 }).limit(20).lean(),
-    ]);
-    const ratingAgg = await Review.aggregate([
-      { $match: { doctorId: doctor._id, hidden: { $ne: true } } },
-      { $group: { _id: null, avg: { $avg: '$rating' }, n: { $sum: 1 } } },
+    const [treatments, reviews, appointments, gallery, bills, commissionLog, ratingAgg, settings] = await Promise.all([
+      prisma.treatment.findMany({ where: { doctorId: doctor.id } }),
+      prisma.review.findMany({ where: { doctorId: doctor.id }, include: { patient: { select: { fullName: true, profileImage: true } } }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      prisma.appointment.findMany({ where: { doctorId: doctor.id }, include: { patient: { select: { fullName: true } } }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      prisma.gallery.findMany({ where: { doctorId: doctor.id } }),
+      prisma.bill.findMany({ where: { doctorId: doctor.id }, include: { patient: { select: { fullName: true, profileImage: true } } }, orderBy: { createdAt: 'desc' } }),
+      prisma.commissionLog.findMany({ where: { doctorId: doctor.id }, orderBy: { createdAt: 'desc' }, take: 20 }),
+      prisma.review.aggregate({ where: { doctorId: doctor.id, hidden: false }, _avg: { rating: true }, _count: { _all: true } }),
+      getOrCreateSettings(),
     ]);
 
-    // Earnings: what this doctor has actually collected from patients (paidAmount,
-    // falling back to finalAmount on paid bills) vs what's still billed/outstanding.
     const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
     const billed = bills.reduce((s, b) => s + (b.finalAmount || 0), 0);
-
-    // Commission: the platform's share of the doctor's collected billings.
-    const settings = await getOrCreateSettings();
     const commissionRate = settings.commissionRate ?? 10;
-    const commissionEarned = Math.round(collected * (commissionRate / 100));
-
     const earnings = {
-      totalEarned: collected,
-      totalBilled: billed,
-      outstanding: Math.max(0, billed - collected),
-      paidCount: bills.filter((b) => b.status === 'paid').length,
-      billCount: bills.length,
-      // Platform commission tracking.
-      commissionRate,
-      commissionEarned,                              // total platform share to date
-      commissionDue: doctor.commissionDue || 0,      // currently outstanding (admin-managed)
-      commissionPaid: doctor.commissionPaid || 0,    // cleared to date
+      totalEarned: collected, totalBilled: billed, outstanding: Math.max(0, billed - collected),
+      paidCount: bills.filter((b) => b.status === 'paid').length, billCount: bills.length,
+      commissionRate, commissionEarned: Math.round(collected * (commissionRate / 100)),
+      commissionDue: doctor.commissionDue || 0, commissionPaid: doctor.commissionPaid || 0,
     };
-
-    // Attach per-bill platform commission (rate % of the paid/collected amount).
     const billsWithCommission = bills.slice(0, 20).map((b) => {
       const paid = b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0;
       return { ...b, commission: Math.round(paid * (commissionRate / 100)) };
     });
 
     ok(res, {
-      doctor,
-      treatments, reviews, appointments, gallery,
-      bills: billsWithCommission,
+      doctor: serialize(remapRefs(doctor, { user: 'userId' })),
+      treatments: serialize(treatments),
+      reviews: serialize(remapMany(reviews, { patient: 'patientId' })),
+      appointments: serialize(remapMany(appointments, { patient: 'patientId' })),
+      gallery: serialize(gallery),
+      bills: serialize(remapMany(billsWithCommission, { patient: 'patientId' })),
       earnings,
-      commissionLog,
-      rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : 0,
-      reviewCount: ratingAgg[0]?.n || 0,
+      commissionLog: serialize(commissionLog),
+      rating: ratingAgg._count._all ? Math.round((ratingAgg._avg.rating || 0) * 10) / 10 : 0,
+      reviewCount: ratingAgg._count._all || 0,
     });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route GET /api/admin/patients/:id
 exports.getPatient = async (req, res) => {
   try {
-    const patient = await PatientProfile.findById(req.params.id).populate('userId', 'email role createdAt').lean();
+    const patient = await prisma.patientProfile.findUnique({ where: { id: req.params.id }, include: { user: { select: { email: true, role: true, createdAt: true } } } });
     if (!patient) return fail(res, 404, 'Patient not found');
     const [appointments, bills, rewards] = await Promise.all([
-      Appointment.find({ patientId: patient._id }).populate('doctorId', 'fullName photo').sort({ createdAt: -1 }).limit(10).lean(),
-      Bill.find({ patientId: patient._id }).sort({ createdAt: -1 }).limit(10).lean(),
-      Reward.find({ patientId: patient._id }).sort({ createdAt: -1 }).limit(10).lean(),
+      prisma.appointment.findMany({ where: { patientId: patient.id }, include: { doctor: { select: { fullName: true, photo: true } } }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      prisma.bill.findMany({ where: { patientId: patient.id }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      prisma.reward.findMany({ where: { patientId: patient.id }, orderBy: { createdAt: 'desc' }, take: 10 }),
     ]);
     const points = rewards.reduce((s, r) => s + (r.points || 0), 0);
-    ok(res, { patient, appointments, bills, rewards, points });
+    ok(res, {
+      patient: serialize(remapRefs(patient, { user: 'userId' })),
+      appointments: serialize(remapMany(appointments, { doctor: 'doctorId' })),
+      bills: serialize(bills),
+      rewards: serialize(rewards),
+      points,
+    });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/patients/:id/points
-// body: { addPoints: <number> }  (positive = grant, negative = deduct)
-// Records an admin adjustment on the patient's Reward ledger so it shows up in
-// the patient's rewards history (mirrors the doctor "Give Points" flow).
 exports.givePatientPoints = async (req, res) => {
   try {
-    const patient = await PatientProfile.findById(req.params.id);
+    const patient = await prisma.patientProfile.findUnique({ where: { id: req.params.id } });
     if (!patient) return fail(res, 404, 'Patient not found');
 
-    const raw = req.body.addPoints ?? req.body.points;
-    const pts = parseInt(raw, 10);
+    const pts = parseInt(req.body.addPoints ?? req.body.points, 10);
     if (isNaN(pts) || pts === 0) return fail(res, 400, 'Provide a non-zero number of points');
 
-    // Prevent a deduction from driving the patient's spendable balance below 0.
     if (pts < 0) {
-      const agg = await Reward.aggregate([
-        { $match: { patientId: patient._id, isRedeemed: false } },
-        { $group: { _id: null, total: { $sum: '$points' } } },
-      ]);
-      const balance = agg.length ? agg[0].total : 0;
-      if (balance + pts < 0) {
-        return fail(res, 400, `Cannot deduct ${Math.abs(pts)} pts — patient only has ${balance} pts.`);
-      }
+      const agg = await prisma.reward.aggregate({ where: { patientId: patient.id, isRedeemed: false }, _sum: { points: true } });
+      const balance = agg._sum.points || 0;
+      if (balance + pts < 0) return fail(res, 400, `Cannot deduct ${Math.abs(pts)} pts — patient only has ${balance} pts.`);
     }
 
     const note = (req.body.note || '').trim();
-    const reward = await Reward.create({
-      patientId: patient._id,
-      type: 'admin',
-      points: pts,
-      isRedeemed: false,
-      description: note || (pts > 0 ? 'Points granted by admin' : 'Points deducted by admin'),
+    const reward = await prisma.reward.create({
+      data: { patientId: patient.id, type: 'admin', points: pts, isRedeemed: false, description: note || (pts > 0 ? 'Points granted by admin' : 'Points deducted by admin') },
     });
-
-    await logAudit(req, {
-      action: 'update',
-      entity: 'patient',
-      entityId: patient._id,
-      description: `${pts > 0 ? 'Granted' : 'Deducted'} ${Math.abs(pts)} pts ${pts > 0 ? 'to' : 'from'} "${patient.fullName}"`,
-    });
-
-    ok(res, reward);
+    await logAudit(req, { action: 'update', entity: 'patient', entityId: patient.id, description: `${pts > 0 ? 'Granted' : 'Deducted'} ${Math.abs(pts)} pts ${pts > 0 ? 'to' : 'from'} "${patient.fullName}"` });
+    ok(res, serialize(reward));
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── My profile / account ───────────────────────────────────
-const AppSettings = require('../models/AppSettings');
-
-// @route PATCH /api/admin/me  (update own admin profile)
 exports.updateMyProfile = async (req, res) => {
   try {
-    const { fullName, profileImage } = req.body;
-    const update = {};
-    if (fullName) update.fullName = fullName;
-    if (profileImage !== undefined) update.profileImage = profileImage;
-    const profile = await AdminProfile.findOneAndUpdate({ userId: req.user._id }, update, { new: true });
+    const data = {};
+    if (req.body.fullName) data.fullName = req.body.fullName;
+    if (req.body.profileImage !== undefined) data.profileImage = req.body.profileImage;
+    const profile = await prisma.adminProfile.update({ where: { userId: req.user._id }, data }).catch(() => null);
     if (!profile) return fail(res, 404, 'Admin profile not found');
-    ok(res, profile);
+    ok(res, serialize(profile));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/me/password
 exports.changeMyPassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) return fail(res, 400, 'Current and new password are required');
     if (newPassword.length < 6) return fail(res, 400, 'New password must be at least 6 characters');
-    const user = await User.findById(req.user._id).select('+password');
-    if (!(await user.matchPassword(currentPassword))) return fail(res, 400, 'Current password is incorrect');
-    user.password = newPassword; // pre-save hook re-hashes
-    await user.save();
+    const user = await prisma.user.findUnique({ where: { id: req.user._id } });
+    if (!user || !(await bcrypt.compare(currentPassword, user.password))) return fail(res, 400, 'Current password is incorrect');
+    await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(newPassword) } });
     ok(res, { changed: true });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── App / system settings (singleton) ──────────────────────
+// ─── App settings (singleton) ───────────────────────────────
 const getOrCreateSettings = async () => {
-  let s = await AppSettings.findOne({ key: 'global' });
-  if (!s) s = await AppSettings.create({ key: 'global' });
+  let s = await prisma.appSettings.findUnique({ where: { key: 'global' } });
+  if (!s) s = await prisma.appSettings.create({ data: { key: 'global', facilityCategories: DEFAULT_FACILITY_CATEGORIES, clinicTierThresholds: DEFAULT_TIER_THRESHOLDS, payments: DEFAULT_PAYMENTS } });
   return s;
 };
+exports.getOrCreateSettings = getOrCreateSettings;
 
-// @route GET /api/admin/settings
+// SMTP config exposed to the admin UI — the password is never sent back, only a
+// `passSet` flag so the field can show a "leave blank to keep" placeholder.
+const smtpForClient = (smtp) => {
+  const s = smtp || {};
+  return { host: s.host || '', port: s.port || 465, user: s.user || '', from: s.from || '', insecure: !!s.insecure, pass: '', passSet: !!s.pass };
+};
+
 exports.getSettings = async (req, res) => {
   try {
     const s = await getOrCreateSettings();
-    const obj = s.toObject();
-    // Backfill facilities/tiers for settings docs created before these fields existed.
-    if (!obj.facilityCategories?.length) obj.facilityCategories = AppSettings.DEFAULT_FACILITY_CATEGORIES;
-    if (!obj.clinicTierThresholds) obj.clinicTierThresholds = { modern: 16, elite: 31 };
+    const obj = serialize(s);
+    if (!obj.facilityCategories?.length) obj.facilityCategories = DEFAULT_FACILITY_CATEGORIES;
+    if (!obj.clinicTierThresholds) obj.clinicTierThresholds = DEFAULT_TIER_THRESHOLDS;
+    if (!obj.payments) obj.payments = DEFAULT_PAYMENTS;
+    obj.smtp = smtpForClient(obj.smtp);
     ok(res, obj);
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/settings  (super_admin only)
 exports.updateSettings = async (req, res) => {
   try {
-    const me = await AdminProfile.findOne({ userId: req.user._id });
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can change app settings');
-    const s = await getOrCreateSettings();
-    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'popularPointsThreshold', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'enabledPaymentMethods', 'commissionRate', 'campaignRotationInterval', 'doctorCampaignRotationInterval', 'facilityCategories', 'clinicTierThresholds'];
-    for (const k of allowed) if (k in req.body) s[k] = req.body[k];
-    await s.save();
-    ok(res, s);
+    const current = await getOrCreateSettings();
+    const allowed = ['rewardPointsPerAppointment', 'rewardPointValuePkr', 'popularPointsThreshold', 'defaultConsultationFee', 'supportEmail', 'maintenanceMode', 'payments', 'enabledPaymentMethods', 'commissionRate', 'commissionBlockThreshold', 'campaignRotationInterval', 'doctorCampaignRotationInterval', 'facilityCategories', 'clinicTierThresholds'];
+    const data = {};
+    for (const k of allowed) if (k in req.body) data[k] = req.body[k];
+
+    // SMTP: merge with the stored value so an empty password keeps the existing one.
+    if (req.body.smtp && typeof req.body.smtp === 'object') {
+      const prev = current.smtp || {};
+      const inc = req.body.smtp;
+      data.smtp = {
+        host: (inc.host ?? prev.host ?? '').trim(),
+        port: Number(inc.port ?? prev.port ?? 465),
+        user: (inc.user ?? prev.user ?? '').trim(),
+        pass: (inc.pass && String(inc.pass).length) ? inc.pass : (prev.pass || ''),
+        from: (inc.from ?? prev.from ?? '').trim(),
+        insecure: inc.insecure !== undefined ? Boolean(inc.insecure) : Boolean(prev.insecure),
+      };
+    }
+
+    const s = await prisma.appSettings.update({ where: { key: 'global' }, data });
+    const out = serialize(s);
+    out.smtp = smtpForClient(out.smtp);
+    ok(res, out);
+  } catch (e) { fail(res, 500, e.message); }
+};
+
+// @route POST /api/admin/settings/test-email  body: { to }
+// Verifies SMTP and sends a test email (super admin only).
+exports.testEmail = async (req, res) => {
+  try {
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can test email');
+    const to = (req.body.to || '').trim();
+    if (!to) return fail(res, 400, 'Recipient email (to) is required');
+
+    const { verifyConnection, sendEmail } = require('../utils/mailer');
+    const v = await verifyConnection();
+    if (!v.ok) return fail(res, 400, `SMTP connection failed: ${v.error}`);
+
+    const r = await sendEmail({
+      to,
+      subject: 'My Dentist — SMTP test',
+      text: 'This is a test email from My Dentist. If you received it, forgot-password emails will work.',
+      html: '<p>This is a <b>test email</b> from My Dentist. If you received it, forgot-password emails will work.</p>',
+    });
+    ok(res, { sent: r.sent, to });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Popular doctor management ──────────────────────────────
-const { recomputePopular } = require('../utils/popular');
-
-// @route PATCH /api/admin/dentists/:id/popular
-// body: { action: 'grantPaid' | 'revoke' }  OR  { addPoints: <number> }
 exports.setPopular = async (req, res) => {
   try {
-    const doctor = await DoctorProfile.findById(req.params.id);
+    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id } });
     if (!doctor) return fail(res, 404, 'Dentist not found');
 
     const { action, addPoints } = req.body;
+    let updated;
 
     if (typeof addPoints === 'number') {
-      doctor.rewardPoints = Math.max(0, (doctor.rewardPoints || 0) + addPoints);
-      // Record a line item so this grant/deduction shows up in the doctor's
-      // Points History (which is otherwise rebuilt only from bills + reviews).
+      const newPoints = Math.max(0, (doctor.rewardPoints || 0) + addPoints);
+      const data = { rewardPoints: newPoints };
       if (addPoints !== 0) {
-        doctor.pointsAdjustments = doctor.pointsAdjustments || [];
-        doctor.pointsAdjustments.push({
-          points: addPoints,
-          note: (req.body.note || '').trim() || (addPoints > 0 ? 'Points granted by admin' : 'Points deducted by admin'),
-          kind: 'admin',
-          createdAt: new Date(),
-        });
+        const adj = Array.isArray(doctor.pointsAdjustments) ? doctor.pointsAdjustments : [];
+        adj.push({ points: addPoints, note: (req.body.note || '').trim() || (addPoints > 0 ? 'Points granted by admin' : 'Points deducted by admin'), kind: 'admin', createdAt: new Date() });
+        data.pointsAdjustments = adj;
       }
-      await doctor.save();            // always persist the points (recomputePopular skips saving for 'paid' badges)
-      await recomputePopular(doctor); // then auto-grant/remove the green badge
+      updated = await prisma.doctorProfile.update({ where: { id: doctor.id }, data });
+      updated = await recomputePopular(updated);
     } else if (action === 'grantPaid') {
-      doctor.isPopular = true;
-      doctor.popularType = 'paid';
-      await doctor.save();
+      updated = await prisma.doctorProfile.update({ where: { id: doctor.id }, data: { isPopular: true, popularType: 'paid' } });
     } else if (action === 'revoke') {
-      // Remove popular entirely; green will re-apply on next recompute if still >= threshold
-      doctor.isPopular = false;
-      doctor.popularType = null;
-      await doctor.save();
-      await recomputePopular(doctor);
+      updated = await prisma.doctorProfile.update({ where: { id: doctor.id }, data: { isPopular: false, popularType: null } });
+      updated = await recomputePopular(updated);
     } else {
       return fail(res, 400, 'Provide action (grantPaid|revoke) or addPoints');
     }
 
-    ok(res, doctor);
+    ok(res, serialize(updated));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route GET /api/admin/popular-doctors  (for the Rewards & Payments screen)
 exports.listPopularDoctors = async (req, res) => {
   try {
-    const docs = await DoctorProfile.find({})
-      .sort({ isPopular: -1, rewardPoints: -1 })
-      .limit(200)
-      .select('fullName photo specialization rewardPoints isPopular popularType city')
-      .lean();
-    ok(res, docs);
+    const docs = await prisma.doctorProfile.findMany({
+      orderBy: [{ isPopular: 'desc' }, { rewardPoints: 'desc' }], take: 200,
+      select: { id: true, fullName: true, photo: true, specialization: true, rewardPoints: true, isPopular: true, popularType: true, city: true },
+    });
+    ok(res, serialize(docs));
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Platform fee dues & blocking ───────────────────────────
-const COMMISSION_BLOCK_THRESHOLD = 50000;
+// Auto-block dues threshold is admin-managed (AppSettings.commissionBlockThreshold).
+const DEFAULT_BLOCK_THRESHOLD = 50000;
+const blockThresholdOf = (settings) => settings?.commissionBlockThreshold ?? DEFAULT_BLOCK_THRESHOLD;
 
-// @route PATCH /api/admin/dentists/:id/commission
-// body: { commissionDue } (set absolute) or { addCommission } (increment)
-// Auto-blocks the doctor when dues reach the 50k threshold.
 exports.setCommission = async (req, res) => {
   try {
-    const doc = await DoctorProfile.findById(req.params.id);
+    const doc = await prisma.doctorProfile.findUnique({ where: { id: req.params.id } });
     if (!doc) return fail(res, 404, 'Dentist not found');
 
+    const threshold = blockThresholdOf(await getOrCreateSettings());
     const before = doc.commissionDue || 0;
-    let logType = 'set', delta = 0;
-    if (typeof req.body.commissionDue === 'number') {
-      doc.commissionDue = Math.max(0, req.body.commissionDue);
-      logType = 'set'; delta = doc.commissionDue - before;
-    } else if (typeof req.body.addCommission === 'number') {
-      doc.commissionDue = Math.max(0, before + req.body.addCommission);
-      logType = 'add'; delta = doc.commissionDue - before;
-    }
+    let logType = 'set', newDue = before;
+    if (typeof req.body.commissionDue === 'number') { newDue = Math.max(0, req.body.commissionDue); logType = 'set'; }
+    else if (typeof req.body.addCommission === 'number') { newDue = Math.max(0, before + req.body.addCommission); logType = 'add'; }
 
-    // Auto-block when the doctor owes platform fees. Explicitly SETTING an outstanding
-    // amount blocks on ANY positive value; incremental "Add Dues" blocks once the
-    // running total reaches the threshold (avoids over-blocking on tiny increments).
-    // Clearing dues does NOT auto-unblock (admin unblocks after verifying payment).
-    const shouldBlock = logType === 'set'
-      ? (doc.commissionDue || 0) > 0
-      : (doc.commissionDue || 0) >= COMMISSION_BLOCK_THRESHOLD;
+    const data = { commissionDue: newDue };
+    const shouldBlock = logType === 'set' ? newDue > 0 : newDue >= threshold;
     if (shouldBlock && !doc.isBlocked) {
-      doc.isBlocked = true;
-      doc.blockReason = `Your account is blocked because outstanding platform fee dues of PKR ${doc.commissionDue.toLocaleString()} are pending. Please clear the dues and share payment proof with My Dentist support to restore access.`;
+      data.isBlocked = true;
+      data.blockReason = `Your account is blocked because outstanding platform fee dues of PKR ${newDue.toLocaleString()} are pending. Please clear the dues and share payment proof with My Dentist support to restore access.`;
     }
-    await doc.save();
-    await logCommission(req, doc, { type: logType, amount: delta });
-    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Set commission dues for "${doc.fullName}" to PKR ${(doc.commissionDue || 0).toLocaleString()}` });
-    ok(res, doc);
+    const updated = await prisma.doctorProfile.update({ where: { id: doc.id }, data });
+    await logCommission(req, updated, { type: logType, amount: newDue - before });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc.id, description: `Set commission dues for "${doc.fullName}" to PKR ${newDue.toLocaleString()}` });
+    ok(res, serialize(updated));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/dentists/:id/commission/sync
-// Auto-set outstanding dues = (commission earned from collected bills) − already paid.
 exports.syncDues = async (req, res) => {
   try {
-    const doc = await DoctorProfile.findById(req.params.id);
+    const doc = await prisma.doctorProfile.findUnique({ where: { id: req.params.id } });
     if (!doc) return fail(res, 404, 'Dentist not found');
 
     const settings = await getOrCreateSettings();
     const rate = settings.commissionRate ?? 10;
-
-    const bills = await Bill.find({ doctorId: doc._id }).select('finalAmount paidAmount amount status commissionAccrued').lean();
+    const threshold = blockThresholdOf(settings);
+    const bills = await prisma.bill.findMany({ where: { doctorId: doc.id }, select: { id: true, finalAmount: true, paidAmount: true, amount: true, status: true, commissionAccrued: true } });
     const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
 
-    // Backfill each bill's accrued commission to its true target so the per-bill
-    // ledger stays the single source of truth shared with automatic accrual —
-    // this is what keeps Sync and auto-accrual from double-counting.
-    const { targetCommission } = require('../utils/commission');
     let earned = 0;
-    const ops = [];
     for (const b of bills) {
       const target = targetCommission(b, rate);
       earned += target;
-      if ((b.commissionAccrued || 0) !== target) {
-        ops.push({ updateOne: { filter: { _id: b._id }, update: { $set: { commissionAccrued: target } } } });
-      }
+      if ((b.commissionAccrued || 0) !== target) await prisma.bill.update({ where: { id: b.id }, data: { commissionAccrued: target } });
     }
-    if (ops.length) await Bill.bulkWrite(ops);
-
     const owed = Math.max(0, earned - (doc.commissionPaid || 0));
 
-    doc.commissionDue = owed;
-    if (owed >= COMMISSION_BLOCK_THRESHOLD && !doc.isBlocked) {
-      doc.isBlocked = true;
-      doc.blockReason = `Your account is blocked because outstanding platform fee dues of PKR ${owed.toLocaleString()} exceeded the PKR ${COMMISSION_BLOCK_THRESHOLD.toLocaleString()} limit. Please clear the dues and share payment proof with My Dentist support to restore access.`;
+    const data = { commissionDue: owed };
+    if (owed >= threshold && !doc.isBlocked) {
+      data.isBlocked = true;
+      data.blockReason = `Your account is blocked because outstanding platform fee dues of PKR ${owed.toLocaleString()} exceeded the PKR ${threshold.toLocaleString()} limit. Please clear the dues and share payment proof with My Dentist support to restore access.`;
     }
-    await doc.save();
-    await logCommission(req, doc, { type: 'sync', amount: owed, note: `${rate}% of ${collected.toLocaleString()} collected − ${(doc.commissionPaid || 0).toLocaleString()} paid` });
-    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Synced commission dues for "${doc.fullName}" to PKR ${owed.toLocaleString()}` });
-    ok(res, { doc, owed, earned, collected, rate });
+    const updated = await prisma.doctorProfile.update({ where: { id: doc.id }, data });
+    await logCommission(req, updated, { type: 'sync', amount: owed, note: `${rate}% of ${collected.toLocaleString()} collected − ${(doc.commissionPaid || 0).toLocaleString()} paid` });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc.id, description: `Synced commission dues for "${doc.fullName}" to PKR ${owed.toLocaleString()}` });
+    ok(res, { doc: serialize(updated), owed, earned, collected, rate });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/dentists/:id/commission/clear
-// body: { amount } — optional partial amount to clear (defaults to the full
-// outstanding). Records the cleared amount to commissionPaid (cumulative) and
-// deducts it from commissionDue. Fully clearing unblocks a dues-blocked doctor.
 exports.clearDues = async (req, res) => {
   try {
-    const doc = await DoctorProfile.findById(req.params.id);
+    const doc = await prisma.doctorProfile.findUnique({ where: { id: req.params.id } });
     if (!doc) return fail(res, 404, 'Dentist not found');
     const outstanding = doc.commissionDue || 0;
     if (outstanding <= 0) return fail(res, 400, 'No outstanding dues to clear');
 
-    // Custom (partial) amount — defaults to clearing the full outstanding.
     const raw = req.body?.amount;
     let amount = (raw === undefined || raw === null || raw === '') ? outstanding : Number(raw);
     if (isNaN(amount) || amount <= 0) return fail(res, 400, 'Enter a valid amount to clear');
-    const cleared = Math.min(amount, outstanding); // never clear more than owed
+    const cleared = Math.min(amount, outstanding);
 
-    doc.commissionPaid = (doc.commissionPaid || 0) + cleared;
-    doc.commissionDue = outstanding - cleared;
-    // Auto-unblock only once dues are fully cleared (they were the block reason).
-    if (doc.commissionDue <= 0 && doc.isBlocked && /(commission|platform fee|dues)/i.test(doc.blockReason || '')) {
-      doc.isBlocked = false;
-      doc.blockReason = '';
+    const data = { commissionPaid: (doc.commissionPaid || 0) + cleared, commissionDue: outstanding - cleared };
+    if (data.commissionDue <= 0 && doc.isBlocked && /(commission|platform fee|dues)/i.test(doc.blockReason || '')) {
+      data.isBlocked = false; data.blockReason = '';
     }
-    await doc.save();
-    await logCommission(req, doc, { type: 'clear', amount: cleared, note: req.body?.note || '' });
-    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc._id, description: `Cleared PKR ${cleared.toLocaleString()} commission dues for "${doc.fullName}"${doc.commissionDue > 0 ? ` (PKR ${doc.commissionDue.toLocaleString()} remaining)` : ''}` });
-    ok(res, { doc, cleared, remaining: doc.commissionDue });
+    const updated = await prisma.doctorProfile.update({ where: { id: doc.id }, data });
+    await logCommission(req, updated, { type: 'clear', amount: cleared, note: req.body?.note || '' });
+    await logAudit(req, { action: 'update', entity: 'dentist', entityId: doc.id, description: `Cleared PKR ${cleared.toLocaleString()} commission dues for "${doc.fullName}"${updated.commissionDue > 0 ? ` (PKR ${updated.commissionDue.toLocaleString()} remaining)` : ''}` });
+    ok(res, { doc: serialize(updated), cleared, remaining: updated.commissionDue });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route GET /api/admin/commission
-// Platform-wide commission overview across all doctors.
 exports.getCommissionOverview = async (req, res) => {
   try {
     const settings = await getOrCreateSettings();
     const rate = settings.commissionRate ?? 10;
 
-    // Collected per doctor from bills.
-    const collectedAgg = await Bill.aggregate([
-      { $group: {
-        _id: '$doctorId',
-        collected: { $sum: { $ifNull: ['$paidAmount', { $cond: [{ $eq: ['$status', 'paid'] }, '$finalAmount', 0] }] } },
-        billed: { $sum: '$finalAmount' },
-      } },
-    ]);
+    const collectedAgg = await prisma.$queryRaw`
+      SELECT "doctorId",
+        sum(coalesce("paidAmount", CASE WHEN status = 'paid' THEN "finalAmount" ELSE 0 END))::float AS collected,
+        sum("finalAmount")::float AS billed
+      FROM "Bill" GROUP BY "doctorId"`;
     const byDoctor = {};
-    collectedAgg.forEach((c) => { byDoctor[String(c._id)] = c; });
+    collectedAgg.forEach((c) => { byDoctor[c.doctorId] = c; });
 
-    const doctors = await DoctorProfile.find().select('fullName photo city commissionDue commissionPaid isBlocked').lean();
+    const doctors = await prisma.doctorProfile.findMany({ select: { id: true, fullName: true, photo: true, city: true, commissionDue: true, commissionPaid: true, isBlocked: true } });
     const rows = doctors.map((d) => {
-      const agg = byDoctor[String(d._id)] || { collected: 0, billed: 0 };
-      const earned = Math.round(agg.collected * (rate / 100));
+      const agg = byDoctor[d.id] || { collected: 0, billed: 0 };
       return {
-        _id: d._id, fullName: d.fullName, photo: d.photo, city: d.city,
-        collected: agg.collected, commissionEarned: earned,
-        commissionPaid: d.commissionPaid || 0,
-        commissionDue: d.commissionDue || 0,
-        isBlocked: !!d.isBlocked,
+        _id: d.id, fullName: d.fullName, photo: d.photo, city: d.city,
+        collected: agg.collected || 0, commissionEarned: Math.round((agg.collected || 0) * (rate / 100)),
+        commissionPaid: d.commissionPaid || 0, commissionDue: d.commissionDue || 0, isBlocked: !!d.isBlocked,
       };
     }).sort((a, b) => b.commissionEarned - a.commissionEarned);
 
-    const totals = rows.reduce((t, r) => ({
-      earned: t.earned + r.commissionEarned,
-      paid: t.paid + r.commissionPaid,
-      due: t.due + r.commissionDue,
-      collected: t.collected + r.collected,
-    }), { earned: 0, paid: 0, due: 0, collected: 0 });
-
-    ok(res, {
-      rate,
-      totals,
-      overdueCount: rows.filter((r) => r.commissionDue > 0).length,
-      doctors: rows,
-    });
+    const totals = rows.reduce((t, r) => ({ earned: t.earned + r.commissionEarned, paid: t.paid + r.commissionPaid, due: t.due + r.commissionDue, collected: t.collected + r.collected }), { earned: 0, paid: 0, due: 0, collected: 0 });
+    ok(res, { rate, totals, overdueCount: rows.filter((r) => r.commissionDue > 0).length, doctors: rows });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/dentists/:id/unblock  (admin clears the block)
 exports.unblockDentist = async (req, res) => {
   try {
-    const doc = await DoctorProfile.findByIdAndUpdate(
-      req.params.id,
-      { isBlocked: false, blockReason: '' },
-      { new: true }
-    );
+    const doc = await prisma.doctorProfile.update({ where: { id: req.params.id }, data: { isBlocked: false, blockReason: '' } }).catch(() => null);
     if (!doc) return fail(res, 404, 'Dentist not found');
-    ok(res, doc);
+    ok(res, serialize(doc));
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Analytics ──────────────────────────────────────────────
-// @route GET /api/admin/analytics
-// Richer time-series + breakdowns for the analytics dashboard.
 exports.getAnalytics = async (req, res) => {
   try {
-    // Custom date range (from/to) overrides the months preset.
     const { from, to } = req.query;
     let since, until = null, months = null;
-    if (from) {
-      since = new Date(from);
-      until = new Date(to || Date.now());
-      until.setHours(23, 59, 59, 999);
-    } else {
+    if (from) { since = new Date(from); until = new Date(to || Date.now()); until.setHours(23, 59, 59, 999); }
+    else {
       months = Math.min(24, Math.max(3, parseInt(req.query.months, 10) || 6));
-      since = new Date();
-      since.setMonth(since.getMonth() - (months - 1));
-      since.setDate(1); since.setHours(0, 0, 0, 0);
+      since = new Date(); since.setMonth(since.getMonth() - (months - 1)); since.setDate(1); since.setHours(0, 0, 0, 0);
     }
-    const dateMatch = until ? { $gte: since, $lte: until } : { $gte: since };
 
-    const monthGroup = (extra = {}) => ([
-      { $match: { createdAt: dateMatch, ...extra } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, count: { $sum: 1 } } },
-      { $sort: { _id: 1 } },
+    const series = (table) => until
+      ? prisma.$queryRawUnsafe(`SELECT to_char("createdAt",'YYYY-MM') AS _id, count(*)::int AS count FROM "${table}" WHERE "createdAt" >= $1 AND "createdAt" <= $2 GROUP BY 1 ORDER BY 1`, since, until)
+      : prisma.$queryRawUnsafe(`SELECT to_char("createdAt",'YYYY-MM') AS _id, count(*)::int AS count FROM "${table}" WHERE "createdAt" >= $1 GROUP BY 1 ORDER BY 1`, since);
+
+    const revenueSeries = until
+      ? prisma.$queryRawUnsafe(`SELECT to_char("createdAt",'YYYY-MM') AS _id, sum(coalesce("paidAmount","finalAmount"))::float AS total FROM "Bill" WHERE status='paid' AND "createdAt" >= $1 AND "createdAt" <= $2 GROUP BY 1 ORDER BY 1`, since, until)
+      : prisma.$queryRawUnsafe(`SELECT to_char("createdAt",'YYYY-MM') AS _id, sum(coalesce("paidAmount","finalAmount"))::float AS total FROM "Bill" WHERE status='paid' AND "createdAt" >= $1 GROUP BY 1 ORDER BY 1`, since);
+
+    const [apptSeries, patientSeries, dentistSeries, revenue, statusAgg, cityAgg, treatAgg] = await Promise.all([
+      series('Appointment'), series('PatientProfile'), series('DoctorProfile'), revenueSeries,
+      prisma.appointment.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.patientProfile.groupBy({ by: ['city'], where: { city: { notIn: [''] } }, _count: { _all: true }, orderBy: { _count: { city: 'desc' } }, take: 8 }),
+      prisma.appointment.groupBy({ by: ['treatmentType'], where: { treatmentType: { notIn: [''] } }, _count: { _all: true }, orderBy: { _count: { treatmentType: 'desc' } }, take: 8 }),
     ]);
 
-    const [apptSeries, patientSeries, dentistSeries, revenueAgg, statusAgg, cityAgg, topTreatments] = await Promise.all([
-      Appointment.aggregate(monthGroup()),
-      PatientProfile.aggregate(monthGroup()),
-      DoctorProfile.aggregate(monthGroup()),
-      // Revenue per month from paid bills.
-      Bill.aggregate([
-        { $match: { status: 'paid', createdAt: dateMatch } },
-        { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } }, total: { $sum: { $ifNull: ['$paidAmount', '$finalAmount'] } } } },
-        { $sort: { _id: 1 } },
-      ]),
-      // Appointment status breakdown (for a pie/donut).
-      Appointment.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      // Patients by city (top 8).
-      PatientProfile.aggregate([
-        { $match: { city: { $nin: [null, ''] } } },
-        { $group: { _id: '$city', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }, { $limit: 8 },
-      ]),
-      // Most-booked treatment types.
-      Appointment.aggregate([
-        { $match: { treatmentType: { $nin: [null, ''] } } },
-        { $group: { _id: '$treatmentType', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }, { $limit: 8 },
-      ]),
-    ]);
+    // Top earners.
+    const earnersAgg = await prisma.bill.groupBy({ by: ['doctorId'], where: { status: 'paid' }, _sum: { paidAmount: true, finalAmount: true }, _count: { _all: true } });
+    const earners = (await Promise.all(
+      earnersAgg
+        .map((e) => ({ doctorId: e.doctorId, revenue: (e._sum.paidAmount || e._sum.finalAmount || 0), bills: e._count._all }))
+        .sort((a, b) => b.revenue - a.revenue).slice(0, 8)
+        .map(async (e) => {
+          const d = await prisma.doctorProfile.findUnique({ where: { id: e.doctorId }, select: { fullName: true, photo: true, city: true } });
+          return { _id: e.doctorId, revenue: e.revenue, bills: e.bills, fullName: d?.fullName, photo: d?.photo, city: d?.city };
+        })
+    ));
 
-    // ── Tier C insights ──
-    const [topEarnersAgg, retentionAgg, commissionAgg] = await Promise.all([
-      // Top-earning dentists by collected revenue.
-      Bill.aggregate([
-        { $match: { status: 'paid' } },
-        { $group: { _id: '$doctorId', revenue: { $sum: { $ifNull: ['$paidAmount', '$finalAmount'] } }, bills: { $sum: 1 } } },
-        { $sort: { revenue: -1 } }, { $limit: 8 },
-        { $lookup: { from: 'doctorprofiles', localField: '_id', foreignField: '_id', as: 'doc' } },
-        { $unwind: { path: '$doc', preserveNullAndEmptyArrays: true } },
-        { $project: { _id: 1, revenue: 1, bills: 1, fullName: '$doc.fullName', photo: '$doc.photo', city: '$doc.city' } },
-      ]),
-      // Retention: patients with >=2 completed appointments vs >=1.
-      Appointment.aggregate([
-        { $match: { status: 'completed' } },
-        { $group: { _id: '$patientId', visits: { $sum: 1 } } },
-        { $group: { _id: null, withVisit: { $sum: 1 }, repeat: { $sum: { $cond: [{ $gte: ['$visits', 2] }, 1, 0] } } } },
-      ]),
-      // Platform commission totals (admin-managed dues/paid across dentists).
-      DoctorProfile.aggregate([
-        { $group: { _id: null, due: { $sum: { $ifNull: ['$commissionDue', 0] } }, paid: { $sum: { $ifNull: ['$commissionPaid', 0] } } } },
-      ]),
-    ]);
-    const ret = retentionAgg[0] || { withVisit: 0, repeat: 0 };
-    const comm = commissionAgg[0] || { due: 0, paid: 0 };
+    // Retention.
+    const visits = await prisma.appointment.groupBy({ by: ['patientId'], where: { status: 'completed' }, _count: { _all: true } });
+    const withVisit = visits.length;
+    const repeat = visits.filter((v) => v._count._all >= 2).length;
+
+    // Commission totals.
+    const commAgg = await prisma.doctorProfile.aggregate({ _sum: { commissionDue: true, commissionPaid: true } });
+    const due = commAgg._sum.commissionDue || 0, paid = commAgg._sum.commissionPaid || 0;
 
     ok(res, {
-      months,
-      range: { since, until: until || null },
-      topEarningDentists: topEarnersAgg,
-      retention: { withVisit: ret.withVisit, repeat: ret.repeat, rate: ret.withVisit ? Math.round((ret.repeat / ret.withVisit) * 100) : 0 },
-      commissionTotals: { earned: comm.due + comm.paid, collected: comm.paid, outstanding: comm.due },
-      appointmentSeries: apptSeries,
-      patientSeries,
-      dentistSeries,
-      revenueSeries: revenueAgg,
-      statusBreakdown: statusAgg,
-      patientsByCity: cityAgg,
-      topTreatments,
+      months, range: { since, until: until || null },
+      topEarningDentists: serialize(earners),
+      retention: { withVisit, repeat, rate: withVisit ? Math.round((repeat / withVisit) * 100) : 0 },
+      commissionTotals: { earned: due + paid, collected: paid, outstanding: due },
+      appointmentSeries: apptSeries, patientSeries, dentistSeries, revenueSeries: revenue,
+      statusBreakdown: statusAgg.map((s) => ({ _id: s.status, count: s._count._all })),
+      patientsByCity: cityAgg.map((c) => ({ _id: c.city, count: c._count._all })),
+      topTreatments: treatAgg.map((t) => ({ _id: t.treatmentType, count: t._count._all })),
     });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Broadcast notifications ────────────────────────────────
-// @route POST /api/admin/broadcast
-// Body: { title, message, audience: 'all'|'patient'|'doctor' }
-// Creates one Notification per targeted user (shows in their in-app inbox).
-// Core sender — used by send-now and the scheduled processor. Returns count.
 async function deliverBroadcast({ title, message, audience = 'all', city }) {
-  const userQuery = audience === 'all' ? { role: { $in: ['patient', 'doctor'] } } : { role: audience };
+  const where = audience === 'all' ? { role: { in: ['patient', 'doctor'] } } : { role: audience };
   if (city && city.trim()) {
-    const rx = { $regex: `^${city.trim()}$`, $options: 'i' };
+    const rx = { equals: city.trim(), mode: 'insensitive' };
     const [pp, dp] = await Promise.all([
-      PatientProfile.find({ city: rx }).select('userId').lean(),
-      DoctorProfile.find({ city: rx }).select('userId').lean(),
+      prisma.patientProfile.findMany({ where: { city: rx }, select: { userId: true } }),
+      prisma.doctorProfile.findMany({ where: { city: rx }, select: { userId: true } }),
     ]);
-    const ids = [...pp, ...dp].map((d) => d.userId).filter(Boolean);
-    userQuery._id = { $in: ids };
+    where.id = { in: [...pp, ...dp].map((d) => d.userId).filter(Boolean) };
   }
-  const users = await User.find(userQuery).select('_id').lean();
+  const users = await prisma.user.findMany({ where, select: { id: true } });
   if (!users.length) return 0;
-  await Notification.insertMany(users.map((u) => ({ userId: u._id, title, message, type: 'system' })));
+  await prisma.notification.createMany({ data: users.map((u) => ({ userId: u.id, title, message, type: 'system' })) });
   return users.length;
 }
-
-const ScheduledBroadcast = require('../models/ScheduledBroadcast');
 
 exports.broadcast = async (req, res) => {
   try {
@@ -1051,14 +831,13 @@ exports.broadcast = async (req, res) => {
     if (!title || !message) return fail(res, 400, 'Title and message are required');
     if (!['all', 'patient', 'doctor'].includes(audience)) return fail(res, 400, 'Invalid audience');
 
-    // Schedule for later when a future sendAt is given.
     if (sendAt) {
       const when = new Date(sendAt);
       if (isNaN(when.getTime())) return fail(res, 400, 'Invalid schedule time');
       if (when.getTime() > Date.now() + 30000) {
-        const sb = await ScheduledBroadcast.create({ title, message, audience, city: city || '', sendAt: when, createdBy: req.user._id });
+        const sb = await prisma.scheduledBroadcast.create({ data: { title, message, audience, city: city || '', sendAt: when, createdBy: req.user._id } });
         await logAudit(req, { action: 'broadcast', entity: 'notification', description: `Scheduled broadcast "${title}" for ${when.toLocaleString()} (${audience}${city ? `, ${city}` : ''})` });
-        return ok(res, { scheduled: true, sendAt: when, id: sb._id });
+        return ok(res, { scheduled: true, sendAt: when, id: sb.id });
       }
     }
 
@@ -1069,250 +848,186 @@ exports.broadcast = async (req, res) => {
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route GET /api/admin/scheduled-broadcasts  — list upcoming + recent
 exports.listScheduledBroadcasts = async (req, res) => {
   try {
-    const items = await ScheduledBroadcast.find().sort({ sendAt: -1 }).limit(50).lean();
-    ok(res, items);
+    const items = await prisma.scheduledBroadcast.findMany({ orderBy: { sendAt: 'desc' }, take: 50 });
+    ok(res, serialize(items));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route DELETE /api/admin/scheduled-broadcasts/:id  — cancel a pending one
 exports.cancelScheduledBroadcast = async (req, res) => {
   try {
-    const sb = await ScheduledBroadcast.findById(req.params.id);
+    const sb = await prisma.scheduledBroadcast.findUnique({ where: { id: req.params.id } });
     if (!sb) return fail(res, 404, 'Scheduled broadcast not found');
     if (sb.status !== 'scheduled') return fail(res, 400, `Cannot cancel a ${sb.status} broadcast`);
-    sb.status = 'cancelled';
-    await sb.save();
-    await logAudit(req, { action: 'update', entity: 'notification', entityId: sb._id, description: `Cancelled scheduled broadcast "${sb.title}"` });
-    ok(res, sb);
+    const updated = await prisma.scheduledBroadcast.update({ where: { id: sb.id }, data: { status: 'cancelled' } });
+    await logAudit(req, { action: 'update', entity: 'notification', entityId: sb.id, description: `Cancelled scheduled broadcast "${sb.title}"` });
+    ok(res, serialize(updated));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// Send all due scheduled broadcasts. Shared by the admin "run now" button and
-// the cron endpoint. Returns a summary.
 async function runDueScheduledBroadcasts() {
-  const due = await ScheduledBroadcast.find({ status: 'scheduled', sendAt: { $lte: new Date() } }).limit(50);
+  const due = await prisma.scheduledBroadcast.findMany({ where: { status: 'scheduled', sendAt: { lte: new Date() } }, take: 50 });
   let processed = 0, totalSent = 0;
   for (const sb of due) {
     try {
       const sent = await deliverBroadcast({ title: sb.title, message: sb.message, audience: sb.audience, city: sb.city });
-      sb.status = 'sent'; sb.sentCount = sent; sb.sentAt = new Date();
-      await sb.save();
+      await prisma.scheduledBroadcast.update({ where: { id: sb.id }, data: { status: 'sent', sentCount: sent, sentAt: new Date() } });
       processed += 1; totalSent += sent;
     } catch (e) {
-      sb.status = 'failed'; sb.error = e.message; await sb.save();
+      await prisma.scheduledBroadcast.update({ where: { id: sb.id }, data: { status: 'failed', error: e.message } });
     }
   }
   return { processed, totalSent };
 }
 exports.runDueScheduledBroadcasts = runDueScheduledBroadcasts;
 
-// @route POST /api/admin/scheduled-broadcasts/process  (admin manual trigger)
 exports.processScheduledBroadcasts = async (req, res) => {
-  try { ok(res, await runDueScheduledBroadcasts()); }
-  catch (e) { fail(res, 500, e.message); }
+  try { ok(res, await runDueScheduledBroadcasts()); } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Audit log ──────────────────────────────────────────────
-// @route GET /api/admin/audit-logs
 exports.listAuditLogs = async (req, res) => {
   try {
     const { page, limit, action, entity, from, to } = req.query;
-    const query = {};
-    if (action && action !== 'all') query.action = action;
-    if (entity && entity !== 'all') query.entity = entity;
+    const where = {};
+    if (action && action !== 'all') where.action = action;
+    if (entity && entity !== 'all') where.entity = entity;
     if (from || to) {
-      query.createdAt = {};
-      if (from) query.createdAt.$gte = new Date(from);
-      if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); query.createdAt.$lte = end; }
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) { const end = new Date(to); end.setHours(23, 59, 59, 999); where.createdAt.lte = end; }
     }
-    const result = await paginate(AuditLog, { query, page, limit });
+    const result = await paginate('auditLog', { where, page, limit });
     const counts = {
-      total: await AuditLog.countDocuments(),
-      deletes: await AuditLog.countDocuments({ action: 'delete' }),
-      broadcasts: await AuditLog.countDocuments({ action: 'broadcast' }),
+      total: await prisma.auditLog.count(),
+      deletes: await prisma.auditLog.count({ where: { action: 'delete' } }),
+      broadcasts: await prisma.auditLog.count({ where: { action: 'broadcast' } }),
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Patient suspend / ban ──────────────────────────────────
-// @route PATCH /api/admin/patients/:id/block   body: { reason }
 exports.blockPatient = async (req, res) => {
   try {
-    const p = await PatientProfile.findByIdAndUpdate(
-      req.params.id,
-      { isBlocked: true, blockReason: req.body.reason || '' },
-      { new: true }
-    );
+    const p = await prisma.patientProfile.update({ where: { id: req.params.id }, data: { isBlocked: true, blockReason: req.body.reason || '' } }).catch(() => null);
     if (!p) return fail(res, 404, 'Patient not found');
-    await logAudit(req, { action: 'block', entity: 'patient', entityId: p._id, description: `Suspended patient "${p.fullName}"${req.body.reason ? ` — ${req.body.reason}` : ''}` });
-    ok(res, p);
+    await logAudit(req, { action: 'block', entity: 'patient', entityId: p.id, description: `Suspended patient "${p.fullName}"${req.body.reason ? ` — ${req.body.reason}` : ''}` });
+    ok(res, serialize(p));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/patients/:id/unblock
 exports.unblockPatient = async (req, res) => {
   try {
-    const p = await PatientProfile.findByIdAndUpdate(
-      req.params.id,
-      { isBlocked: false, blockReason: '' },
-      { new: true }
-    );
+    const p = await prisma.patientProfile.update({ where: { id: req.params.id }, data: { isBlocked: false, blockReason: '' } }).catch(() => null);
     if (!p) return fail(res, 404, 'Patient not found');
-    await logAudit(req, { action: 'unblock', entity: 'patient', entityId: p._id, description: `Reinstated patient "${p.fullName}"` });
-    ok(res, p);
+    await logAudit(req, { action: 'unblock', entity: 'patient', entityId: p.id, description: `Reinstated patient "${p.fullName}"` });
+    ok(res, serialize(p));
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Bill refund ────────────────────────────────────────────
-// @route PATCH /api/admin/bills/:id/refund   body: { reason }
 exports.refundBill = async (req, res) => {
   try {
-    const bill = await Bill.findById(req.params.id);
+    const bill = await prisma.bill.findUnique({ where: { id: req.params.id } });
     if (!bill) return fail(res, 404, 'Bill not found');
     if (bill.status === 'refunded') return fail(res, 400, 'Bill is already refunded');
-    bill.status = 'refunded';
-    bill.refundReason = req.body.reason || '';
-    bill.refundedAt = new Date();
-    await bill.save();
-    await logAudit(req, { action: 'refund', entity: 'bill', entityId: bill._id, description: `Refunded bill ${bill.invoiceNumber} (PKR ${(bill.finalAmount || bill.amount || 0).toLocaleString()})${req.body.reason ? ` — ${req.body.reason}` : ''}` });
-    const populated = await Bill.findById(bill._id)
-      .populate('patientId', 'fullName profileImage')
-      .populate('doctorId', 'fullName photo');
-    ok(res, populated);
+    await prisma.bill.update({ where: { id: bill.id }, data: { status: 'refunded', refundReason: req.body.reason || '', refundedAt: new Date() } });
+    await logAudit(req, { action: 'refund', entity: 'bill', entityId: bill.id, description: `Refunded bill ${bill.invoiceNumber} (PKR ${(bill.finalAmount || bill.amount || 0).toLocaleString()})${req.body.reason ? ` — ${req.body.reason}` : ''}` });
+    const populated = await prisma.bill.findUnique({ where: { id: bill.id }, include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } } });
+    ok(res, serialize(remapRefs(populated, { patient: 'patientId', doctor: 'doctorId' })));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Global search (topbar) ─────────────────────────────────
-// @route GET /api/admin/search?q=...
+// ─── Global search ──────────────────────────────────────────
 exports.globalSearch = async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     if (q.length < 2) return ok(res, { dentists: [], patients: [], bills: [] });
-    const rx = { $regex: q, $options: 'i' };
     const [dentists, patients, bills] = await Promise.all([
-      DoctorProfile.find({ $or: [{ fullName: rx }, { clinicName: rx }] })
-        .select('fullName clinicName city photo').limit(6).lean(),
-      PatientProfile.find({ $or: [{ fullName: rx }, { mobileNumber: rx }] })
-        .select('fullName mobileNumber city profileImage').limit(6).lean(),
-      Bill.find({ $or: [{ invoiceNumber: rx }, { treatmentName: rx }] })
-        .select('invoiceNumber treatmentName finalAmount amount status').limit(6).lean(),
+      prisma.doctorProfile.findMany({ where: { OR: [{ fullName: ci(q) }, { clinicName: ci(q) }] }, select: { id: true, fullName: true, clinicName: true, city: true, photo: true }, take: 6 }),
+      prisma.patientProfile.findMany({ where: { OR: [{ fullName: ci(q) }, { mobileNumber: ci(q) }] }, select: { id: true, fullName: true, mobileNumber: true, city: true, profileImage: true }, take: 6 }),
+      prisma.bill.findMany({ where: { OR: [{ invoiceNumber: ci(q) }, { treatmentName: ci(q) }] }, select: { id: true, invoiceNumber: true, treatmentName: true, finalAmount: true, amount: true, status: true }, take: 6 }),
     ]);
-    ok(res, { dentists, patients, bills });
+    ok(res, { dentists: serialize(dentists), patients: serialize(patients), bills: serialize(bills) });
   } catch (e) { fail(res, 500, e.message); }
 };
 
 // ─── Review moderation ──────────────────────────────────────
-// @route PATCH /api/admin/reviews/:id   body: { hidden }
 exports.moderateReview = async (req, res) => {
   try {
-    const r = await Review.findByIdAndUpdate(
-      req.params.id,
-      { hidden: !!req.body.hidden },
-      { new: true }
-    ).populate('patientId', 'fullName profileImage').populate('doctorId', 'fullName photo');
+    const r = await prisma.review.update({
+      where: { id: req.params.id }, data: { hidden: !!req.body.hidden },
+      include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
+    }).catch(() => null);
     if (!r) return fail(res, 404, 'Review not found');
-    await logAudit(req, { action: req.body.hidden ? 'hide' : 'unhide', entity: 'review', entityId: r._id, description: `${req.body.hidden ? 'Hid' : 'Unhid'} a ${r.rating}★ review` });
-    ok(res, r);
+    await logAudit(req, { action: req.body.hidden ? 'hide' : 'unhide', entity: 'review', entityId: r.id, description: `${req.body.hidden ? 'Hid' : 'Unhid'} a ${r.rating}★ review` });
+    ok(res, serialize(remapRefs(r, { patient: 'patientId', doctor: 'doctorId' })));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/reviews/:id/reply   body: { text }
 exports.replyReview = async (req, res) => {
   try {
     const text = (req.body.text || '').trim();
-    const r = await Review.findByIdAndUpdate(
-      req.params.id,
-      { doctorReply: { text, repliedAt: text ? new Date() : null } },
-      { new: true }
-    ).populate('patientId', 'fullName profileImage').populate('doctorId', 'fullName photo');
+    const r = await prisma.review.update({
+      where: { id: req.params.id }, data: { doctorReply: { text, repliedAt: text ? new Date() : null } },
+      include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
+    }).catch(() => null);
     if (!r) return fail(res, 404, 'Review not found');
-    await logAudit(req, { action: 'update', entity: 'review', entityId: r._id, description: text ? `Replied to a review on behalf of ${r.doctorId?.fullName || 'doctor'}` : `Cleared reply on a review` });
-    ok(res, r);
+    await logAudit(req, { action: 'update', entity: 'review', entityId: r.id, description: text ? `Replied to a review on behalf of ${r.doctor?.fullName || 'doctor'}` : 'Cleared reply on a review' });
+    ok(res, serialize(remapRefs(r, { patient: 'patientId', doctor: 'doctorId' })));
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Impersonation / "View as" ──────────────────────────────
-// @route POST /api/admin/impersonate/:userId  (super admin only)
-// Mints a SHORT-LIVED user token so a super admin can view the app as that
-// user for support. Audit-logged; the minted token carries imp/impBy claims.
-const jwt = require('jsonwebtoken');
+// ─── Impersonation ──────────────────────────────────────────
 exports.impersonateUser = async (req, res) => {
   try {
-    const me = await AdminProfile.findOne({ userId: req.user._id });
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can impersonate users');
 
-    const user = await User.findById(req.params.userId).select('role');
+    const user = await prisma.user.findUnique({ where: { id: req.params.userId }, select: { id: true, role: true } });
     if (!user) return fail(res, 404, 'User not found');
     if (!['patient', 'doctor'].includes(user.role)) return fail(res, 400, 'Only patient or doctor accounts can be viewed');
 
-    const token = jwt.sign(
-      { id: user._id, imp: true, impBy: req.user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '30m' }
-    );
-
-    // Friendly label for the audit log + admin UI.
+    const token = jwt.sign({ id: user.id, imp: true, impBy: req.user._id }, process.env.JWT_SECRET, { expiresIn: '30m' });
     let name = '';
-    if (user.role === 'doctor') name = (await DoctorProfile.findOne({ userId: user._id }).select('fullName').lean())?.fullName || '';
-    else name = (await PatientProfile.findOne({ userId: user._id }).select('fullName').lean())?.fullName || '';
+    if (user.role === 'doctor') name = (await prisma.doctorProfile.findUnique({ where: { userId: user.id }, select: { fullName: true } }))?.fullName || '';
+    else name = (await prisma.patientProfile.findUnique({ where: { userId: user.id }, select: { fullName: true } }))?.fullName || '';
 
-    await logAudit(req, { action: 'impersonate', entity: user.role, entityId: user._id, description: `Impersonated ${user.role} "${name || user._id}" (30-min session)` });
+    await logAudit(req, { action: 'impersonate', entity: user.role, entityId: user.id, description: `Impersonated ${user.role} "${name || user.id}" (30-min session)` });
     ok(res, { token, role: user.role, name });
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// ─── Reset a dentist's login password (super admin) ─────────
-const crypto = require('crypto');
-// @route PATCH /api/admin/dentists/:id/reset-password   body: { password? }
-// Sets a new password (admin-provided or auto-generated) on the dentist's User
-// account and returns it ONCE so the admin can share it. Passwords are hashed
-// (pre-save hook) — the existing password cannot be read back.
+// ─── Reset passwords (super admin) ──────────────────────────
+async function resetLoginPassword(res, profile, prefix, req, entity) {
+  const user = await prisma.user.findUnique({ where: { id: profile.userId } });
+  if (!user) return fail(res, 404, 'Login account not found');
+  let newPassword = (req.body.password || '').trim();
+  if (!newPassword) newPassword = prefix + crypto.randomBytes(4).toString('hex');
+  if (newPassword.length < 6) return fail(res, 400, 'Password must be at least 6 characters');
+  await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(newPassword) } });
+  await logAudit(req, { action: 'reset-password', entity, entityId: profile.id, description: `Reset login password for ${entity} "${profile.fullName}"` });
+  ok(res, { password: newPassword, email: user.email });
+}
+
 exports.resetDentistPassword = async (req, res) => {
   try {
-    const me = await AdminProfile.findOne({ userId: req.user._id });
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can reset passwords');
-
-    const doctor = await DoctorProfile.findById(req.params.id).select('userId fullName').lean();
+    const doctor = await prisma.doctorProfile.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true, fullName: true } });
     if (!doctor) return fail(res, 404, 'Dentist not found');
-    const user = await User.findById(doctor.userId).select('+password');
-    if (!user) return fail(res, 404, 'Login account not found for this dentist');
-
-    let newPassword = (req.body.password || '').trim();
-    if (!newPassword) newPassword = 'Dent' + crypto.randomBytes(4).toString('hex'); // e.g. Dent3f9a1c20
-    if (newPassword.length < 6) return fail(res, 400, 'Password must be at least 6 characters');
-
-    user.password = newPassword; // hashed by the pre-save hook
-    await user.save();
-
-    await logAudit(req, { action: 'reset-password', entity: 'dentist', entityId: doctor._id, description: `Reset login password for dentist "${doctor.fullName}"` });
-    ok(res, { password: newPassword, email: user.email });
+    await resetLoginPassword(res, doctor, 'Dent', req, 'dentist');
   } catch (e) { fail(res, 500, e.message); }
 };
 
-// @route PATCH /api/admin/patients/:id/reset-password   body: { password? }
-// Same as the dentist reset — super admin sets a new password (hashed), returned once.
 exports.resetPatientPassword = async (req, res) => {
   try {
-    const me = await AdminProfile.findOne({ userId: req.user._id });
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
     if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can reset passwords');
-
-    const patient = await PatientProfile.findById(req.params.id).select('userId fullName').lean();
+    const patient = await prisma.patientProfile.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true, fullName: true } });
     if (!patient) return fail(res, 404, 'Patient not found');
-    const user = await User.findById(patient.userId).select('+password');
-    if (!user) return fail(res, 404, 'Login account not found for this patient');
-
-    let newPassword = (req.body.password || '').trim();
-    if (!newPassword) newPassword = 'Pat' + crypto.randomBytes(4).toString('hex');
-    if (newPassword.length < 6) return fail(res, 400, 'Password must be at least 6 characters');
-
-    user.password = newPassword; // hashed by the pre-save hook
-    await user.save();
-
-    await logAudit(req, { action: 'reset-password', entity: 'patient', entityId: patient._id, description: `Reset login password for patient "${patient.fullName}"` });
-    ok(res, { password: newPassword, email: user.email });
+    await resetLoginPassword(res, patient, 'Pat', req, 'patient');
   } catch (e) { fail(res, 500, e.message); }
 };

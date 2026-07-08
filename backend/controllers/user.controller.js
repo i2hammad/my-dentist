@@ -1,51 +1,40 @@
-const User = require('../models/User');
-const PatientProfile = require('../models/PatientProfile');
-const DoctorProfile = require('../models/DoctorProfile');
-const { memoryUpload, uploadToCloudinary } = require('../config/cloudinary');
+const prisma = require('../config/prisma');
+const { serialize } = require('../utils/serialize');
+const { memoryUpload, saveUpload } = require('../config/upload');
 const { normalizeClinicTiming } = require('../utils/clinicTiming');
 
-// Uploads are streamed to Cloudinary (persistent on serverless hosts).
-// memoryUpload keeps the file as a Buffer in req.file.buffer.
 const upload = memoryUpload;
+
+// Derive numeric lat/lng from a GeoJSON `location` ([lng,lat]) or a "lat, lng" string.
+const deriveLatLng = (body) => {
+  if (body.location && Array.isArray(body.location.coordinates) && body.location.coordinates.length === 2) {
+    const [lng, lat] = body.location.coordinates.map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+  if (typeof body.coordinates === 'string' && body.coordinates.includes(',')) {
+    const [lat, lng] = body.coordinates.split(',').map((s) => Number(s.trim()));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+  return {};
+};
 
 // @desc    Get current user with profile
 // @route   GET /api/users/me
 // @access  Protected
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password -refreshToken');
+    const user = await prisma.user.findUnique({ where: { id: req.user._id }, omit: { password: true, refreshToken: true } });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    // Fetch associated profile based on role
     let profile = null;
-    if (user.role === 'patient') {
-      profile = await PatientProfile.findOne({ userId: user._id });
-    } else if (user.role === 'doctor') {
-      profile = await DoctorProfile.findOne({ userId: user._id });
-    } else if (user.role === 'admin') {
-      const AdminProfile = require('../models/AdminProfile');
-      profile = await AdminProfile.findOne({ userId: user._id });
-    }
+    if (user.role === 'patient') profile = await prisma.patientProfile.findUnique({ where: { userId: user.id } });
+    else if (user.role === 'doctor') profile = await prisma.doctorProfile.findUnique({ where: { userId: user.id } });
+    else if (user.role === 'admin') profile = await prisma.adminProfile.findUnique({ where: { userId: user.id } });
 
-    res.status(200).json({
-      success: true,
-      data: {
-        user,
-        profile
-      }
-    });
+    res.status(200).json({ success: true, data: { user: serialize(user), profile: serialize(profile) } });
   } catch (error) {
     console.error('Get me error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching user profile'
-    });
+    res.status(500).json({ success: false, message: 'Server error while fetching user profile' });
   }
 };
 
@@ -54,62 +43,40 @@ const getMe = async (req, res) => {
 // @access  Protected
 const updateMe = async (req, res) => {
   try {
-    // Fields that are allowed to be updated
-    const allowedFields = ['email', 'role'];
     const updates = {};
-
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        updates[field] = field === 'email' ? req.body[field].toLowerCase() : req.body[field];
-      }
-    }
-
+    if (req.body.email !== undefined) updates.email = req.body.email.toLowerCase();
+    if (req.body.role !== undefined) updates.role = req.body.role;
     if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No valid fields to update'
-      });
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
     }
 
-    // If email is being changed, check for duplicates
     if (updates.email) {
-      const existingUser = await User.findOne({
-        email: updates.email,
-        _id: { $ne: req.user._id }
-      });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email is already in use by another account'
-        });
-      }
+      const existing = await prisma.user.findFirst({ where: { email: updates.email, id: { not: req.user._id } } });
+      if (existing) return res.status(400).json({ success: false, message: 'Email is already in use by another account' });
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    ).select('-password -refreshToken');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'User updated successfully',
-      data: user
-    });
+    const user = await prisma.user.update({ where: { id: req.user._id }, data: updates, omit: { password: true, refreshToken: true } });
+    res.status(200).json({ success: true, message: 'User updated successfully', data: serialize(user) });
   } catch (error) {
     console.error('Update me error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating user'
-    });
+    res.status(500).json({ success: false, message: 'Server error while updating user' });
   }
+};
+
+// Build patient-profile column data from a request body.
+const patientData = (b) => {
+  const data = {};
+  if (b.fullName !== undefined) data.fullName = b.fullName;
+  if (b.mobileNumber !== undefined) data.mobileNumber = b.mobileNumber;
+  if (b.dateOfBirth !== undefined) data.dateOfBirth = b.dateOfBirth ? new Date(b.dateOfBirth) : null;
+  if (b.gender !== undefined) data.gender = b.gender;
+  if (b.city !== undefined) data.city = b.city;
+  if (b.age !== undefined) data.age = b.age === null || b.age === '' ? null : parseInt(b.age, 10);
+  if (b.address !== undefined) data.address = b.address;
+  if (b.coordinates !== undefined) data.coordinates = b.coordinates;
+  if (b.familyMembers !== undefined) data.familyMembers = b.familyMembers;
+  Object.assign(data, deriveLatLng(b));
+  return data;
 };
 
 // @desc    Create patient profile
@@ -117,48 +84,19 @@ const updateMe = async (req, res) => {
 // @access  Protected
 const createPatientProfile = async (req, res) => {
   try {
-    // Check if profile already exists
-    const existingProfile = await PatientProfile.findOne({ userId: req.user._id });
-    if (existingProfile) {
-      return res.status(400).json({
-        success: false,
-        message: 'Patient profile already exists. Use PUT to update.'
-      });
-    }
+    const existing = await prisma.patientProfile.findUnique({ where: { userId: req.user._id } });
+    if (existing) return res.status(400).json({ success: false, message: 'Patient profile already exists. Use PUT to update.' });
 
-    const { fullName, mobileNumber, dateOfBirth, gender, city, location, age, address, coordinates, familyMembers } = req.body;
+    const data = patientData(req.body);
+    data.userId = req.user._id;
+    data.fullName = req.body.fullName || 'New Patient';
 
-    const profile = await PatientProfile.create({
-      userId: req.user._id,
-      fullName,
-      mobileNumber,
-      dateOfBirth,
-      gender,
-      city,
-      location,
-      ...(age !== undefined && { age }),
-      ...(address !== undefined && { address }),
-      ...(coordinates !== undefined && { coordinates }),
-      ...(familyMembers !== undefined && { familyMembers }),
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Patient profile created successfully',
-      data: profile
-    });
+    const profile = await prisma.patientProfile.create({ data });
+    res.status(201).json({ success: true, message: 'Patient profile created successfully', data: serialize(profile) });
   } catch (error) {
     console.error('Create patient profile error:', error);
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: 'Patient profile already exists for this user'
-      });
-    }
-    res.status(500).json({
-      success: false,
-      message: 'Server error while creating patient profile'
-    });
+    if (error.code === 'P2002') return res.status(400).json({ success: false, message: 'Patient profile already exists for this user' });
+    res.status(500).json({ success: false, message: 'Server error while creating patient profile' });
   }
 };
 
@@ -167,48 +105,17 @@ const createPatientProfile = async (req, res) => {
 // @access  Protected
 const updatePatientProfile = async (req, res) => {
   try {
-    const profile = await PatientProfile.findOne({ userId: req.user._id });
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user._id } });
+    if (!profile) return res.status(404).json({ success: false, message: 'Patient profile not found. Create one first using POST.' });
 
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient profile not found. Create one first using POST.'
-      });
-    }
+    const updates = patientData(req.body);
+    if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, message: 'No valid fields to update' });
 
-    const allowedFields = ['fullName', 'mobileNumber', 'dateOfBirth', 'gender', 'city', 'location', 'age', 'address', 'coordinates', 'familyMembers'];
-    const updates = {};
-
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No valid fields to update'
-      });
-    }
-
-    const updatedProfile = await PatientProfile.findOneAndUpdate(
-      { userId: req.user._id },
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Patient profile updated successfully',
-      data: updatedProfile
-    });
+    const updated = await prisma.patientProfile.update({ where: { userId: req.user._id }, data: updates });
+    res.status(200).json({ success: true, message: 'Patient profile updated successfully', data: serialize(updated) });
   } catch (error) {
     console.error('Update patient profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating patient profile'
-    });
+    res.status(500).json({ success: false, message: 'Server error while updating patient profile' });
   }
 };
 
@@ -217,43 +124,27 @@ const updatePatientProfile = async (req, res) => {
 // @access  Protected
 const uploadAvatar = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please upload an image file (jpg, jpeg, or png, max 5MB)'
-      });
-    }
+    if (!req.file) return res.status(400).json({ success: false, message: 'Please upload an image file (jpg, jpeg, or png, max 5MB)' });
 
-    const imageUrl = await uploadToCloudinary(req.file.buffer, 'mydentist/avatars');
+    const imageUrl = await saveUpload(req.file, 'mydentist/avatars');
 
-    // Update profile image on PatientProfile
-    const profile = await PatientProfile.findOneAndUpdate(
-      { userId: req.user._id },
-      { profileImage: imageUrl },
-      { new: true, runValidators: true }
-    );
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient profile not found. Create a patient profile first.'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Avatar uploaded successfully',
-      data: {
-        profileImage: imageUrl,
-        profile
+    let profile;
+    try {
+      profile = await prisma.patientProfile.update({ where: { userId: req.user._id }, data: { profileImage: imageUrl } });
+    } catch (e) {
+      // Don't swallow the real reason — log it so we can tell "no profile" (P2025)
+      // apart from a transient DB error (e.g. on a cold start).
+      console.error(`Upload avatar: patientProfile.update failed for userId=${req.user?._id}:`, e.code || e.message);
+      if (e.code === 'P2025') {
+        return res.status(404).json({ success: false, message: 'Patient profile not found. Create a patient profile first.' });
       }
-    });
+      throw e; // real error → 500 path below, which logs the full error
+    }
+
+    res.status(200).json({ success: true, message: 'Avatar uploaded successfully', data: { profileImage: imageUrl, profile: serialize(profile) } });
   } catch (error) {
     console.error('Upload avatar error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while uploading avatar'
-    });
+    res.status(500).json({ success: false, message: 'Server error while uploading avatar' });
   }
 };
 
@@ -262,30 +153,162 @@ const uploadAvatar = async (req, res) => {
 // @access  Protected
 const uploadFile = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please upload a file'
-      });
-    }
-
-    const fileUrl = await uploadToCloudinary(req.file.buffer, 'mydentist/uploads');
-
-    res.status(200).json({
-      success: true,
-      message: 'File uploaded successfully',
-      data: {
-        url: fileUrl,
-        filename: req.file.originalname
-      }
-    });
+    if (!req.file) return res.status(400).json({ success: false, message: 'Please upload a file' });
+    const fileUrl = await saveUpload(req.file, 'mydentist/uploads');
+    res.status(200).json({ success: true, message: 'File uploaded successfully', data: { url: fileUrl, filename: req.file.originalname } });
   } catch (error) {
     console.error('Upload file error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while uploading file'
-    });
+    res.status(500).json({ success: false, message: 'Server error while uploading file' });
   }
+};
+
+// @desc    Update doctor profile
+// @route   PUT /api/users/doctor-profile
+// @access  Protected
+const updateDoctorProfile = async (req, res) => {
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: req.user._id } });
+    if (!profile) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+
+    const scalar = [
+      'fullName', 'specialization', 'qualification', 'clinicName', 'clinicTier',
+      'onlineStatus', 'about', 'address', 'photo', 'pmdcNumber', 'gender',
+      'clinicContact', 'city', 'phone', 'licenseCert', 'idFront', 'idBack',
+    ];
+    const updates = {};
+    for (const f of scalar) if (req.body[f] !== undefined) updates[f] = req.body[f];
+    if (req.body.consultationFee !== undefined) updates.consultationFee = Number(req.body.consultationFee);
+    if (req.body.experience !== undefined) updates.experience = Number(req.body.experience);
+    if (req.body.facilityScore !== undefined) updates.facilityScore = Number(req.body.facilityScore);
+    if (req.body.languages !== undefined) updates.languages = req.body.languages;
+    if (req.body.services !== undefined) updates.services = req.body.services;
+    if (req.body.payoutAccount !== undefined) updates.payoutAccount = req.body.payoutAccount;
+    if (req.body.coordinates !== undefined) updates.coordinates = req.body.coordinates;
+    Object.assign(updates, deriveLatLng(req.body));
+
+    if (req.body.clinicTiming !== undefined) {
+      try {
+        updates.clinicTiming = normalizeClinicTiming(req.body.clinicTiming);
+      } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+      }
+    }
+
+    if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, message: 'No valid fields to update' });
+
+    const updated = await prisma.doctorProfile.update({ where: { userId: req.user._id }, data: updates });
+    res.status(200).json({ success: true, message: 'Doctor profile updated', data: serialize(updated) });
+  } catch (error) {
+    console.error('Update doctor profile error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ─── Referral program ──────────────────────────────────────
+// @route GET /api/users/referral
+const getReferral = async (req, res) => {
+  try {
+    const { ensureReferralCode, REFERRAL_POINTS } = require('../utils/referral');
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user._id } });
+    if (!profile) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+
+    const code = await ensureReferralCode(profile);
+    const referredCount = await prisma.patientProfile.count({ where: { referredBy: profile.id } });
+    const earned = await prisma.reward.aggregate({ where: { patientId: profile.id, type: 'referral' }, _sum: { points: true } });
+
+    res.json({
+      success: true,
+      data: {
+        code,
+        referredBy: profile.referredBy || null,
+        pointsPerReferral: REFERRAL_POINTS,
+        referredCount,
+        referralPointsEarned: earned._sum.points || 0,
+        webLink: `https://mydentistpk.com/?ref=${code}`,
+        androidLink: `https://play.google.com/store/apps/details?id=com.mydentistpk&ref=${code}`,
+        iosLink: `https://apps.apple.com/app/my-dentist-pk/id0000000000?ref=${code}`,
+      },
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// @route POST /api/users/referral/apply
+const applyReferral = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
+    const me = await prisma.patientProfile.findUnique({ where: { userId: req.user._id } });
+    if (!me) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
+
+    const clean = code.trim().toUpperCase();
+    const patientReferrer = await prisma.patientProfile.findFirst({ where: { referralCode: clean } });
+    const doctorReferrer = patientReferrer ? null : await prisma.doctorProfile.findFirst({ where: { referralCode: clean } });
+    if (!patientReferrer && !doctorReferrer) return res.status(404).json({ success: false, message: 'Invalid referral code.' });
+    if (patientReferrer && patientReferrer.id === me.id) {
+      return res.status(400).json({ success: false, message: "You can't use your own referral code." });
+    }
+
+    await prisma.patientProfile.update({
+      where: { id: me.id },
+      data: {
+        referredBy: (patientReferrer || doctorReferrer).id,
+        referredByModel: patientReferrer ? 'PatientProfile' : 'DoctorProfile',
+      },
+    });
+    res.json({ success: true, message: 'Referral applied! You and your referrer get 100 points after your first completed treatment.' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// @route GET /api/users/doctor-referral
+const getDoctorReferral = async (req, res) => {
+  try {
+    const { ensureDoctorReferralCode, REFERRAL_POINTS } = require('../utils/referral');
+    const me = await prisma.doctorProfile.findUnique({ where: { userId: req.user._id } });
+    if (!me) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    const code = await ensureDoctorReferralCode(me);
+
+    const [patientReferredCount, patientRewarded, doctorReferredCount, doctorRewarded] = await Promise.all([
+      prisma.patientProfile.count({ where: { referredBy: me.id, referredByModel: 'DoctorProfile' } }),
+      prisma.patientProfile.count({ where: { referredBy: me.id, referredByModel: 'DoctorProfile', referralRewarded: true } }),
+      prisma.doctorProfile.count({ where: { referredBy: me.id } }),
+      prisma.doctorProfile.count({ where: { referredBy: me.id, referralRewarded: true } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        code,
+        pointsPerReferral: REFERRAL_POINTS,
+        patient: { referredCount: patientReferredCount, pointsEarned: patientRewarded * REFERRAL_POINTS },
+        doctor: {
+          referredCount: doctorReferredCount,
+          pointsEarned: doctorRewarded * REFERRAL_POINTS,
+          referredByApplied: !!me.referredBy,
+        },
+        webLink: `https://mydentistpk.com/?ref=${code}`,
+        androidLink: `https://play.google.com/store/apps/details?id=com.mydentistpk&ref=${code}`,
+      },
+    });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+};
+
+// @route POST /api/users/doctor-referral/apply
+const applyDoctorReferral = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
+    const me = await prisma.doctorProfile.findUnique({ where: { userId: req.user._id } });
+    if (!me) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+    if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
+
+    const referrer = await prisma.doctorProfile.findFirst({ where: { referralCode: code.trim().toUpperCase() } });
+    if (!referrer) return res.status(404).json({ success: false, message: 'Invalid doctor referral code.' });
+    if (referrer.id === me.id) return res.status(400).json({ success: false, message: "You can't use your own referral code." });
+
+    await prisma.doctorProfile.update({ where: { id: me.id }, data: { referredBy: referrer.id } });
+    res.json({ success: true, message: 'Referral applied! Both doctors get 100 points after your first completed patient treatment.' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 };
 
 module.exports = {
@@ -295,182 +318,10 @@ module.exports = {
   updatePatientProfile,
   uploadAvatar,
   uploadFile,
-  upload
+  upload,
+  updateDoctorProfile,
+  getReferral,
+  applyReferral,
+  getDoctorReferral,
+  applyDoctorReferral,
 };
-
-// @desc    Update doctor profile
-// @route   PUT /api/users/doctor-profile
-// @access  Protected
-const updateDoctorProfile = async (req, res) => {
-  try {
-    const profile = await DoctorProfile.findOne({ userId: req.user._id });
-    if (!profile) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
-    const allowedFields = [
-      'fullName',
-      'specialization',
-      'qualification',
-      'consultationFee',
-      'experience',
-      'clinicName',
-      'clinicTier',
-      'languages',
-      'clinicTiming',
-      'onlineStatus',
-      'about',
-      'address',
-      'photo',
-      'pmdcNumber',
-      'gender',
-      'clinicContact',
-      'city',
-      'phone',
-      'licenseCert',
-      'idFront',
-      'idBack',
-      'location',
-      'services',
-      'facilityScore',
-      'payoutAccount'
-    ];
-    const updates = {};
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) updates[field] = req.body[field];
-    }
-    if (updates.clinicTiming) {
-      try {
-        updates.clinicTiming = normalizeClinicTiming(updates.clinicTiming);
-      } catch (error) {
-        return res.status(400).json({ success: false, message: error.message });
-      }
-    }
-    if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, message: 'No valid fields to update' });
-    const updatedProfile = await DoctorProfile.findOneAndUpdate({ userId: req.user._id }, { $set: updates }, { new: true, runValidators: true });
-    res.status(200).json({ success: true, message: 'Doctor profile updated', data: updatedProfile });
-  } catch (error) {
-    console.error('Update doctor profile error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-module.exports.updateDoctorProfile = updateDoctorProfile;
-
-// ─── Referral program ──────────────────────────────────────
-// @route GET /api/users/referral  — my referral code + share link + points earned
-const getReferral = async (req, res) => {
-  try {
-    const PatientProfile = require('../models/PatientProfile');
-    const Reward = require('../models/Reward');
-    const { ensureReferralCode, REFERRAL_POINTS } = require('../utils/referral');
-    const profile = await PatientProfile.findOne({ userId: req.user._id });
-    if (!profile) return res.status(404).json({ success: false, message: 'Patient profile not found' });
-    const code = await ensureReferralCode(profile);
-    const referredCount = await PatientProfile.countDocuments({ referredBy: profile._id });
-    const earned = await Reward.aggregate([
-      { $match: { patientId: profile._id, type: 'referral' } },
-      { $group: { _id: null, total: { $sum: '$points' } } },
-    ]);
-    res.json({
-      success: true,
-      data: {
-        code,
-        referredBy: profile.referredBy || null,
-        pointsPerReferral: REFERRAL_POINTS,
-        referredCount,
-        referralPointsEarned: earned[0]?.total || 0,
-        // Share links — each platform reads ?ref=CODE at signup to auto-apply the referral
-        webLink: `https://my-dentist-sigma.vercel.app/?ref=${code}`,
-        androidLink: `https://play.google.com/store/apps/details?id=com.mydentistpk&ref=${code}`,
-        iosLink: `https://apps.apple.com/app/my-dentist-pk/id0000000000?ref=${code}`,
-      },
-    });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-};
-
-// @route POST /api/users/referral/apply  body: { code } — link this patient to a referrer (patient OR doctor)
-const applyReferral = async (req, res) => {
-  try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
-    const me = await PatientProfile.findOne({ userId: req.user._id });
-    if (!me) return res.status(404).json({ success: false, message: 'Patient profile not found' });
-    if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
-
-    const clean = code.trim().toUpperCase();
-    // A patient can be referred by another patient OR by a doctor (doctor→patient referral).
-    const patientReferrer = await PatientProfile.findOne({ referralCode: clean });
-    const doctorReferrer = patientReferrer ? null : await DoctorProfile.findOne({ referralCode: clean });
-    if (!patientReferrer && !doctorReferrer) return res.status(404).json({ success: false, message: 'Invalid referral code.' });
-    if (patientReferrer && String(patientReferrer._id) === String(me._id)) {
-      return res.status(400).json({ success: false, message: "You can't use your own referral code." });
-    }
-
-    me.referredBy = (patientReferrer || doctorReferrer)._id;
-    me.referredByModel = patientReferrer ? 'PatientProfile' : 'DoctorProfile';
-    await me.save();
-    res.json({ success: true, message: 'Referral applied! You and your referrer get 100 points after your first completed treatment.' });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-};
-
-// @route GET /api/users/doctor-referral — doctor's own code + independent patient/doctor referral stats
-const getDoctorReferral = async (req, res) => {
-  try {
-    const { ensureDoctorReferralCode, REFERRAL_POINTS } = require('../utils/referral');
-    const me = await DoctorProfile.findOne({ userId: req.user._id });
-    if (!me) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
-    const code = await ensureDoctorReferralCode(me);
-
-    // Patient Referral section — patients this doctor referred.
-    const patientReferredCount = await PatientProfile.countDocuments({ referredBy: me._id, referredByModel: 'DoctorProfile' });
-    const patientRewarded = await PatientProfile.countDocuments({ referredBy: me._id, referredByModel: 'DoctorProfile', referralRewarded: true });
-
-    // Doctor Referral section — doctors this doctor referred.
-    const doctorReferredCount = await DoctorProfile.countDocuments({ referredBy: me._id });
-    const doctorRewarded = await DoctorProfile.countDocuments({ referredBy: me._id, referralRewarded: true });
-
-    res.json({
-      success: true,
-      data: {
-        code,
-        pointsPerReferral: REFERRAL_POINTS,
-        // Doctor→Patient referrals — shown only in the Patient Referral section.
-        patient: {
-          referredCount: patientReferredCount,
-          pointsEarned: patientRewarded * REFERRAL_POINTS,
-        },
-        // Doctor→Doctor referrals — shown only in the Doctor Referral section.
-        doctor: {
-          referredCount: doctorReferredCount,
-          pointsEarned: doctorRewarded * REFERRAL_POINTS,
-          // True if THIS doctor was already referred by another doctor (hides the code-entry input).
-          referredByApplied: !!me.referredBy,
-        },
-        webLink: `https://my-dentist-sigma.vercel.app/?ref=${code}`,
-        androidLink: `https://play.google.com/store/apps/details?id=com.mydentistpk&ref=${code}`,
-      },
-    });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-};
-
-// @route POST /api/users/doctor-referral/apply  body: { code } — link this doctor to a referring DOCTOR
-const applyDoctorReferral = async (req, res) => {
-  try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ success: false, message: 'Referral code is required' });
-    const me = await DoctorProfile.findOne({ userId: req.user._id });
-    if (!me) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
-    if (me.referredBy) return res.status(400).json({ success: false, message: 'A referral code was already applied to your account.' });
-
-    // A doctor can only be referred by another doctor.
-    const referrer = await DoctorProfile.findOne({ referralCode: code.trim().toUpperCase() });
-    if (!referrer) return res.status(404).json({ success: false, message: 'Invalid doctor referral code.' });
-    if (String(referrer._id) === String(me._id)) return res.status(400).json({ success: false, message: "You can't use your own referral code." });
-
-    me.referredBy = referrer._id;
-    await me.save();
-    res.json({ success: true, message: 'Referral applied! Both doctors get 100 points after your first completed patient treatment.' });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-};
-
-module.exports.getReferral = getReferral;
-module.exports.applyReferral = applyReferral;
-module.exports.getDoctorReferral = getDoctorReferral;
-module.exports.applyDoctorReferral = applyDoctorReferral;

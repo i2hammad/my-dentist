@@ -29,7 +29,7 @@ router.get('/my', protect, authorize('patient'), getMyReviews);
 router.get(
   '/doctor/:doctorId',
   [
-    param('doctorId').isMongoId().withMessage('Invalid doctor ID'),
+    param('doctorId').notEmpty().withMessage('Invalid doctor ID'),
     query('page')
       .optional()
       .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
@@ -46,7 +46,7 @@ router.get(
 router.get(
   '/doctor/:doctorId/stats',
   [
-    param('doctorId').isMongoId().withMessage('Invalid doctor ID')
+    param('doctorId').notEmpty().withMessage('Invalid doctor ID')
   ],
   validate,
   getDoctorReviewStats
@@ -63,7 +63,7 @@ router.post(
   [
     body('doctorId')
       .notEmpty().withMessage('Doctor ID is required')
-      .isMongoId().withMessage('Invalid doctor ID'),
+      .notEmpty().withMessage('Invalid doctor ID'),
     body('rating')
       .notEmpty().withMessage('Rating is required')
       .isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5'),
@@ -82,7 +82,7 @@ router.put(
   '/:id/helpful',
   protect,
   [
-    param('id').isMongoId().withMessage('Invalid review ID')
+    param('id').notEmpty().withMessage('Invalid review ID')
   ],
   validate,
   toggleHelpful
@@ -94,7 +94,7 @@ router.put(
   '/:id/reply',
   protect,
   authorize('doctor'),
-  [param('id').isMongoId().withMessage('Invalid review ID')],
+  [param('id').notEmpty().withMessage('Invalid review ID')],
   validate,
   replyToReview
 );
@@ -105,7 +105,7 @@ router.delete(
   '/:id',
   protect,
   [
-    param('id').isMongoId().withMessage('Invalid review ID')
+    param('id').notEmpty().withMessage('Invalid review ID')
   ],
   validate,
   deleteReview

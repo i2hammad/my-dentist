@@ -30,7 +30,7 @@ router.post(
   [
     body('doctorId')
       .notEmpty().withMessage('Doctor ID is required')
-      .isMongoId().withMessage('Invalid doctor ID'),
+      .notEmpty().withMessage('Invalid doctor ID'),
     body('treatmentType')
       .notEmpty().withMessage('Treatment type is required')
       .trim()
@@ -85,13 +85,13 @@ router.get(
 router.get(
   '/doctor/:doctorId/booked-slots',
   [
-    param('doctorId').isMongoId().withMessage('Invalid doctor ID'),
+    param('doctorId').notEmpty().withMessage('Invalid doctor ID'),
     query('date')
       .notEmpty().withMessage('Date is required')
       .isISO8601().withMessage('Date must be a valid ISO date'),
     query('excludeId')
       .optional()
-      .isMongoId().withMessage('Invalid appointment ID to exclude')
+      .notEmpty().withMessage('Invalid appointment ID to exclude')
   ],
   validate,
   getBookedSlots
@@ -102,7 +102,7 @@ router.get(
 router.get(
   '/:id',
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID')
+    param('id').notEmpty().withMessage('Invalid appointment ID')
   ],
   validate,
   getAppointment
@@ -113,7 +113,7 @@ router.get(
 router.put(
   '/:id/reschedule',
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID'),
+    param('id').notEmpty().withMessage('Invalid appointment ID'),
     body('date')
       .notEmpty().withMessage('Date is required')
       .isISO8601().withMessage('Date must be a valid ISO date')
@@ -139,7 +139,7 @@ router.put(
 router.put(
   '/:id/cancel',
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID')
+    param('id').notEmpty().withMessage('Invalid appointment ID')
   ],
   validate,
   cancelAppointment
@@ -151,7 +151,7 @@ router.put(
   '/:id/complete',
   authorize('doctor'),
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID'),
+    param('id').notEmpty().withMessage('Invalid appointment ID'),
     body('visitSummary')
       .optional()
       .trim()
@@ -166,7 +166,7 @@ router.put(
 router.get(
   '/:id/visit-summary',
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID')
+    param('id').notEmpty().withMessage('Invalid appointment ID')
   ],
   validate,
   getVisitSummary
@@ -178,7 +178,7 @@ router.post(
   '/:id/visit-summary',
   authorize('doctor'),
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID'),
+    param('id').notEmpty().withMessage('Invalid appointment ID'),
     body('visitSummary')
       .notEmpty().withMessage('Visit summary is required')
       .trim()
@@ -194,7 +194,7 @@ router.put(
   '/:id/confirm',
   authorize('doctor'),
   [
-    param('id').isMongoId().withMessage('Invalid appointment ID')
+    param('id').notEmpty().withMessage('Invalid appointment ID')
   ],
   validate,
   confirmAppointment

@@ -1,14 +1,20 @@
-const Bill = require('../models/Bill');
-const DoctorProfile = require('../models/DoctorProfile');
-const AppSettings = require('../models/AppSettings');
-const CommissionLog = require('../models/CommissionLog');
+const prisma = require('../config/prisma');
 
-// Doctors are auto-blocked once their outstanding platform-fee dues reach this.
+// Default fallback if settings are unavailable. The live value is admin-managed
+// (AppSettings.commissionBlockThreshold).
 const COMMISSION_BLOCK_THRESHOLD = 50000;
 
+// Rate (%) + auto-block dues threshold (PKR), both admin-managed.
+async function getCommissionConfig() {
+  const s = await prisma.appSettings.findUnique({ where: { key: 'global' }, select: { commissionRate: true, commissionBlockThreshold: true } });
+  return {
+    rate: s?.commissionRate ?? 10,
+    threshold: s?.commissionBlockThreshold ?? COMMISSION_BLOCK_THRESHOLD,
+  };
+}
+
 async function getCommissionRate() {
-  const s = await AppSettings.findOne({ key: 'global' }).select('commissionRate').lean();
-  return s?.commissionRate ?? 10;
+  return (await getCommissionConfig()).rate;
 }
 
 // What commission a bill SHOULD have accrued given its current state.
@@ -20,28 +26,18 @@ function targetCommission(bill, rate) {
 
 /**
  * Reconcile ONE bill's platform commission against its doctor's outstanding dues.
- *
- * Safe to call after any create / edit / pay / unpay: it applies only the DELTA
- * between what the bill should have accrued (rate% of collected) and what it has
- * already accrued (`bill.commissionAccrued`). So it is:
- *   - idempotent  — re-saving a paid bill unchanged is a no-op (delta 0)
- *   - reversible  — un-paying a bill or lowering its amount removes commission
- *   - atomic      — an optimistic compare-and-set on the bill guards the delta,
- *                   and the doctor's dues move via an atomic `$inc`
- *
- * @param {ObjectId|string} billId
- * @param {{ autoBlock?: boolean, actorName?: string }} [opts]
+ * Idempotent + reversible + atomic (optimistic compare-and-set on the bill, then
+ * an atomic increment on the doctor's dues).
  */
 async function reconcileBillCommission(billId, opts = {}) {
   const { autoBlock = true, actorName = 'System' } = opts;
-  const rate = await getCommissionRate();
+  const { rate, threshold } = await getCommissionConfig();
 
-  // Retry a few times: the optimistic set below only succeeds if the bill's
-  // accrued value hasn't been changed by a concurrent reconcile in between.
   for (let attempt = 0; attempt < 4; attempt++) {
-    const bill = await Bill.findById(billId)
-      .select('status paidAmount finalAmount amount doctorId commissionAccrued')
-      .lean();
+    const bill = await prisma.bill.findUnique({
+      where: { id: billId },
+      select: { id: true, status: true, paidAmount: true, finalAmount: true, amount: true, doctorId: true, commissionAccrued: true },
+    });
     if (!bill || !bill.doctorId) return;
 
     const prevAccrued = bill.commissionAccrued || 0;
@@ -49,50 +45,46 @@ async function reconcileBillCommission(billId, opts = {}) {
     const delta = target - prevAccrued;
     if (delta === 0) return;
 
-    // Compare-and-set: only stamp the new accrual if nobody else changed it since
-    // we read it. If they did, `modifiedCount` is 0 and we retry with fresh state.
-    const cas = await Bill.updateOne(
-      { _id: bill._id, commissionAccrued: prevAccrued },
-      { $set: { commissionAccrued: target } }
-    );
-    if (cas.modifiedCount === 0) continue; // lost the race — re-read and retry
+    // Compare-and-set: stamp the new accrual only if nobody changed it since we read.
+    const cas = await prisma.bill.updateMany({
+      where: { id: bill.id, commissionAccrued: prevAccrued },
+      data: { commissionAccrued: target },
+    });
+    if (cas.count === 0) continue; // lost the race — re-read and retry
 
     // Move the doctor's dues by exactly this delta (atomic).
-    const doc = await DoctorProfile.findByIdAndUpdate(
-      bill.doctorId,
-      { $inc: { commissionDue: delta } },
-      { new: true }
-    ).select('commissionDue isBlocked blockReason fullName');
+    const doc = await prisma.doctorProfile.update({
+      where: { id: bill.doctorId },
+      data: { commissionDue: { increment: delta } },
+      select: { commissionDue: true, isBlocked: true, blockReason: true, fullName: true },
+    }).catch(() => null);
     if (!doc) return;
 
-    // Guard against negative dues (e.g. reversing a bill whose commission was
-    // already cleared by an admin). Floor at 0 without clobbering concurrent incs.
+    // Floor dues at 0 (e.g. reversing a bill whose commission was already cleared).
     if ((doc.commissionDue || 0) < 0) {
-      await DoctorProfile.updateOne(
-        { _id: bill.doctorId, commissionDue: { $lt: 0 } },
-        { $set: { commissionDue: 0 } }
-      );
+      await prisma.doctorProfile.updateMany({ where: { id: bill.doctorId, commissionDue: { lt: 0 } }, data: { commissionDue: 0 } });
       doc.commissionDue = 0;
     }
 
-    // Auto-block once dues cross the threshold (mirrors admin "Add Dues").
-    if (autoBlock && delta > 0 && (doc.commissionDue || 0) >= COMMISSION_BLOCK_THRESHOLD && !doc.isBlocked) {
-      await DoctorProfile.updateOne(
-        { _id: bill.doctorId, isBlocked: { $ne: true } },
-        { $set: { isBlocked: true, blockReason: `Outstanding commission dues of PKR ${(doc.commissionDue || 0).toLocaleString()}. Clear dues and contact admin to unblock.` } }
-      );
+    // Auto-block once dues cross the threshold.
+    if (autoBlock && delta > 0 && (doc.commissionDue || 0) >= threshold && !doc.isBlocked) {
+      await prisma.doctorProfile.updateMany({
+        where: { id: bill.doctorId, isBlocked: false },
+        data: { isBlocked: true, blockReason: `Outstanding commission dues of PKR ${(doc.commissionDue || 0).toLocaleString()}. Clear dues and contact admin to unblock.` },
+      });
     }
 
-    // Best-effort ledger entry (never breaks the request flow).
     try {
-      await CommissionLog.create({
-        doctorId: bill.doctorId,
-        doctorName: doc.fullName || '',
-        type: delta > 0 ? 'accrue' : 'reverse',
-        amount: Math.abs(delta),
-        balanceAfter: doc.commissionDue || 0,
-        note: `Auto ${delta > 0 ? 'accrued' : 'reversed'} ${rate}% platform fee on bill ${bill._id}`,
-        actorName,
+      await prisma.commissionLog.create({
+        data: {
+          doctorId: bill.doctorId,
+          doctorName: doc.fullName || '',
+          type: delta > 0 ? 'accrue' : 'reverse',
+          amount: Math.abs(delta),
+          balanceAfter: doc.commissionDue || 0,
+          note: `Auto ${delta > 0 ? 'accrued' : 'reversed'} ${rate}% platform fee on bill ${bill.id}`,
+          actorName,
+        },
       });
     } catch (_) { /* logging must not break billing */ }
 
@@ -100,4 +92,4 @@ async function reconcileBillCommission(billId, opts = {}) {
   }
 }
 
-module.exports = { reconcileBillCommission, targetCommission, getCommissionRate, COMMISSION_BLOCK_THRESHOLD };
+module.exports = { reconcileBillCommission, targetCommission, getCommissionRate, getCommissionConfig, COMMISSION_BLOCK_THRESHOLD };

@@ -18,7 +18,8 @@ const {
   applyDoctorReferral
 } = require('../controllers/user.controller');
 
-const AppSettings = require('../models/AppSettings');
+const { getOrCreateSettings } = require('../controllers/admin.controller');
+const { DEFAULT_FACILITY_CATEGORIES } = require('../utils/appDefaults');
 
 const router = express.Router();
 
@@ -40,8 +41,7 @@ router.get('/me', getMe);
 // @desc    Return public platform payment accounts (set by admin) to any logged-in user
 router.get('/platform-settings', async (req, res) => {
   try {
-    let s = await AppSettings.findOne({ key: 'global' });
-    if (!s) s = await AppSettings.create({ key: 'global' });
+    const s = await getOrCreateSettings();
     res.json({
       success: true,
       data: {
@@ -60,7 +60,7 @@ router.get('/platform-settings', async (req, res) => {
         commissionRate: s.commissionRate ?? 10,
         popularPointsThreshold: s.popularPointsThreshold ?? 20000,
         // Admin-managed clinic facilities catalogue + tier score ranges.
-        facilityCategories: (s.facilityCategories && s.facilityCategories.length) ? s.facilityCategories : AppSettings.DEFAULT_FACILITY_CATEGORIES,
+        facilityCategories: (s.facilityCategories && s.facilityCategories.length) ? s.facilityCategories : DEFAULT_FACILITY_CATEGORIES,
         clinicTierThresholds: {
           modern: s.clinicTierThresholds?.modern ?? 16,
           elite:  s.clinicTierThresholds?.elite  ?? 31,

@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import storage from '../../config/storage';
+import { appendImageFile } from '../../utils/formImage';
 import API_BASE_URL from '../../config/api';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../utils/support';
 
@@ -263,11 +264,7 @@ export default function DoctorProfileScreen({ navigation }) {
       setLoading(true);
       const token = await storage.getItem('userToken');
       const fd = new FormData();
-      let uri = asset.uri;
-      if (Platform.OS === 'android' && !uri.startsWith('file://')) uri = `file://${uri}`;
-      const name = asset.fileName || uri.split('/').pop() || 'upload.jpg';
-      const ext = uri.split('.').pop().toLowerCase();
-      fd.append('file', { uri, name, type: ext === 'png' ? 'image/png' : 'image/jpeg' });
+      await appendImageFile(fd, 'file', asset.uri, asset.fileName || 'upload.jpg');
 
       const res = await fetch(`${API_BASE_URL}/api/users/upload`, {
         method: 'POST',

@@ -5,6 +5,7 @@ import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
 import imgUrl from '../../../config/imgUrl';
 import storage from '../../../config/storage';
+import { appendImageFile } from '../../../utils/formImage';
 import confirmAlert from '../../../utils/confirmAlert';
 
 
@@ -81,14 +82,7 @@ export default function GalleryTab({ profile }) {
       
       // 1. Upload image file
       const formData = new FormData();
-      let uri = asset.uri;
-      if (Platform.OS === 'android' && !uri.startsWith('file://')) {
-        uri = `file://${uri}`;
-      }
-      const name = asset.fileName || uri.split('/').pop() || 'upload.jpg';
-      const ext = uri.split('.').pop().toLowerCase();
-      const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-      formData.append('file', { uri, name, type });
+      await appendImageFile(formData, 'file', asset.uri, asset.fileName || 'upload.jpg');
 
       const res = await fetch(`${API_BASE_URL}/api/users/upload`, {
         method: 'POST',
@@ -128,14 +122,7 @@ export default function GalleryTab({ profile }) {
 
       const uploadSingleFile = async (asset) => {
         const formData = new FormData();
-        let uri = asset.uri;
-        if (Platform.OS === 'android' && !uri.startsWith('file://')) {
-          uri = `file://${uri}`;
-        }
-        const name = asset.fileName || uri.split('/').pop() || 'upload.jpg';
-        const ext = uri.split('.').pop().toLowerCase();
-        const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-        formData.append('file', { uri, name, type });
+        await appendImageFile(formData, 'file', asset.uri, asset.fileName || 'upload.jpg');
 
         const res = await fetch(`${API_BASE_URL}/api/users/upload`, {
           method: 'POST',

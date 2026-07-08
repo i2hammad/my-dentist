@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import storage from '../../config/storage';
+import { appendImageFile } from '../../utils/formImage';
 import API_BASE_URL from '../../config/api';
 
 const { width } = Dimensions.get('window');
@@ -191,15 +192,7 @@ export default function DoctorRegisterScreen({ navigation }) {
     if (typeof asset === 'string') return asset; // Return already uploaded path
     try {
       const formData = new FormData();
-      let uri = asset.uri;
-      if (Platform.OS === 'android' && !uri.startsWith('file://')) {
-        uri = `file://${uri}`;
-      }
-      const name = asset.fileName || uri.split('/').pop() || 'upload.jpg';
-      const ext = uri.split('.').pop().toLowerCase();
-      const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-
-      formData.append('file', { uri, name, type });
+      await appendImageFile(formData, 'file', asset.uri, asset.fileName || 'upload.jpg');
 
       const res = await fetch(`${API_BASE_URL}/api/users/upload`, {
         method: 'POST',

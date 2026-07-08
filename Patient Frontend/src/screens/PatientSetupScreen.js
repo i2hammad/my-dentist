@@ -91,18 +91,19 @@ export default function PatientSetupScreen({ navigation }) {
     try {
       const formData = new FormData();
       let uri = localUri;
-      if (Platform.OS === 'android' && !uri.startsWith('file://')) {
-        uri = `file://${uri}`;
-      }
-      const name = uri.split('/').pop() || 'avatar.jpg';
-      const ext = uri.split('.').pop().toLowerCase();
-      const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+      const name = (uri.split('/').pop() || 'avatar.jpg').split('?')[0];
 
-      formData.append('avatar', {
-        uri,
-        name,
-        type,
-      });
+      if (Platform.OS === 'web') {
+        // Browsers need a real Blob/File — the RN { uri, name, type } shape is
+        // sent as "[object Object]" on web, so the server sees no file (400).
+        const blob = await (await fetch(uri)).blob();
+        formData.append('avatar', blob, name.includes('.') ? name : 'avatar.jpg');
+      } else {
+        if (Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://')) uri = `file://${uri}`;
+        const ext = (name.split('.').pop() || 'jpg').toLowerCase();
+        const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        formData.append('avatar', { uri, name, type });
+      }
 
       const res = await fetch(`${API_BASE_URL}/api/users/upload-avatar`, {
         method: 'POST',

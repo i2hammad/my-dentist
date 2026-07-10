@@ -8,6 +8,11 @@ import confirmAlert from '../../../utils/confirmAlert';
 
 const { width } = Dimensions.get('window');
 
+// A row is server-persisted if its id is NOT the client's temporary numeric
+// timestamp (addNewTreatment uses `Date.now().toString()` → all digits).
+// Real ids are Mongo ObjectIds or Prisma cuids, which always contain letters.
+const isSavedId = (id) => typeof id === 'string' && id.length > 0 && !/^\d+$/.test(id);
+
 
 export default function TreatmentsTab({ profile }) {
   const [treatments, setTreatments] = useState([]);
@@ -96,11 +101,14 @@ export default function TreatmentsTab({ profile }) {
           active: t.isActive
         };
 
-        if (t._id && t._id.length === 24) {
-          // Update
+        // Existing (server) rows have a real id (Mongo ObjectId or Prisma cuid);
+        // new rows created client-side use an all-numeric timestamp id. Anything
+        // non-numeric = a persisted record → UPDATE, else CREATE. (The old
+        // `length === 24` check assumed Mongo ObjectIds and wrongly treated
+        // Postgres cuids as new, re-POSTing them → "treatment already exists".)
+        if (isSavedId(t._id)) {
           await axios.put(`${API_BASE_URL}/api/treatments/${t._id}`, payload, { headers });
         } else {
-          // Create
           await axios.post(`${API_BASE_URL}/api/treatments`, payload, { headers });
         }
       }
@@ -185,7 +193,9 @@ export default function TreatmentsTab({ profile }) {
             <TouchableOpacity
               style={styles.deleteBtn}
               onPress={() => {
-                if (t._id && t._id.length === 24) {
+                // Only server-persisted rows need a DELETE call; new unsaved rows
+                // (numeric temp id) are just dropped from local state.
+                if (isSavedId(t._id)) {
                   setDeletedIds(prev => [...prev, t._id]);
                 }
                 setTreatments(prev => prev.filter(item => item._id !== t._id));

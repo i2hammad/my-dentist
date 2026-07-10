@@ -1,11 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, Modal, FlatList, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, Modal, FlatList, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import storage from '../../config/storage';
 import { appendImageFile } from '../../utils/formImage';
+import { compressImage, getByteSize, formatBytes } from '../../utils/imageTools';
+import { sanitizePhone } from '../../utils/phone';
+import CityPicker from '../../components/CityPicker';
+import AvatarCropper from '../../components/AvatarCropper';
 import API_BASE_URL from '../../config/api';
 
 const { width } = Dimensions.get('window');
@@ -108,6 +112,10 @@ export default function DoctorRegisterScreen({ navigation }) {
   const [licenseCert, setLicenseCert] = useState(null);
   const [idFront, setIdFront] = useState(null);
   const [idBack, setIdBack] = useState(null);
+  // Submit-time upload progress window: { label, index, total, percent }
+  const [upProgress, setUpProgress] = useState(null);
+  // Web avatar crop step: { uri, fileName, origSize, setter }
+  const [cropper, setCropper] = useState(null);
 
   // Professional Info State
   const [fullName, setFullName] = useState('');
@@ -161,19 +169,42 @@ export default function DoctorRegisterScreen({ navigation }) {
   const [city, setCity] = useState('');
   const [about, setAbout] = useState('');
 
-  const pickDocument = async (setter) => {
+  const pickDocument = async (setter, isAvatar = false) => {
     try {
+      const isWeb = Platform.OS === 'web';
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.7,
+        // Native avatar → OS crop UI. Web avatar → our draggable cropper (below).
+        allowsEditing: isAvatar && !isWeb,
+        aspect: isAvatar ? [1, 1] : undefined,
+        quality: 1,                       // pick full quality; we compress ourselves
       });
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setter(result.assets[0]);
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+
+      // Web avatar → open the reposition/zoom cropper first.
+      if (isAvatar && isWeb) {
+        setCropper({ uri: asset.uri, fileName: asset.fileName || 'avatar.jpg', origSize: asset.fileSize || 0, setter });
+        return;
       }
+
+      const origSize = asset.fileSize || (await getByteSize(asset.uri));
+      // Auto-compress: avatar → fixed 512² square; docs → cap 1600px longest edge.
+      const out = isAvatar
+        ? await compressImage(asset.uri, { quality: 0.75, square: 512 })
+        : await compressImage(asset.uri, { quality: 0.6, maxDim: 1600 });
+      setter({ ...asset, uri: out.uri, fileName: asset.fileName || 'upload.jpg', origSize, size: out.size || origSize });
     } catch (err) {
       console.log('Pick error:', err);
     }
+  };
+
+  // Web avatar cropper confirmed → stash the cropped 512² blob for submit upload.
+  const onCropped = (out) => {
+    const c = cropper;
+    setCropper(null);
+    if (!out || !c) return;
+    c.setter({ uri: out.uri, fileName: c.fileName || 'avatar.jpg', origSize: c.origSize || out.size, size: out.size });
   };
 
   const getFileName = (asset) => {
@@ -187,26 +218,34 @@ export default function DoctorRegisterScreen({ navigation }) {
     return parts[parts.length - 1];
   };
 
-  const uploadFile = async (asset, token) => {
+  const uploadFile = async (asset, token, meta = {}) => {
     if (!asset) return null;
     if (typeof asset === 'string') return asset; // Return already uploaded path
+    const { label = 'document', index = 1, total = 1 } = meta;
+    setUpProgress({ label, index, total, percent: 0 });
     try {
       const formData = new FormData();
       await appendImageFile(formData, 'file', asset.uri, asset.fileName || 'upload.jpg');
 
-      const res = await fetch(`${API_BASE_URL}/api/users/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
+      // XHR so we can report real upload progress (fetch can't).
+      const url = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE_URL}/api/users/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUpProgress((p) => (p ? { ...p, percent: Math.round((e.loaded / e.total) * 100) } : p));
+        };
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText || '{}');
+            if (xhr.status >= 200 && xhr.status < 300 && data.success) resolve(data.data.url);
+            else reject(new Error(data.message || `Upload failed (${xhr.status})`));
+          } catch (e) { reject(new Error('Unexpected server response')); }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.send(formData);
       });
-
-      const data = await res.json();
-      if (data?.success) {
-        return data.data.url;
-      }
-      throw new Error(data?.message || 'Upload failed');
+      return url;
     } catch (err) {
       console.error('File upload error:', err);
       throw err;
@@ -258,10 +297,27 @@ export default function DoctorRegisterScreen({ navigation }) {
       let idBackUrl = '';
       let avatarUrl = '';
 
-      if (avatar) avatarUrl = await uploadFile(avatar, token);
-      if (licenseCert) licenseCertUrl = await uploadFile(licenseCert, token);
-      if (idFront) idFrontUrl = await uploadFile(idFront, token);
-      if (idBack) idBackUrl = await uploadFile(idBack, token);
+      // Count only the images that still need uploading (skip already-uploaded string paths).
+      const pending = [
+        ['Profile Picture', avatar],
+        ['License / Registration', licenseCert],
+        ['ID Card Front', idFront],
+        ['ID Card Back', idBack],
+      ].filter(([, a]) => a && typeof a !== 'string');
+      const total = pending.length;
+      let idx = 0;
+      const doUpload = async (asset, label) => {
+        if (!asset) return '';
+        if (typeof asset === 'string') return asset;
+        idx += 1;
+        return uploadFile(asset, token, { label, index: idx, total });
+      };
+
+      avatarUrl = await doUpload(avatar, 'Profile Picture');
+      licenseCertUrl = await doUpload(licenseCert, 'License / Registration');
+      idFrontUrl = await doUpload(idFront, 'ID Card Front');
+      idBackUrl = await doUpload(idBack, 'ID Card Back');
+      setUpProgress(null);
 
       // 2. Build GeoJSON location point if coordinates are provided
       let location = undefined;
@@ -318,14 +374,15 @@ export default function DoctorRegisterScreen({ navigation }) {
       }
     } finally {
       setSubmitting(false);
+      setUpProgress(null);
     }
   };
 
-  const renderUploadButton = (label, subtitle, asset, setter) => (
+  const renderUploadButton = (label, subtitle, asset, setter, isAvatar = false) => (
     <TouchableOpacity
       style={styles.uploadButton}
       activeOpacity={0.7}
-      onPress={() => pickDocument(setter)}
+      onPress={() => pickDocument(setter, isAvatar)}
     >
       <View style={styles.uploadIconWrap}>
         <Ionicons name="cloud-upload-outline" size={24} color="#0052FF" />
@@ -334,13 +391,17 @@ export default function DoctorRegisterScreen({ navigation }) {
         <Text style={styles.uploadLabel}>{label}</Text>
         {asset ? (
           <Text style={styles.uploadFileSelected} numberOfLines={1}>
-            ✓ {getFileName(asset)}
+            ✓ {getFileName(asset)}{asset?.size ? ` · ${formatBytes(asset.size)}` : ''}
           </Text>
         ) : (
           <Text style={styles.uploadSubtitle}>{subtitle}</Text>
         )}
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+      {asset?.uri ? (
+        <Image source={{ uri: asset.uri }} style={[styles.uploadThumb, isAvatar && { borderRadius: 20 }]} />
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+      )}
     </TouchableOpacity>
   );
 
@@ -381,10 +442,11 @@ export default function DoctorRegisterScreen({ navigation }) {
             <TextInput
               style={styles.input}
               value={mobile}
-              onChangeText={setMobile}
-              placeholder="03XXXXXXXX"
+              onChangeText={(t) => setMobile(sanitizePhone(t))}
+              placeholder="03XXXXXXXXX"
               placeholderTextColor="#94A3B8"
               keyboardType="phone-pad"
+              maxLength={11}
             />
           </View>
 
@@ -419,25 +481,26 @@ export default function DoctorRegisterScreen({ navigation }) {
           {/* Upload Buttons */}
           {renderUploadButton(
             'Profile Picture (Avatar)',
-            'Upload clear face photo',
+            'Clear face photo · square, 512×512px',
             avatar,
-            setAvatar
+            setAvatar,
+            true // avatar → square crop
           )}
           {renderUploadButton(
             'License / Registration Certificate',
-            'Upload clear image or PDF',
+            'Clear scan · portrait, ~1200×1600px',
             licenseCert,
             setLicenseCert
           )}
           {renderUploadButton(
             'ID Card Front',
-            'Upload clear image or PDF',
+            'Clear photo · ~1000×640px',
             idFront,
             setIdFront
           )}
           {renderUploadButton(
             'ID Card Back',
-            'Upload clear image or PDF',
+            'Clear photo · ~1000×640px',
             idBack,
             setIdBack
           )}
@@ -506,10 +569,11 @@ export default function DoctorRegisterScreen({ navigation }) {
             <TextInput
               style={styles.input}
               value={clinicContact}
-              onChangeText={setClinicContact}
-              placeholder="Clinic phone number"
+              onChangeText={(t) => setClinicContact(sanitizePhone(t))}
+              placeholder="03XXXXXXXXX"
               placeholderTextColor="#94A3B8"
               keyboardType="phone-pad"
+              maxLength={11}
             />
           </View>
 
@@ -577,16 +641,7 @@ export default function DoctorRegisterScreen({ navigation }) {
 
           {/* City */}
           <Text style={styles.label}>City <Text style={styles.required}>*</Text></Text>
-          <View style={styles.inputContainer}>
-            <Ionicons name="navigate-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              value={city}
-              onChangeText={setCity}
-              placeholder="e.g. Lahore"
-              placeholderTextColor="#94A3B8"
-            />
-          </View>
+          <CityPicker value={city} onSelect={setCity} placeholder="Select your city" />
 
           {/* About / Biography */}
           <Text style={styles.label}>About You (Biography) <Text style={styles.required}>*</Text></Text>
@@ -639,6 +694,40 @@ export default function DoctorRegisterScreen({ navigation }) {
 
         <View style={{ height: 50 }} />
       </ScrollView>
+
+      {/* Web avatar cropper — drag to reposition + zoom before saving */}
+      <Modal visible={!!cropper} transparent animationType="fade" onRequestClose={() => setCropper(null)}>
+        <View style={styles.upOverlay}>
+          <View style={styles.upCard}>
+            {!!cropper && (
+              <AvatarCropper uri={cropper.uri} out={512} onCancel={() => setCropper(null)} onDone={onCropped} />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Upload progress window (during submit) */}
+      <Modal visible={!!upProgress} transparent animationType="fade">
+        <View style={styles.upOverlay}>
+          <View style={styles.upCard}>
+            <View style={styles.upIconWrap}>
+              <Ionicons name="cloud-upload" size={26} color="#0052FF" />
+            </View>
+            <Text style={styles.upTitle}>Uploading documents</Text>
+            <Text style={styles.upSub}>
+              {upProgress ? `${upProgress.label} · ${upProgress.index} of ${upProgress.total}` : ''}
+            </Text>
+            <View style={styles.upTrack}>
+              <View style={[styles.upFill, { width: `${upProgress?.percent || 0}%` }]} />
+            </View>
+            <Text style={styles.upPct}>{upProgress?.percent || 0}%</Text>
+            <View style={styles.upBusyRow}>
+              <ActivityIndicator size="small" color="#0052FF" />
+              <Text style={styles.upBusyText}>Please keep this screen open…</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -834,6 +923,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 14,
   },
+  uploadThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
+  // Upload progress window
+  upOverlay: { flex: 1, backgroundColor: 'rgba(10,21,81,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  upCard: { width: Math.min(Dimensions.get('window').width - 40, 360), backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 30, elevation: 12 },
+  upIconWrap: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  upTitle: { fontSize: 16.5, fontWeight: '800', color: '#0A1551' },
+  upSub: { fontSize: 13, color: '#64748B', marginTop: 4, fontWeight: '600', textAlign: 'center' },
+  upTrack: { width: '100%', height: 8, borderRadius: 4, backgroundColor: '#E8EFFF', overflow: 'hidden', marginTop: 16 },
+  upFill: { height: 8, borderRadius: 4, backgroundColor: '#0052FF' },
+  upPct: { fontSize: 13, fontWeight: '800', color: '#0052FF', marginTop: 8 },
+  upBusyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  upBusyText: { fontSize: 12.5, color: '#64748B', fontWeight: '600' },
   uploadIconWrap: {
     width: 36,
     height: 36,

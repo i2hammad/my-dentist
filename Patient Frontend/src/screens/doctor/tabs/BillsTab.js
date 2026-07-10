@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Image, ActivityIndicator, Alert, Share, Platform, Modal, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Image, ActivityIndicator, Alert, Share, Platform, Modal, Linking, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import API_BASE_URL from '../../../config/api';
@@ -116,6 +116,11 @@ export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'therm
 }
 
 export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [], editBillId = null, billPrefill = null }) {
+  // Reactive breakpoint (module-scope `isWide` is only used for static styles).
+  // Two-column bill form + wide invoice table need real room → 900px.
+  const winW = useWindowDimensions().width;
+  const wide = winW >= 900;
+
   const [subTab, setSubTab] = useState('previous'); // previous, current, print
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,8 +185,9 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     setDiscount(String(bill.discountFromRewards || 0));
     setPaidAmount(String(bill.paidAmount || 0));
     const p = bill.patientId;
-    if (p && (p._id || p)) {
-      setSelectedPatient({ id: p._id || p, name: p.fullName || 'Patient', phone: p.mobileNumber || '' });
+    const pid = (p && typeof p === 'object') ? (p._id || p.id) : p;
+    if (pid) {
+      setSelectedPatient({ id: pid, name: p?.fullName || 'Patient', phone: p?.mobileNumber || '' });
     }
     setSubTab('current');
     Alert.alert('Editing Bill', 'This bill is loaded for editing. Update it and save.');
@@ -373,13 +379,14 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     
     const patientMap = {};
     allApts.forEach(apt => {
-      if (apt.patientId && apt.patientId._id) {
-        const pid = apt.patientId._id;
+      const pobj = apt.patientId;
+      const pid = pobj && typeof pobj === 'object' ? (pobj._id || pobj.id) : pobj;
+      if (pobj && pid) {
         if (!patientMap[pid]) {
           patientMap[pid] = {
             id: pid,
-            name: apt.patientId.fullName || 'Patient',
-            phone: apt.patientId.mobileNumber || '',
+            name: pobj.fullName || 'Patient',
+            phone: pobj.mobileNumber || '',
             appointments: [],
           };
         }
@@ -412,7 +419,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   useEffect(() => {
     if (!billPrefill || !billPrefill.patientId) return;
     setEditingBillId(null);
-    setSelectedPatient({ id: billPrefill.patientId, name: billPrefill.patientName || 'Patient', phone: billPrefill.patientPhone || '' });
+    const bpid = (typeof billPrefill.patientId === 'object') ? (billPrefill.patientId._id || billPrefill.patientId.id) : billPrefill.patientId;
+    setSelectedPatient({ id: bpid, name: billPrefill.patientName || 'Patient', phone: billPrefill.patientPhone || '' });
     const names = String(billPrefill.treatmentType || '').split(',').map((t) => t.trim()).filter(Boolean);
     setItems(names.length ? names.map((name) => ({ name, price: '' })) : [{ name: '', price: '' }]);
     setTreatmentMode('edit');
@@ -524,9 +532,19 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       setSaving(true);
       const token = await storage.getItem('userToken');
 
+      // Normalize the patient id — selectedPatient.id may itself be a populated
+      // object (backend serialize sometimes omits _id) which would 500 the query.
+      const pid = selectedPatient.id;
+      const patientId = (pid && typeof pid === 'object') ? (pid._id || pid.id) : pid;
+      if (!patientId || typeof patientId !== 'string') {
+        setSaving(false);
+        Alert.alert('Error', 'Could not resolve the selected patient. Please re-select the patient and try again.');
+        return;
+      }
+
       const treatmentName = items.map(it => it.name).filter(Boolean).join(', ') || 'Draft Bill';
       const payload = {
-        patientId: selectedPatient.id,
+        patientId,
         treatmentName,
         // Persist per-treatment line items so editing later restores exact prices.
         treatments: items
@@ -597,11 +615,20 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         );
       }
     } catch (err) {
-      console.log('Error creating bill:', err);
+      console.log('Error creating bill:', err?.response?.status, err?.response?.data || err?.message);
+      const status = err?.response?.status;
       const errors = err.response?.data?.errors;
-      const msg = (errors && errors.length > 0)
-        ? errors.map(e => e.message).join('\n')
-        : (err.response?.data?.message || (asDraft ? 'Failed to save draft. Please try again.' : 'Failed to create bill.'));
+      let msg;
+      if (status === 401 || status === 403) {
+        msg = 'Your session has expired. Please log in again and retry.';
+      } else if (errors && errors.length > 0) {
+        msg = errors.map(e => e.message).join('\n');
+      } else {
+        msg = err.response?.data?.message
+          || err.response?.data?.error
+          || err.message
+          || (asDraft ? 'Failed to save draft. Please try again.' : 'Failed to create bill.');
+      }
       Alert.alert(asDraft ? 'Draft Not Saved' : 'Error', msg);
     } finally {
       setSaving(false);
@@ -1013,8 +1040,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               <Text style={{ textAlign: 'center', marginVertical: 30, color: '#94A3B8' }}>
                 {(() => { const noun = subTab === 'drafts' ? 'draft bills' : 'paid bills'; return billSearch || dateRange !== 'all' ? `No ${noun} match your filters.` : `No ${noun} found yet.`; })()}
               </Text>
-            ) : !isWide ? (
-              // ── Phone: stacked cards (no horizontal scroll) ──
+            ) : !wide ? (
+              // ── Phone / narrow web: stacked cards (no horizontal scroll) ──
               <View style={{ marginBottom: 24 }}>
                 {visibleBills.map((inv, idx) => {
                   const billDate = new Date(inv.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -1071,7 +1098,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 })}
               </View>
             ) : (
-              <ScrollView horizontal={false} showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginBottom: 24 }}>
                 <View style={styles.tableContainer}>
                   <View style={styles.tableHeader}>
                     <Text style={[styles.th, {width: 140}]}>Invoice / Patient</Text>
@@ -1221,10 +1248,10 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
             {renderPatientInfo()}
 
-            <View style={styles.splitLayout}>
+            <View style={[styles.splitLayout, { flexDirection: wide ? 'row' : 'column', gap: wide ? 24 : 20 }]}>
               
               {/* Left Col */}
-              <View style={{flex: 1.5, paddingRight: isWide ? 20 : 0}}>
+              <View style={wide ? { flex: 1.5, paddingRight: 20 } : { width: '100%' }}>
                 <Text style={styles.sectionHeading}>Treatments / Items</Text>
 
                 {/* Unified editable cards — one consistent UI (name + price editable, delete) */}
@@ -1272,63 +1299,86 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
               </View>
 
               {/* Right Col */}
-              <View style={{flex: 1}}>
+              <View style={wide ? { flex: 1 } : { width: '100%' }}>
                 <Text style={styles.sectionHeading}>Bill Summary</Text>
-                
+
                 <View style={styles.summaryBox}>
+                  {/* Subtotal */}
                   <View style={styles.sumRow}>
-                    <Text style={styles.sumLabelText}>Total Amount</Text>
+                    <Text style={styles.sumLabelText}>Subtotal</Text>
                     <Text style={styles.sumValText}>PKR {totalAmount.toLocaleString()}</Text>
                   </View>
 
-                  <Text style={styles.sumLabelText}>Redeem Points Code</Text>
-                  <View style={styles.redeemRow}>
-                    <TextInput style={styles.redeemInput} placeholder="Enter points code" value={pointsCode} onChangeText={setPointsCode} />
-                    <TouchableOpacity style={styles.applyBtn} onPress={applyPointsDiscount}><Text style={styles.applyBtnText}>Apply</Text></TouchableOpacity>
+                  {/* Redeem points code */}
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={styles.sumMutedLabel}>Redeem Points Code</Text>
+                    <View style={styles.redeemRow}>
+                      <TextInput style={styles.redeemInput} placeholder="Enter points code" placeholderTextColor="#94A3B8" value={pointsCode} onChangeText={setPointsCode} />
+                      <TouchableOpacity style={styles.applyBtn} onPress={applyPointsDiscount}><Text style={styles.applyBtnText}>Apply</Text></TouchableOpacity>
+                    </View>
                   </View>
 
                   {discountVal > 0 && (
-                    <View style={styles.sumRow}>
-                      <Text style={styles.sumLabelText}>Redeemed Points Discount</Text>
-                      <Text style={[styles.sumValText, {color: '#16A34A'}]}>- PKR {discountVal.toLocaleString()}</Text>
+                    <View style={[styles.sumRow, { marginTop: 10 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <Ionicons name="pricetag" size={13} color="#16A34A" />
+                        <Text style={[styles.sumLabelText, { color: '#16A34A' }]}>Points Discount</Text>
+                      </View>
+                      <Text style={[styles.sumValText, { color: '#16A34A' }]}>− PKR {discountVal.toLocaleString()}</Text>
                     </View>
                   )}
 
-                  <View style={styles.divider} />
-
-                  {/* CUSTOM PAID AMOUNT INPUT */}
-                  <View style={{ marginBottom: 16 }}>
-                    <View style={styles.paidLabelRow}>
-                      <Text style={styles.sumLabelText}>Amount Paid (PKR)</Text>
-                      <TouchableOpacity onPress={() => setPaidAmount(String(finalAmount))} hitSlop={6}>
-                        <Text style={styles.paidInFullLink}>Paid in full</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <TextInput
-                      style={[styles.redeemInput, { marginTop: 6, width: '100%' }]}
-                      value={paidAmount}
-                      keyboardType="numeric"
-                      onChangeText={setPaidAmount}
-                      placeholder="e.g. 300"
-                    />
+                  {/* Payable — the hero row */}
+                  <View style={styles.payableBand}>
+                    <Text style={styles.payableLabel}>Payable Amount</Text>
+                    <Text style={styles.payableValue}>PKR {finalAmount.toLocaleString()}</Text>
                   </View>
 
-                  <View style={styles.sumRow}>
-                    <Text style={[styles.sumLabelText, {fontWeight: 'bold', color: '#0A1551'}]}>Payable Amount</Text>
-                    <Text style={[styles.sumValText, {color: '#0052FF', fontSize: 16}]}>PKR {finalAmount.toLocaleString()}</Text>
+                  {/* Amount paid input */}
+                  <View style={styles.paidLabelRow}>
+                    <Text style={styles.sumMutedLabel}>Amount Paid (PKR)</Text>
+                    <TouchableOpacity onPress={() => setPaidAmount(String(finalAmount))} hitSlop={6} style={styles.paidInFullBtn}>
+                      <Ionicons name="checkmark-circle" size={13} color="#0052FF" />
+                      <Text style={styles.paidInFullLink}>Paid in full</Text>
+                    </TouchableOpacity>
                   </View>
+                  <TextInput
+                    style={styles.paidInput}
+                    value={paidAmount}
+                    keyboardType="numeric"
+                    onChangeText={setPaidAmount}
+                    placeholder="e.g. 300"
+                    placeholderTextColor="#94A3B8"
+                  />
 
-                  <View style={styles.sumRow}>
-                    <Text style={[styles.sumLabelText, {fontWeight: 'bold', color: '#64748B'}]}>Outstanding Balance</Text>
+                  {/* Outstanding status */}
+                  <View style={styles.outRow}>
+                    <Text style={styles.outLabel}>Outstanding Balance</Text>
                     {paidVal > finalAmount ? (
-                      <Text style={[styles.sumValText, { color: '#D97706', fontSize: 15 }]}>Overpaid PKR {(paidVal - finalAmount).toLocaleString()}</Text>
+                      <View style={[styles.statusPill, { backgroundColor: '#FEF3C7' }]}>
+                        <Ionicons name="arrow-up-circle" size={13} color="#D97706" />
+                        <Text style={[styles.statusPillText, { color: '#B45309' }]}>Overpaid PKR {(paidVal - finalAmount).toLocaleString()}</Text>
+                      </View>
                     ) : outstandingVal === 0 && paidVal > 0 ? (
-                      <Text style={[styles.sumValText, { color: '#16A34A', fontSize: 15 }]}>Fully paid ✓</Text>
+                      <View style={[styles.statusPill, { backgroundColor: '#DCFCE7' }]}>
+                        <Ionicons name="checkmark-circle" size={13} color="#16A34A" />
+                        <Text style={[styles.statusPillText, { color: '#15803D' }]}>Fully paid</Text>
+                      </View>
+                    ) : outstandingVal > 0 ? (
+                      <View style={[styles.statusPill, { backgroundColor: '#FEE2E2' }]}>
+                        <Ionicons name="alert-circle" size={13} color="#DC2626" />
+                        <Text style={[styles.statusPillText, { color: '#DC2626' }]}>PKR {outstandingVal.toLocaleString()}</Text>
+                      </View>
                     ) : (
-                      <Text style={[styles.sumValText, {color: outstandingVal > 0 ? '#DC2626' : '#16A34A', fontSize: 16}]}>PKR {outstandingVal.toLocaleString()}</Text>
+                      <Text style={[styles.statusPillText, { color: '#16A34A' }]}>PKR 0</Text>
                     )}
                   </View>
-                  <Text style={styles.rewardHint}>Patient earns ~{Math.floor(finalAmount * 0.02)} pts on payment</Text>
+
+                  {/* Reward hint */}
+                  <View style={styles.rewardChip}>
+                    <Ionicons name="gift" size={13} color="#15803D" />
+                    <Text style={styles.rewardChipText}>Patient earns ~{Math.floor(finalAmount * 0.02)} pts on payment</Text>
+                  </View>
                 </View>
 
                 {/* Action Buttons */}
@@ -1863,8 +1913,8 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 10, fontWeight: 'bold' },
 
   /* Current Bill — paid-in-full, due date, reward hint */
-  paidLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  paidInFullLink: { fontSize: 12, fontWeight: '700', color: '#0052FF' },
+  paidLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  paidInFullLink: { fontSize: 12.5, fontWeight: '800', color: '#0052FF' },
   dueRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   dueChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F7' },
   dueChipActive: { backgroundColor: '#EFF4FF', borderColor: '#D6E2FB' },
@@ -1904,7 +1954,19 @@ const styles = StyleSheet.create({
   dropdownItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
 
   /* Bill Summary Box */
-  summaryBox: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#F1F5F9', borderRadius: 12, padding: 16, marginBottom: 16 },
+  summaryBox: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E8EFFF', borderRadius: 16, padding: 18, marginBottom: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 2 },
+  sumMutedLabel: { fontSize: 11.5, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 },
+  payableBand: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EFF4FF', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, marginTop: 14, marginBottom: 16 },
+  payableLabel: { fontSize: 13.5, fontWeight: '800', color: '#0A1551' },
+  payableValue: { fontSize: 20, fontWeight: '800', color: '#0052FF', letterSpacing: -0.4 },
+  paidInFullBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  paidInput: { borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, height: 42, paddingHorizontal: 12, fontSize: 14, fontWeight: '700', color: '#0A1551', backgroundColor: '#FFF', marginTop: 6 },
+  outRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
+  outLabel: { fontSize: 13, fontWeight: '800', color: '#64748B' },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  statusPillText: { fontSize: 13, fontWeight: '800' },
+  rewardChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#F0FDF4', borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6, marginTop: 14 },
+  rewardChipText: { fontSize: 12, color: '#15803D', fontWeight: '700' },
   payMethodBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1953,13 +2015,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#EF4444'
   },
-  sumRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  sumLabelText: { fontSize: 12, color: '#0A1551', fontWeight: '600' },
-  sumValText: { fontSize: 12, fontWeight: 'bold', color: '#0A1551' },
-  redeemRow: { flexDirection: 'row', gap: 6, marginBottom: 10, marginTop: 4 },
-  redeemInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 6, height: 36, paddingHorizontal: 10, fontSize: 12, color: '#0A1551', backgroundColor: '#FFF' },
-  applyBtn: { backgroundColor: '#FFF', borderWidth: 1, borderColor: '#0052FF', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 6 },
-  applyBtnText: { color: '#0052FF', fontSize: 12, fontWeight: 'bold' },
+  sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sumLabelText: { fontSize: 13, color: '#475569', fontWeight: '600' },
+  sumValText: { fontSize: 14, fontWeight: '800', color: '#0A1551' },
+  redeemRow: { flexDirection: 'row', gap: 8 },
+  redeemInput: { flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, height: 42, paddingHorizontal: 12, fontSize: 13, color: '#0A1551', backgroundColor: '#FFF' },
+  applyBtn: { backgroundColor: '#0052FF', justifyContent: 'center', paddingHorizontal: 18, borderRadius: 10 },
+  applyBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 12 },
 
   actionBtnsRow: { flexDirection: 'row', gap: 10 },

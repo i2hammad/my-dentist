@@ -76,29 +76,18 @@ export default function DoctorHomeScreen({ route, navigation }) {
     if (isFocused) fetchData();
   }, [isFocused]);
 
-  // Auto online/offline based on app state
+  // Refetch when switching INTO a data-driven sub-tab (Appointments / Bills).
+  // Otherwise, switching tabs while already on Home shows the copy fetched at
+  // focus time — stale after marking a visit completed elsewhere, so it drifts
+  // out of sync with the nav Appointments screen (which refetches on focus).
   useEffect(() => {
-    const setStatus = async (status) => {
-      try {
-        const token = await storage.getItem('userToken');
-        if (!token) return;
-        await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { onlineStatus: status }, { headers: { Authorization: `Bearer ${token}` } });
-        setProfile(prev => prev ? { ...prev, onlineStatus: status } : prev);
-      } catch {}
-    };
+    if (isFocused && (activeTab === 'appointments' || activeTab === 'bills')) fetchData();
+  }, [activeTab]);
 
-    setStatus('online'); // set online when screen mounts
-
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setStatus('online');
-      else if (state === 'background' || state === 'inactive') setStatus('offline');
-    });
-
-    return () => {
-      setStatus('offline'); // set offline when screen unmounts
-      sub.remove();
-    };
-  }, []);
+  // NOTE: Online/Offline ("Live") is a MANUAL toggle owned by the Appointments
+  // screen. Home must NOT auto-force it (that stomped the doctor's chosen state
+  // and made Home disagree with the nav toggle) — Home only reflects the real
+  // onlineStatus fetched with the profile.
 
   useEffect(() => {
     if (route?.params?.initialTab) {
@@ -342,8 +331,10 @@ export default function DoctorHomeScreen({ route, navigation }) {
           </ScrollView>
         </View>
 
-        {/* Active Tab Panel */}
-        <View style={{ flex: 1 }}>
+        {/* Active Tab Panel — no flex:1 here; inside a ScrollView it collapses the
+            panel to the viewport height on web and the tall content overlaps the
+            next section. Let it size to its content instead. */}
+        <View>
           {activeTab === 'about' && <AboutTab profile={profile} appointments={appointments} bills={bills} reviewStats={reviewStats} navigation={navigation} setActiveTab={setActiveTab} isProfileComplete={isProfileComplete} missingFields={missingFields} />}
           {activeTab === 'treatments' && <TreatmentsTab profile={profile} />}
           {activeTab === 'gallery' && <GalleryTab profile={profile} />}

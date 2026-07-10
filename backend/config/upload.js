@@ -45,4 +45,32 @@ async function saveUpload(file, folder = 'mydentist') {
   return `/uploads/${folder}/${name}`;
 }
 
-module.exports = { memoryUpload, saveUpload };
+/**
+ * Delete a previously-saved local upload by its stored URL/path (e.g.
+ * `/uploads/mydentist/avatars/....jpg`). Best-effort and safe:
+ *  - ignores empty/absolute (http/cloudinary/data) URLs — nothing to delete;
+ *  - resolves the target and refuses to touch anything outside UPLOADS_ROOT
+ *    (path-traversal guard);
+ *  - never throws (a missing file or race is not an error).
+ * Returns true if a file was removed.
+ */
+async function deleteUpload(url) {
+  try {
+    if (!url || typeof url !== 'string') return false;
+    // Only manage our own local uploads. Skip remote/absolute/data URLs.
+    if (/^(https?:|data:)/i.test(url)) return false;
+    const rel = url.replace(/^\/+/, ''); // "uploads/mydentist/avatars/x.jpg"
+    if (!rel.startsWith('uploads/')) return false;
+
+    const abs = path.resolve(__dirname, '..', rel);
+    const rootWithSep = UPLOADS_ROOT.endsWith(path.sep) ? UPLOADS_ROOT : UPLOADS_ROOT + path.sep;
+    if (abs !== UPLOADS_ROOT && !abs.startsWith(rootWithSep)) return false; // traversal guard
+
+    await fs.promises.unlink(abs);
+    return true;
+  } catch (_) {
+    return false; // missing file / permission / race — ignore
+  }
+}
+
+module.exports = { memoryUpload, saveUpload, deleteUpload };

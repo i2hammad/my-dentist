@@ -4,8 +4,8 @@ const { generateInvoiceNumber } = require('../utils/invoiceGenerator');
 const { reconcileBillCommission } = require('../utils/commission');
 
 const BILL_INCLUDE = {
-  doctor: { select: { fullName: true, clinicName: true, specialization: true, userId: true } },
-  patient: { select: { fullName: true, userId: true } },
+  doctor: { select: { id: true, fullName: true, clinicName: true, specialization: true, userId: true } },
+  patient: { select: { id: true, fullName: true, mobileNumber: true, userId: true } },
   appointment: { select: { treatmentType: true, date: true, time: true } },
 };
 const REFMAP = { doctor: 'doctorId', patient: 'patientId', appointment: 'appointmentId' };
@@ -73,8 +73,8 @@ const getBill = async (req, res) => {
       where: { id: req.params.id },
       include: {
         appointment: { select: { treatmentType: true, date: true, time: true, status: true, description: true } },
-        doctor: { select: { fullName: true, clinicName: true, specialization: true, userId: true } },
-        patient: { select: { fullName: true, userId: true } },
+        doctor: { select: { id: true, fullName: true, clinicName: true, specialization: true, userId: true } },
+        patient: { select: { id: true, fullName: true, mobileNumber: true, userId: true } },
       },
     });
     if (!bill) return res.status(404).json({ success: false, message: 'Bill not found' });
@@ -154,7 +154,7 @@ const createBill = async (req, res) => {
         userId: patientProfile.userId,
         type: 'bill',
         title: 'New Bill Generated',
-        message: `A new bill of $${finalAmount.toFixed(2)} for ${treatmentName} has been generated. Invoice: ${bill.invoiceNumber}.`,
+        message: `A new bill of PKR ${finalAmount.toLocaleString()} for ${treatmentName} has been generated. Invoice: ${bill.invoiceNumber}.`,
         relatedId: bill.id,
         data: { doctorId: String(doctorProfile.id) },
       });

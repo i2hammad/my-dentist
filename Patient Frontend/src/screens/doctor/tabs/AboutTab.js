@@ -9,6 +9,10 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const stack = { flexDirection: isMobile ? 'column' : 'row' };
+  // Column card sizing that works on react-native-web: full width when stacked,
+  // an equal flex track when side-by-side (minWidth:0 lets it shrink correctly).
+  const cardCol = isMobile ? { width: '100%' } : { flex: 1, minWidth: 0 };
+  const aboutCardBase = { backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' };
   const upcoming = appointments?.upcoming || [];
   const past = appointments?.past || [];
   const allAppts = [...upcoming, ...past];
@@ -88,12 +92,12 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
       {/* About Doctor + Credentials */}
       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>About Doctor</Text>
       <View style={[styles.aboutContainer, stack]}>
-        <View style={styles.aboutLeft}>
+        <View style={[aboutCardBase, cardCol]}>
           <Text style={styles.aboutText}>
             {profile?.about || 'No about information provided.'}
           </Text>
         </View>
-        <View style={styles.aboutRight}>
+        <View style={[aboutCardBase, cardCol]}>
           <CredentialRow icon="time-outline" label="Experience" value={profile?.experience ? `${profile.experience}+ Years` : 'Not specified'} />
           <CredentialRow icon="school-outline" label="Qualification" value={profile?.qualification || 'Not specified'} />
           <CredentialRow icon="medical-outline" label="Specialization" value={profile?.specialization || 'Not specified'} />
@@ -114,7 +118,7 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
 
       {/* Today's Appointments + Recent Patients side by side */}
       <View style={[styles.bottomRow, stack]}>
-        <View style={styles.bottomCard}>
+        <View style={[styles.bottomCard, cardCol]}>
           <View style={styles.bottomCardHeader}>
             <Text style={styles.bottomCardTitle}>Today's Appointments</Text>
             <TouchableOpacity onPress={() => setActiveTab && setActiveTab('appointments')}>
@@ -148,7 +152,7 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
           </TouchableOpacity>
         </View>
 
-        <View style={styles.bottomCard}>
+        <View style={[styles.bottomCard, cardCol]}>
           <View style={styles.bottomCardHeader}>
             <Text style={styles.bottomCardTitle}>Recent Patients</Text>
             <TouchableOpacity onPress={() => navigation && navigation.navigate('DoctorTabs', { screen: 'Patients' })}>
@@ -184,15 +188,25 @@ export default function AboutTab({ profile, appointments, bills = [], reviewStat
 }
 
 function StatCard({ icon, iconBg, iconColor, value, label, sub, trend }) {
+  const up = trend?.startsWith('+');
   return (
     <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon} size={22} color={iconColor} />
+      <View style={styles.statTopRow}>
+        <View style={[styles.statIcon, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon} size={20} color={iconColor} />
+        </View>
+        {trend && (
+          <View style={[styles.trendPill, { backgroundColor: up ? '#F0FDF4' : '#FEF2F2' }]}>
+            <Ionicons name={up ? 'trending-up' : 'trending-down'} size={12} color={up ? '#16A34A' : '#DC2626'} />
+            <Text style={[styles.trendPillText, { color: up ? '#16A34A' : '#DC2626' }]}>{trend}</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statSub}>{sub}</Text>
-      {trend && <Text style={[styles.statTrend, { color: trend.startsWith('+') ? '#16A34A' : '#DC2626' }]}>↑ {trend}</Text>}
+      <View style={styles.statLabelRow}>
+        <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+        <Text style={styles.statSub}> · {sub}</Text>
+      </View>
     </View>
   );
 }
@@ -231,17 +245,18 @@ function PerfCard({ label, value, sub, icon, color }) {
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: '#FFFFFF' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#0A1551', marginBottom: 12 },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { flex: 1, minWidth: '46%', backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 1 },
-  statIcon: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  statValue: { fontSize: 22, fontWeight: 'bold', color: '#0A1551' },
-  statLabel: { fontSize: 11, color: '#64748B', marginTop: 4 },
-  statSub: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
-  statTrend: { fontSize: 10, fontWeight: '600', marginTop: 6 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  statCard: { flex: 1, minWidth: '46%', backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#EEF2F7', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 },
+  statTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  statIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  trendPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  trendPillText: { fontSize: 11.5, fontWeight: '800' },
+  statValue: { fontSize: 26, fontWeight: '900', color: '#0A1551', letterSpacing: -0.5 },
+  statLabelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' },
+  statLabel: { fontSize: 13, color: '#475569', fontWeight: '700' },
+  statSub: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
   aboutContainer: { gap: 12 },
-  aboutLeft: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
   aboutText: { fontSize: 12, color: '#475569', lineHeight: 18 },
-  aboutRight: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
   credRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   credLabel: { fontSize: 11, fontWeight: '600', color: '#0A1551', marginLeft: 6, width: 104, marginTop: 1 },
   credValue: { fontSize: 11, color: '#475569', marginTop: 1, lineHeight: 16 },
@@ -252,7 +267,7 @@ const styles = StyleSheet.create({
   perfValue: { fontSize: 18, fontWeight: 'bold' },
   perfSub: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
   bottomRow: { gap: 12, marginTop: 24 },
-  bottomCard: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  bottomCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
   bottomCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   bottomCardTitle: { fontSize: 13, fontWeight: 'bold', color: '#0A1551' },
   viewAllLink: { fontSize: 11, color: '#0052FF', fontWeight: '600' },

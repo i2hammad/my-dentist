@@ -543,9 +543,9 @@ export default function HomeScreen({ navigation }) {
               {campaigns.map((c, i) => {
                 const colors = ['#7C3AED', '#0052FF', '#0D9488', '#D97706', '#DC2626'];
                 const bg = colors[i % colors.length];
-                // Match the Promo detail screen's image priority so the banner
-                // and detail show the SAME image.
-                const img = c.detailImage || c.bannerImage;
+                // The home banner uses the wide bannerImage; detailImage is only
+                // for the campaign detail page. Fall back the other way if unset.
+                const img = c.bannerImage || c.detailImage;
                 const imgUri = img ? imgUrl(img) : null;
                 return (
                   <TouchableOpacity

@@ -80,7 +80,9 @@ export default function DoctorPromoCard({ style }) {
       >
         {campaigns.map((c, i) => {
           const bg = COLORS[i % COLORS.length];
-          const img = c.detailImage || c.bannerImage;
+          // The banner/card must use bannerImage (the wide crop); detailImage is
+          // for the campaign detail page only. Fall back the other way if unset.
+          const img = c.bannerImage || c.detailImage;
           const imgUri = img ? imgUrl(img) : null;
           return (
             <TouchableOpacity

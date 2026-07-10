@@ -237,6 +237,9 @@ exports.deleteGallery = async (req, res) => {
   try {
     const g = await prisma.gallery.delete({ where: { id: req.params.id } }).catch(() => null);
     if (!g) return fail(res, 404, 'Gallery item not found');
+    // Remove the underlying files so they don't orphan on disk.
+    const { deleteUpload } = require('../config/upload');
+    deleteUpload(g.imageUrl); deleteUpload(g.beforeImage); deleteUpload(g.afterImage);
     ok(res, { deleted: true });
   } catch (e) { fail(res, 500, e.message); }
 };
@@ -390,7 +393,15 @@ exports.createTreatment = async (req, res) => {
   try {
     const { doctorId, name, priceMin, priceMax, isActive } = req.body;
     if (!doctorId || !name) return fail(res, 400, 'Dentist and treatment name are required');
-    const t = await prisma.treatment.create({ data: { doctorId, name, priceMin: priceMin || 0, priceMax: priceMax || 0, isActive: isActive !== false } });
+    const existing = await prisma.treatment.findFirst({ where: { doctorId, name: { equals: name.trim(), mode: 'insensitive' } } });
+    if (existing) return fail(res, 409, 'This dentist already has a treatment with this name.');
+    let t;
+    try {
+      t = await prisma.treatment.create({ data: { doctorId, name: name.trim(), priceMin: priceMin || 0, priceMax: priceMax || 0, isActive: isActive !== false } });
+    } catch (err) {
+      if (err?.code === 'P2002') return fail(res, 409, 'This dentist already has a treatment with this name.');
+      throw err;
+    }
     ok(res, serialize(t));
   } catch (e) { fail(res, 500, e.message); }
 };

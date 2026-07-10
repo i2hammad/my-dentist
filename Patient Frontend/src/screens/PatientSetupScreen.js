@@ -9,6 +9,7 @@ import { useIsFocused } from '@react-navigation/native';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
+import { sanitizePhone } from '../utils/phone';
 import { webForm, webFieldGrid, webHalf, webFull } from '../config/webLayout';
 import CityPicker from '../components/CityPicker';
 
@@ -314,9 +315,10 @@ export default function PatientSetupScreen({ navigation }) {
                 <TextInput
                   style={styles.input}
                   value={mobileNumber}
-                  onChangeText={setMobileNumber}
+                  onChangeText={(t) => setMobileNumber(sanitizePhone(t))}
                   keyboardType="phone-pad"
-                  placeholder="Enter your mobile number"
+                  maxLength={11}
+                  placeholder="03XXXXXXXXX"
                   placeholderTextColor="#94A3B8"
                 />
               </View>

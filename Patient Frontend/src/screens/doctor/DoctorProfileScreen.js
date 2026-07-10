@@ -10,6 +10,10 @@ import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import storage from '../../config/storage';
 import { appendImageFile } from '../../utils/formImage';
+import { compressImage, getByteSize, formatBytes } from '../../utils/imageTools';
+import AvatarCropper from '../../components/AvatarCropper';
+import { sanitizePhone } from '../../utils/phone';
+import { PK_CITIES } from '../../config/cities';
 import API_BASE_URL from '../../config/api';
 import { openWhatsApp, openSupportEmail, SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../../utils/support';
 
@@ -244,54 +248,107 @@ export default function DoctorProfileScreen({ navigation }) {
     return { ...prev, offDays: (prev.offDays || []).filter(d => d !== day), availableDays: [...new Set([...(prev.availableDays || []), day])] };
   });
 
-  const pickDocument = async (field) => {
+  // ── Upload flow with an auto-compress + progress window ──────────────────
+  // up: { field, label, stage, uri, origSize, size, percent, error }
+  //   stage: 'compressing' | 'uploading' | 'done' | 'error'
+  const [up, setUp] = useState(null);
+  const [cropper, setCropper] = useState(null); // web avatar crop step: { uri, fileName, origSize, label }
+
+  // Web avatar cropper confirmed → upload the cropped blob (already 512², JPEG).
+  const onCropped = async (out) => {
+    const c = cropper;
+    setCropper(null);
+    if (!out) return;
+    setUp({ field: 'avatar', label: c?.label || 'Profile Picture', stage: 'uploading', uri: out.uri, origSize: c?.origSize || 0, size: out.size, percent: 0, error: '', square: true });
     try {
+      const token = await storage.getItem('userToken');
+      const fd = new FormData();
+      await appendImageFile(fd, 'file', out.uri, c?.fileName || 'avatar.jpg');
+      const url = await uploadWithProgress(fd, token, (percent) => setUp((s) => (s ? { ...s, percent } : s)));
+      setFormData((prev) => ({ ...prev, avatar: url }));
+      await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, { photo: url }, { headers: { Authorization: `Bearer ${token}` } });
+      setUp((s) => s && { ...s, stage: 'done', percent: 100 });
+      fetchProfile();
+    } catch (err) {
+      setUp((s) => s && { ...s, stage: 'error', error: err.message || 'Upload failed' });
+    }
+  };
+
+  const pickDocument = async (field, label) => {
+    try {
+      const isAvatar = field === 'avatar';
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.7,
+        // Native: use the OS crop UI (drag/resize). Web: allowsEditing is a no-op,
+        // so we show our own draggable AvatarCropper instead.
+        allowsEditing: isAvatar && !isWeb,
+        aspect: isAvatar ? [1, 1] : undefined,
+        quality: 1,                    // pick full-quality; we compress ourselves
       });
-      if (!result.canceled && result.assets?.length > 0) {
-        uploadFile(result.assets[0], field);
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+
+      // Web avatar → open the reposition/zoom cropper first.
+      if (isAvatar && isWeb) {
+        setCropper({ uri: asset.uri, fileName: asset.fileName || 'avatar.jpg', origSize: asset.fileSize || 0, label });
+        return;
       }
+      runUpload(field, label, asset, isAvatar);
     } catch (err) {
       console.log('Pick error:', err);
     }
   };
 
-  const uploadFile = async (asset, field) => {
+  const runUpload = async (field, label, asset, square = false) => {
+    const origSize = asset.fileSize || (await getByteSize(asset.uri));
+    setUp({ field, label, stage: 'compressing', uri: asset.uri, origSize, size: 0, percent: 0, error: '', square });
     try {
-      setLoading(true);
+      // 1) Compress / resize. Profile photo → fixed 512×512 square; docs → cap 1600.
+      const out = square
+        ? await compressImage(asset.uri, { quality: 0.75, square: 512 })
+        : await compressImage(asset.uri, { quality: 0.6, maxDim: 1600 });
+      setUp((s) => s && { ...s, uri: out.uri, size: out.size, stage: 'uploading', percent: 0 });
+
+      // 2) Upload with progress.
       const token = await storage.getItem('userToken');
       const fd = new FormData();
-      await appendImageFile(fd, 'file', asset.uri, asset.fileName || 'upload.jpg');
+      await appendImageFile(fd, 'file', out.uri, asset.fileName || 'upload.jpg');
+      const url = await uploadWithProgress(fd, token, (percent) =>
+        setUp((s) => (s ? { ...s, percent } : s))
+      );
 
-      const res = await fetch(`${API_BASE_URL}/api/users/upload`, {
-        method: 'POST',
+      // 3) Persist the URL on the doctor profile.
+      setFormData((prev) => ({ ...prev, [field]: url }));
+      const patch = field === 'avatar' ? { photo: url } : { [field]: url };
+      await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, patch, {
         headers: { Authorization: `Bearer ${token}` },
-        body: fd,
       });
-      const data = await res.json();
-      if (data?.success) {
-        const url = data.data.url;
-        setFormData(prev => ({ ...prev, [field]: url }));
-        const patch = {};
-        if (field === 'avatar') patch.photo = url;
-        else patch[field] = url;
-        await axios.put(`${API_BASE_URL}/api/users/doctor-profile`, patch, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        Alert.alert('Success', 'Document uploaded successfully!');
-        fetchProfile();
-      } else {
-        throw new Error(data?.message || 'Upload failed');
-      }
+      setUp((s) => s && { ...s, stage: 'done', percent: 100 });
+      fetchProfile();
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to upload document');
-    } finally {
-      setLoading(false);
+      setUp((s) => s && { ...s, stage: 'error', error: err.message || 'Upload failed' });
     }
   };
+
+  // Upload via XHR so we get real upload-progress events (fetch can't report them).
+  const uploadWithProgress = (fd, token, onProgress) =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE_URL}/api/users/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status >= 200 && xhr.status < 300 && data.success) resolve(data.data.url);
+          else reject(new Error(data.message || `Upload failed (${xhr.status})`));
+        } catch (e) { reject(new Error('Unexpected server response')); }
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(fd);
+    });
 
   const handleSave = async () => {
     try {
@@ -375,14 +432,14 @@ export default function DoctorProfileScreen({ navigation }) {
             <View style={styles.badgeGrey}><Text style={styles.badgeGreyText}>Private</Text></View>
           </View>
 
-          <FieldRow icon="call-outline" label="Mobile" placeholder="03XXXXXXXXX" value={formData.mobileNumber} onChangeText={t => setField('mobileNumber', t)} keyboardType="phone-pad" />
+          <FieldRow icon="call-outline" label="Mobile" placeholder="03XXXXXXXXX" value={formData.mobileNumber} onChangeText={t => setField('mobileNumber', sanitizePhone(t))} keyboardType="phone-pad" maxLength={11} />
           <FieldRow icon="mail-outline" label="Email" placeholder="Email address" value={formData.emailAddress} editable={false} />
           <FieldRow icon="id-card-outline" label="PMDC No." placeholder="PMDC Number" value={formData.pmdcNumber} onChangeText={t => setField('pmdcNumber', t)} />
 
-          <UploadRow icon="person-circle-outline" label="Profile Picture" subLabel="Upload clear face photo" onPress={() => pickDocument('avatar')} imageUrl={formData.avatar} />
-          <UploadRow icon="document-text-outline" label="License / Registration" subLabel="Upload clear image" onPress={() => pickDocument('licenseCert')} imageUrl={formData.licenseCert} />
-          <UploadRow icon="id-card-outline" label="ID Card Front" subLabel="Upload clear image" onPress={() => pickDocument('idFront')} imageUrl={formData.idFront} />
-          <UploadRow icon="id-card-outline" label="ID Card Back" subLabel="Upload clear image" onPress={() => pickDocument('idBack')} imageUrl={formData.idBack} />
+          <UploadRow icon="person-circle-outline" label="Profile Picture" subLabel="Clear face photo · square, 512×512px" onPress={() => pickDocument('avatar', 'Profile Picture')} imageUrl={formData.avatar} />
+          <UploadRow icon="document-text-outline" label="License / Registration" subLabel="Clear scan · portrait, ~1200×1600px" onPress={() => pickDocument('licenseCert', 'License / Registration')} imageUrl={formData.licenseCert} />
+          <UploadRow icon="id-card-outline" label="ID Card Front" subLabel="Clear photo · ~1000×640px" onPress={() => pickDocument('idFront', 'ID Card Front')} imageUrl={formData.idFront} />
+          <UploadRow icon="id-card-outline" label="ID Card Back" subLabel="Clear photo · ~1000×640px" onPress={() => pickDocument('idBack', 'ID Card Back')} imageUrl={formData.idBack} />
         </View>
 
         {/* Professional Information */}
@@ -414,10 +471,14 @@ export default function DoctorProfileScreen({ navigation }) {
             onPress={() => openDropdown('experience', EXPERIENCE_OPTIONS, 'Years of Experience')}
           />
 
-          <FieldRow icon="call-outline" label="Clinic Contact" placeholder="Clinic phone" value={formData.clinicContact} onChangeText={t => setField('clinicContact', t)} keyboardType="phone-pad" />
+          <FieldRow icon="call-outline" label="Clinic Contact" placeholder="03XXXXXXXXX" value={formData.clinicContact} onChangeText={t => setField('clinicContact', sanitizePhone(t))} keyboardType="phone-pad" maxLength={11} />
           <FieldRow icon="business-outline" label="Clinic Name" placeholder="Clinic / Hospital name" value={formData.clinicName} onChangeText={t => setField('clinicName', t)} />
           <FieldRow icon="location-outline" label="Address" placeholder="Clinic address" value={formData.address} onChangeText={t => setField('address', t)} />
-          <FieldRow icon="navigate-outline" label="City" placeholder="City" value={formData.city} onChangeText={t => setField('city', t)} />
+          <DropdownRow
+            icon="navigate-outline" label="City"
+            value={formData.city} placeholder="Select City"
+            onPress={() => openDropdown('city', PK_CITIES, 'Select City')}
+          />
 
           {/* GPS Location */}
           <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
@@ -686,11 +747,108 @@ export default function DoctorProfileScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Web avatar cropper — drag to reposition + zoom before upload */}
+      <Modal visible={!!cropper} transparent animationType="fade" onRequestClose={() => setCropper(null)}>
+        <View style={styles.upOverlay}>
+          <View style={styles.upCard}>
+            {!!cropper && (
+              <AvatarCropper
+                uri={cropper.uri}
+                out={512}
+                onCancel={() => setCropper(null)}
+                onDone={onCropped}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Upload progress window — compress → upload with a live progress bar */}
+      <Modal visible={!!up} transparent animationType="fade" onRequestClose={() => up?.stage !== 'uploading' && setUp(null)}>
+        <View style={styles.upOverlay}>
+          <View style={styles.upCard}>
+            {/* Header */}
+            <View style={styles.upHeaderRow}>
+              <View style={styles.upIconWrap}>
+                <Ionicons
+                  name={up?.stage === 'done' ? 'checkmark-circle' : up?.stage === 'error' ? 'alert-circle' : 'cloud-upload'}
+                  size={22}
+                  color={up?.stage === 'done' ? '#16A34A' : up?.stage === 'error' ? '#DC2626' : '#0052FF'}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.upTitle} numberOfLines={1}>{up?.label || 'Upload'}</Text>
+                <Text style={styles.upStageText}>
+                  {up?.stage === 'compressing' && 'Optimizing image…'}
+                  {up?.stage === 'uploading' && `Uploading… ${up?.percent || 0}%`}
+                  {up?.stage === 'done' && 'Uploaded successfully'}
+                  {up?.stage === 'error' && (up?.error || 'Upload failed')}
+                </Text>
+              </View>
+            </View>
+
+            {/* Preview */}
+            {!!up?.uri && (
+              up?.square ? (
+                <View style={styles.upAvatarWrap}>
+                  <Image source={{ uri: up.uri }} style={styles.upAvatarPreview} resizeMode="cover" />
+                </View>
+              ) : (
+                <Image source={{ uri: up.uri }} style={styles.upPreview} resizeMode="cover" />
+              )
+            )}
+
+            {/* Size row */}
+            <View style={styles.upSizeRow}>
+              <View style={styles.upSizePill}>
+                <Text style={styles.upSizeLabel}>Original</Text>
+                <Text style={styles.upSizeVal}>{formatBytes(up?.origSize)}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={14} color="#94A3B8" />
+              <View style={[styles.upSizePill, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                <Text style={[styles.upSizeLabel, { color: '#15803D' }]}>Compressed</Text>
+                <Text style={[styles.upSizeVal, { color: '#15803D' }]}>{up?.size ? formatBytes(up.size) : '…'}</Text>
+              </View>
+              {up?.origSize > 0 && up?.size > 0 && (
+                <View style={styles.upSavePill}>
+                  <Text style={styles.upSaveText}>-{Math.max(0, Math.round((1 - up.size / up.origSize) * 100))}%</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Progress bar */}
+            {(up?.stage === 'compressing' || up?.stage === 'uploading') && (
+              <View style={styles.upTrack}>
+                <View style={[styles.upFill, { width: `${up?.stage === 'uploading' ? (up?.percent || 0) : 8}%` }]} />
+              </View>
+            )}
+
+            {/* Actions */}
+            {up?.stage === 'done' && (
+              <TouchableOpacity style={styles.upDoneBtn} onPress={() => setUp(null)}>
+                <Text style={styles.upDoneText}>Done</Text>
+              </TouchableOpacity>
+            )}
+            {up?.stage === 'error' && (
+              <TouchableOpacity style={styles.upCloseBtn} onPress={() => setUp(null)}>
+                <Text style={styles.upCloseText}>Close</Text>
+              </TouchableOpacity>
+            )}
+            {(up?.stage === 'compressing' || up?.stage === 'uploading') && (
+              <View style={styles.upBusyRow}>
+                <ActivityIndicator size="small" color="#0052FF" />
+                <Text style={styles.upBusyText}>Please wait…</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function FieldRow({ icon, label, placeholder, value, onChangeText, keyboardType = 'default', editable = true }) {
+function FieldRow({ icon, label, placeholder, value, onChangeText, keyboardType = 'default', editable = true, maxLength }) {
   return (
     <View style={styles.fieldRow}>
       <View style={styles.labelCol}>
@@ -706,6 +864,7 @@ function FieldRow({ icon, label, placeholder, value, onChangeText, keyboardType 
           onChangeText={onChangeText}
           keyboardType={keyboardType}
           editable={editable}
+          maxLength={maxLength}
         />
       </View>
     </View>
@@ -805,6 +964,31 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#FFF', fontSize: 13, fontWeight: 'bold' },
   secureRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12 },
   secureText: { fontSize: 11, color: '#64748B', marginLeft: 4 },
+  // ── Upload progress window ──
+  upOverlay: { flex: 1, backgroundColor: 'rgba(10,21,81,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  upCard: { width: Math.min(width - 40, 400), backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 30, elevation: 12 },
+  upHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  upIconWrap: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  upTitle: { fontSize: 15.5, fontWeight: '800', color: '#0A1551' },
+  upStageText: { fontSize: 12.5, color: '#64748B', marginTop: 2, fontWeight: '600' },
+  upPreview: { width: '100%', height: 150, borderRadius: 12, backgroundColor: '#F1F5F9', marginBottom: 14 },
+  upAvatarWrap: { alignItems: 'center', marginBottom: 14 },
+  upAvatarPreview: { width: 132, height: 132, borderRadius: 66, backgroundColor: '#F1F5F9', borderWidth: 3, borderColor: '#E0EAFF' },
+  upSizeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  upSizePill: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10 },
+  upSizeLabel: { fontSize: 10.5, fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.4 },
+  upSizeVal: { fontSize: 14, fontWeight: '800', color: '#0A1551', marginTop: 1 },
+  upSavePill: { backgroundColor: '#DCFCE7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6 },
+  upSaveText: { fontSize: 12, fontWeight: '800', color: '#15803D' },
+  upTrack: { height: 8, borderRadius: 4, backgroundColor: '#E8EFFF', overflow: 'hidden', marginBottom: 14 },
+  upFill: { height: 8, borderRadius: 4, backgroundColor: '#0052FF' },
+  upBusyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  upBusyText: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  upDoneBtn: { backgroundColor: '#16A34A', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  upDoneText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '800' },
+  upCloseBtn: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FEE2E2', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  upCloseText: { color: '#DC2626', fontSize: 14.5, fontWeight: '800' },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: Math.min(width - 48, 420), maxHeight: '70%', backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },

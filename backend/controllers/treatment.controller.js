@@ -71,14 +71,32 @@ const createTreatment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'priceMin cannot be greater than priceMax' });
     }
 
-    const treatment = await prisma.treatment.create({
-      data: {
-        doctorId: doctorProfile.id,
-        name,
-        priceMin: priceMin ?? 0,
-        priceMax: priceMax ?? 0,
-      },
+    // Reject a duplicate name for this doctor (case-insensitive). The DB partial
+    // unique index on (doctorId, lower(name)) is the hard backstop for races.
+    const existing = await prisma.treatment.findFirst({
+      where: { doctorId: doctorProfile.id, name: { equals: (name || '').trim(), mode: 'insensitive' } },
     });
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'You already have a treatment with this name.' });
+    }
+
+    let treatment;
+    try {
+      treatment = await prisma.treatment.create({
+        data: {
+          doctorId: doctorProfile.id,
+          name: (name || '').trim(),
+          priceMin: priceMin ?? 0,
+          priceMax: priceMax ?? 0,
+        },
+      });
+    } catch (err) {
+      // P2002 = unique constraint hit (a concurrent double-submit slipped past the check).
+      if (err?.code === 'P2002') {
+        return res.status(409).json({ success: false, message: 'You already have a treatment with this name.' });
+      }
+      throw err;
+    }
 
     res.status(201).json({ success: true, message: 'Treatment created successfully', data: serialize(treatment) });
   } catch (error) {

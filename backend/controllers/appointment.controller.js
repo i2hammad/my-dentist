@@ -6,8 +6,8 @@ const { isDateTimeInClinicTiming, parseTimeToMinutes } = require('../utils/clini
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'rescheduled'];
 const MIN_GAP_MINUTES = 30;
 
-const DOCTOR_SELECT = { fullName: true, specialization: true, clinicName: true, photo: true, userId: true, phone: true, clinicContact: true, address: true, city: true, consultationFee: true, clinicTiming: true };
-const PATIENT_SELECT = { fullName: true, userId: true, mobileNumber: true, profileImage: true };
+const DOCTOR_SELECT = { id: true, fullName: true, specialization: true, clinicName: true, photo: true, userId: true, phone: true, clinicContact: true, address: true, city: true, consultationFee: true, clinicTiming: true };
+const PATIENT_SELECT = { id: true, fullName: true, userId: true, mobileNumber: true, profileImage: true };
 
 // Best-effort notification — never fails the surrounding action.
 async function notify(data) {

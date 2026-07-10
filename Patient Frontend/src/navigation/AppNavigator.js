@@ -264,6 +264,9 @@ function DoctorTabNavigator({ navigation }) {
           so they're hidden from the bottom bar. */}
       <Tab.Screen name="Inbox" component={DoctorInboxScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tab.Screen name="Profile" component={DoctorProfileScreenDoc} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      {/* Detail screen lives INSIDE the tabs (hidden button) so the bottom nav
+          stays visible while viewing an appointment on small devices. */}
+      <Tab.Screen name="DoctorAppointmentDetail" component={DoctorAppointmentDetailScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
     </Tab.Navigator>
   );
 }
@@ -326,7 +329,7 @@ export default function AppNavigator() {
         <Stack.Screen name="DoctorProfile" component={DoctorProfileScreen} />
         <Stack.Screen name="AppointmentDetail" component={AppointmentDetailScreen} />
         <Stack.Screen name="DoctorPatientDetail" component={DoctorPatientDetailScreen} />
-        <Stack.Screen name="DoctorAppointmentDetail" component={DoctorAppointmentDetailScreen} />
+        {/* DoctorAppointmentDetail now lives inside DoctorTabs (keeps bottom nav). */}
         <Stack.Screen name="Promo" component={PromoScreen} />
         <Stack.Screen name="Booking" component={BookingScreen} />
         <Stack.Screen name="Chat" component={ChatScreen} />

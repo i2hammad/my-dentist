@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 const { serialize } = require('../utils/serialize');
-const { memoryUpload, saveUpload } = require('../config/upload');
+const { memoryUpload, saveUpload, deleteUpload } = require('../config/upload');
 const { normalizeClinicTiming } = require('../utils/clinicTiming');
 
 const upload = memoryUpload;
@@ -128,6 +128,9 @@ const uploadAvatar = async (req, res) => {
 
     const imageUrl = await saveUpload(req.file, 'mydentist/avatars');
 
+    // Capture the previous avatar so we can remove it after a successful swap.
+    const prev = await prisma.patientProfile.findUnique({ where: { userId: req.user._id }, select: { profileImage: true } });
+
     let profile;
     try {
       profile = await prisma.patientProfile.update({ where: { userId: req.user._id }, data: { profileImage: imageUrl } });
@@ -140,6 +143,9 @@ const uploadAvatar = async (req, res) => {
       }
       throw e; // real error → 500 path below, which logs the full error
     }
+
+    // Best-effort cleanup of the replaced avatar file.
+    if (prev?.profileImage && prev.profileImage !== imageUrl) deleteUpload(prev.profileImage);
 
     res.status(200).json({ success: true, message: 'Avatar uploaded successfully', data: { profileImage: imageUrl, profile: serialize(profile) } });
   } catch (error) {
@@ -197,6 +203,15 @@ const updateDoctorProfile = async (req, res) => {
     if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, message: 'No valid fields to update' });
 
     const updated = await prisma.doctorProfile.update({ where: { userId: req.user._id }, data: updates });
+
+    // Delete the previous local file when an image field is replaced with a new
+    // one — prevents orphaned uploads piling up on disk. Best-effort.
+    for (const f of ['photo', 'licenseCert', 'idFront', 'idBack']) {
+      if (updates[f] !== undefined && profile[f] && profile[f] !== updates[f]) {
+        deleteUpload(profile[f]);
+      }
+    }
+
     res.status(200).json({ success: true, message: 'Doctor profile updated', data: serialize(updated) });
   } catch (error) {
     console.error('Update doctor profile error:', error);

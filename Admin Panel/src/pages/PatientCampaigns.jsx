@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Megaphone, Eye, CursorClick, TrendUp, Plus, PencilSimple, Trash, Sparkle } from '@phosphor-icons/react';
 import api, { imgUrl, API_URL } from '../lib/api';
+import { compressAndUpload, formatBytes } from '../lib/imageUpload';
 import { PageHeader, StatCards, fmtDate } from '../components/ui.jsx';
 import { SkeletonStatCards, SkeletonTable } from '../components/Skeleton.jsx';
 import Modal from '../components/Modal.jsx';
@@ -166,20 +167,26 @@ function CampaignForm({ c, onClose, onSaved, toast }) {
     isActive: c.isActive !== false,
   });
   const [busy, setBusy] = useState(false);
+  const [up, setUp] = useState({}); // per-field upload progress
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
 
   const upload = (key) => async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
+    e.target.value = '';
+    setUp((s) => ({ ...s, [key]: { stage: 'compressing', percent: 0, origSize: file.size } }));
     try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`${API_URL}/api/users/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-      const data = await res.json();
-      if (data.success) { set(key)(data.data.url); toast('Image uploaded'); }
-      else toast(data.message || 'Upload failed', 'error');
-    } catch { toast('Upload failed', 'error'); }
+      const url = await compressAndUpload(file, {
+        onCompressed: ({ origSize, size }) => setUp((s) => ({ ...s, [key]: { ...s[key], stage: 'uploading', origSize, size, percent: 0 } })),
+        onProgress: (percent) => setUp((s) => ({ ...s, [key]: { ...s[key], percent } })),
+      });
+      set(key)(url);
+      setUp((s) => ({ ...s, [key]: { ...s[key], stage: 'done', percent: 100 } }));
+      toast('Image uploaded');
+    } catch (err) {
+      setUp((s) => ({ ...s, [key]: { stage: 'error', error: err.message || 'Upload failed' } }));
+      toast(err.message || 'Upload failed', 'error');
+    }
   };
 
   const save = async () => {
@@ -201,15 +208,44 @@ function CampaignForm({ c, onClose, onSaved, toast }) {
     finally { setBusy(false); }
   };
 
-  const ImgField = ({ label, k }) => (
-    <div className="field">
-      <label>{label}</label>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        {f[k] ? <img src={imgUrl(f[k])} alt="" style={{ width: 64, height: 44, borderRadius: 8, objectFit: 'cover' }} /> : <div style={{ width: 64, height: 44, borderRadius: 8, background: '#F1F5F9' }} />}
-        <label className="btn ghost sm" style={{ cursor: 'pointer' }}>Upload<input type="file" accept="image/*" hidden onChange={upload(k)} /></label>
+  const ImgField = ({ label, k, hint }) => {
+    const u = up[k];
+    const busyUp = u && (u.stage === 'compressing' || u.stage === 'uploading');
+    return (
+      <div className="field">
+        <label>{label}</label>
+        {hint && <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: -2, marginBottom: 6 }}>{hint}</div>}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {f[k] ? <img src={imgUrl(f[k])} alt="" style={{ width: 64, height: 44, borderRadius: 8, objectFit: 'cover' }} /> : <div style={{ width: 64, height: 44, borderRadius: 8, background: '#F1F5F9' }} />}
+          <label className="btn ghost sm" style={{ cursor: busyUp ? 'default' : 'pointer', opacity: busyUp ? 0.6 : 1 }}>
+            {busyUp ? 'Uploading…' : (f[k] ? 'Replace' : 'Upload')}
+            <input type="file" accept="image/*" hidden disabled={busyUp} onChange={upload(k)} />
+          </label>
+        </div>
+        {u && (
+          <div style={{ marginTop: 8 }}>
+            {busyUp && (
+              <>
+                <div style={{ height: 6, borderRadius: 3, background: '#E8EFFF', overflow: 'hidden' }}>
+                  <div style={{ height: 6, borderRadius: 3, background: '#0052FF', width: `${u.stage === 'uploading' ? (u.percent || 0) : 10}%`, transition: 'width .15s' }} />
+                </div>
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                  {u.stage === 'compressing' ? 'Optimizing image…' : `Uploading ${u.percent || 0}%`}
+                  {u.origSize && u.size ? ` · ${formatBytes(u.origSize)} → ${formatBytes(u.size)} (−${Math.max(0, Math.round((1 - u.size / u.origSize) * 100))}%)` : ''}
+                </div>
+              </>
+            )}
+            {u.stage === 'done' && (
+              <div style={{ fontSize: 11, color: '#16A34A', marginTop: 4 }}>
+                ✓ Uploaded{u.origSize && u.size ? ` · ${formatBytes(u.origSize)} → ${formatBytes(u.size)}` : ''}
+              </div>
+            )}
+            {u.stage === 'error' && <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>{u.error}</div>}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <Modal title={editing ? 'Edit Patient Campaign' : 'New Patient Campaign'} size="lg" onClose={onClose}
@@ -221,7 +257,10 @@ function CampaignForm({ c, onClose, onSaved, toast }) {
       <Field label="Banner Text (short — shown on the small banner)" value={f.bannerText} onChange={set('bannerText')} placeholder="e.g. Limited offer — book now!" />
       <Field label="Sponsor / Brand (optional)" value={f.company} onChange={set('company')} placeholder="e.g. Colgate, Oral-B" />
       <Field label="Full Promotional Details (shown on the detail page)" type="textarea" value={f.body} onChange={set('body')} placeholder="Write the full offer details patients will read…" />
-      <div className="field-row"><ImgField label="Banner Image" k="bannerImage" /><ImgField label="Detail Page Image" k="detailImage" /></div>
+      <div className="field-row">
+        <ImgField label="Banner Image" k="bannerImage" hint="Wide banner · recommended 1200×300px (4:1). Cropped to fill." />
+        <ImgField label="Detail Page Image" k="detailImage" hint="Recommended 1080×1080px (square). Shown uncropped, max 560px wide." />
+      </div>
       <div className="field-row">
         <Field label="CTA Button Label" value={f.ctaLabel} onChange={set('ctaLabel')} />
         <Field label="CTA Link (optional URL)" value={f.ctaLink} onChange={set('ctaLink')} placeholder="https://…" />

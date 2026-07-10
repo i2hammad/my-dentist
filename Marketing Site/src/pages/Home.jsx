@@ -6,11 +6,14 @@ import { useEffect, useState } from 'react';
 import {
   Tooth, MagnifyingGlass, CalendarCheck, ChatCircleDots, Receipt, Gift, ShieldCheck,
   Star, Check, ArrowRight, Sparkle, MapPin, Stethoscope, CaretRight, Quotes,
-  AppleLogo, GooglePlayLogo, SealCheck,
+  AppleLogo, GooglePlayLogo, SealCheck, List, X, Crown, Diamond,
 } from '@phosphor-icons/react';
-import { getDoctors, imgUrl, APP_URL, APP_LOGIN, BRAND, doctorUrl } from '../lib/api';
+import { getDoctors, searchDoctors, imgUrl, APP_URL, APP_LOGIN, APP_SIGNUP, BRAND, doctorUrl } from '../lib/api';
 import appLogo from '../assets/app-logo.png';
-import heroDentalBooking from '../assets/hero-dental-booking.png';
+import heroDentalBooking from '../assets/hero-dental-booking.jpg';
+import eliteClinic from '../assets/elite-clinic.jpeg';
+import modernClinic from '../assets/modern-clinic.jpeg';
+import standardClinic from '../assets/standard-clinic.jpeg';
 
 const CITIES = ['Lahore', 'Karachi', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Quetta'];
 const SPECIALTIES = [
@@ -32,6 +35,7 @@ const FEATURES = [
 const Mark = () => <span className="mark"><img src={appLogo} alt="" /></span>;
 
 export default function Home() {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [city, setCity] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
@@ -49,16 +53,25 @@ export default function Home() {
   };
 
   // Live search against the backend — shows results ON this page (no app redirect).
+  // Free-text (name/clinic/specialization) uses /api/doctors/search?q=; the
+  // specialty pills pass an exact specialization filter via /api/doctors.
   const runSearch = async (e, opts = {}) => {
     e?.preventDefault();
-    const spec = opts.specialization ?? query;
+    const term = (opts.specialization ?? query ?? '').trim();
     const cty = opts.city ?? city;
     setSearching(true);
     try {
-      const params = { limit: 8 };
-      if (spec) params.specialization = spec;
-      const docs = await getDoctors(params);
-      const filtered = cty ? docs.filter((d) => (d.city || '').toLowerCase() === cty.toLowerCase()) : docs;
+      let docs;
+      if (opts.specialization) {
+        // Specialty pill → exact specialization filter.
+        docs = await getDoctors({ limit: 12, specialization: opts.specialization });
+      } else if (term) {
+        // Typed query → fuzzy search across name, clinic, specialization.
+        docs = await searchDoctors(term, { limit: 12 });
+      } else {
+        docs = await getDoctors({ limit: 12 });
+      }
+      const filtered = cty ? docs.filter((d) => (d.city || '').toLowerCase().includes(cty.toLowerCase())) : docs;
       setResults(filtered);
       setTimeout(scrollToResults, 0);
     } catch { setResults([]); }
@@ -70,7 +83,7 @@ export default function Home() {
       {/* NAV */}
       <nav className="nav">
         <div className="wrap">
-          <a className="logo" href="#/"><Mark /> {BRAND}</a>
+          <a className="logo" href="#/" onClick={() => setMenuOpen(false)}><Mark /> {BRAND}</a>
           <div className="nav-links">
             <a href="#specialties">Specialties</a>
             <a href="#cities">Cities</a>
@@ -80,66 +93,83 @@ export default function Home() {
           </div>
           <div className="nav-cta">
             <a className="btn btn-ghost" href={APP_LOGIN}>Log in</a>
+            <a className="btn btn-ghost" href={APP_SIGNUP}>Sign up</a>
             <a className="btn btn-primary" href={APP_URL}>Get the App</a>
           </div>
+          <button className="nav-toggle" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>
+            {menuOpen ? <X size={24} weight="bold" /> : <List size={24} weight="bold" />}
+          </button>
         </div>
+        {/* Mobile dropdown menu */}
+        {menuOpen && (
+          <div className="nav-mobile">
+            <a href="#specialties" onClick={() => setMenuOpen(false)}>Specialties</a>
+            <a href="#cities" onClick={() => setMenuOpen(false)}>Cities</a>
+            <a href="#top" onClick={() => setMenuOpen(false)}>Top Dentists</a>
+            <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
+            <a href="#doctors" onClick={() => setMenuOpen(false)}>For Dentists</a>
+            <div className="nav-mobile-cta">
+              <a className="btn btn-ghost" href={APP_LOGIN}>Log in</a>
+              <a className="btn btn-ghost" href={APP_SIGNUP}>Sign up</a>
+              <a className="btn btn-primary" href={APP_URL}>Get the App</a>
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* HERO — search first */}
-      <header className="hero-search" id="home">
-        <img className="hero-photo" src={heroDentalBooking} alt="" />
-        <div className="hero-shade" />
+      {/* HERO — maroon + gold */}
+      <header className="hero-search hero-maroon" id="home">
         <div className="wrap hero-wrap">
           <div className="hero-copy">
-            <span className="eyebrow rise d1"><Sparkle size={14} weight="fill" /> Pakistan's trusted dental booking platform</span>
-            <h1 className="rise d2 serif">Find and book the right dentist near you.</h1>
-            <p className="hero-sub rise d3">Search verified dental specialists, compare clinics, read reviews, and reserve an appointment in seconds.</p>
+            <h1 className="rise d2">Find the Best<br /><span className="hl-gold">Dentists</span> Near You</h1>
+            <p className="hero-tagline rise d2">Book, Visit &amp; Smile!</p>
+            <p className="hero-sub rise d3">Find verified dentists, top clinics and quality dental care&nbsp;&ndash; all in one place.</p>
 
             <form className="searchbar rise d4" onSubmit={runSearch}>
-              <div className="sb-field">
+              <div className="sb-field sb-loc">
                 <MapPin size={20} weight="fill" className="sb-ic" />
                 <select value={city} onChange={(e) => setCity(e.target.value)} aria-label="Select city">
-                  <option value="">All Cities</option>
+                  <option value="">Your Location</option>
                   {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="sb-divider" />
               <div className="sb-field grow">
-                <MagnifyingGlass size={20} weight="bold" className="sb-ic" />
-                <input placeholder="Search specialty or condition" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input placeholder="Search Dentist, Clinic or Treatment" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <MagnifyingGlass size={20} weight="bold" className="sb-ic sb-ic-end" />
               </div>
-              <button className="btn btn-primary sb-btn" type="submit">{searching ? 'Searching...' : <>Search <ArrowRight size={17} weight="bold" /></>}</button>
+              <button className="sb-btn" type="submit">{searching ? 'Searching...' : 'Search'}</button>
             </form>
 
             <div className="quick-specs rise d5">
-              <span>Popular:</span>
-              {['Orthodontist', 'Implant Specialist', 'Cosmetic Dentist', 'Endodontist'].map((s, index) => (
-                <button className={`pastel-chip pastel-${index + 1}`} key={s} onClick={() => { setQuery(s); runSearch(null, { specialization: s }); }}>{s}</button>
+              <span>Popular Searches:</span>
+              {['Dental Implants', 'Teeth Whitening', 'Crown', 'Root Canal'].map((s) => (
+                <button className="spec-pill" key={s} onClick={() => { setQuery(s); runSearch(null, { specialization: s }); }}>{s}</button>
               ))}
             </div>
           </div>
-
-          <aside className="hero-panel rise d5" aria-label="Booking highlights">
-            <div className="panel-card active">
-              <span className="panel-kicker">Next available</span>
-              <strong>Today, 6:30 PM</strong>
-              <p>Verified orthodontist in Lahore</p>
-            </div>
-            <div className="panel-row">
-              <div><strong>4.8</strong><span>Avg rating</span></div>
-              <div><strong>12k+</strong><span>Appointments</span></div>
-            </div>
-            <div className="panel-card">
-              <span className="panel-kicker">Clinic trust</span>
-              <p><SealCheck size={16} weight="fill" /> PMDC verified dentists and transparent fees.</p>
-            </div>
-          </aside>
         </div>
 
-        <div className="wrap">
-          {/* live search results */}
-          {results && (
-            <div className="search-results rise" id="results">
+        {/* curved gold-arc image — anchored to the FULL-WIDTH section, right edge */}
+        <div className="hero-visual rise d3">
+          <div className="hero-arc-gold" aria-hidden="true" />
+          <div className="hero-arc">
+            <img src={heroDentalBooking} alt="Verified dentist" />
+          </div>
+        </div>
+
+        {/* Sign Up CTA — floats in the maroon space beside the image */}
+        <a className="hero-signup rise d5" href={APP_SIGNUP}>
+          <span className="hs-icon"><SealCheck size={22} weight="fill" /></span>
+          <span className="hs-text"><strong>Sign Up</strong><small>Free — get started</small></span>
+          <ArrowRight size={20} weight="bold" className="hs-arrow" />
+        </a>
+      </header>
+
+      {/* SEARCH RESULTS — shown below the hero when a search runs */}
+      {results && (
+        <section className="results-section" id="results">
+          <div className="wrap">
+            <div className="search-results">
               <div className="sr-head">
                 <strong>{results.length}</strong> dentist{results.length !== 1 ? 's' : ''} found{city ? ` in ${city}` : ''}
                 <button className="sr-clear" onClick={() => setResults(null)}>Clear</button>
@@ -160,16 +190,35 @@ export default function Home() {
                 </div>
               )}
             </div>
-          )}
+          </div>
+        </section>
+      )}
 
-          <div className="trust-strip rise d6">
-            <div className="ts-item"><strong>300+</strong> Verified Dentists</div>
-            <div className="ts-item"><strong>4,800+</strong> Happy Patients</div>
-            <div className="ts-item"><strong>12k+</strong> Appointments</div>
-            <div className="ts-item"><Star size={15} weight="fill" /> <strong>4.8</strong> Avg Rating</div>
+      {/* BROWSE CLINICS BY CATEGORY (clinic tiers) */}
+      <section className="block clinics-cat" id="clinics">
+        <div className="wrap">
+          <div className="cat-head">
+            <h2>Browse Clinics by Category</h2>
+            <a className="cat-viewall" href={APP_URL}>View All <ArrowRight size={18} weight="bold" /></a>
+          </div>
+          <div className="cat-grid">
+            {[
+              { key: 'elite',    Icon: Crown,       title: 'Elite Clinics',    sub: 'Premium Care',        cls: 'cat-elite',    photo: eliteClinic },
+              { key: 'modern',   Icon: Diamond,     title: 'Modern Clinics',   sub: 'Advanced Technology', cls: 'cat-modern',   photo: modernClinic },
+              { key: 'standard', Icon: ShieldCheck, title: 'Standard Clinics', sub: 'Quality & Affordable', cls: 'cat-standard', photo: standardClinic },
+            ].map(({ key, Icon, title, sub, cls, photo }) => (
+              <a className={`cat-card ${cls}`} key={key} href={APP_URL}>
+                <div className="cat-photo" style={{ backgroundImage: `url(${photo})` }} />
+                <div className="cat-band">
+                  <div className="cat-badge"><Icon size={26} weight="fill" /></div>
+                  <div className="cat-text"><strong>{title}</strong><span>{sub}</span></div>
+                  <div className="cat-go"><ArrowRight size={18} weight="bold" /></div>
+                </div>
+              </a>
+            ))}
           </div>
         </div>
-      </header>
+      </section>
 
       {/* BROWSE BY SPECIALTY — informational; clicking runs an on-page search */}
       <section className="block" id="specialties">
@@ -370,7 +419,6 @@ function DocCard({ d, big }) {
         </div>
       </div>
       <div className="dr-side">
-        {d.consultationFee ? <span className="dr-fee">Rs. {d.consultationFee}<small>consult</small></span> : null}
         <span className="dr-book">Book <ArrowRight size={14} weight="bold" /></span>
       </div>
     </a>

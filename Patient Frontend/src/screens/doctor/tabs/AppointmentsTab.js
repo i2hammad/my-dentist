@@ -74,6 +74,7 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
       month,
       date: dateNum.toString(),
       day,
+      raw: apt, // full appointment — passed to the detail screen on tap
     };
   };
 
@@ -227,15 +228,15 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
         
-        {/* Header Area */}
-        <View style={styles.headerArea}>
+        {/* Header Area — clean white card */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerIconTile}>
+            <Ionicons name="calendar" size={24} color="#0052FF" />
+            <View style={styles.calendarGraphicCheck}><Ionicons name="checkmark" size={11} color="#FFF" /></View>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.pageTitle}>Appointments</Text>
             <Text style={styles.pageSubtitle}>Manage your schedule and appointments</Text>
-          </View>
-          <View style={styles.calendarGraphic}>
-            <Ionicons name="calendar" size={40} color="#0052FF" style={{opacity: 0.8}} />
-            <View style={styles.calendarGraphicCheck}><Ionicons name="checkmark" size={14} color="#FFF" /></View>
           </View>
         </View>
 
@@ -314,7 +315,7 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
         <View style={styles.listContainer}>
           {todaysAppts.length > 0 ? (
             todaysAppts.map((apt) => (
-              <View key={apt._id} style={styles.aptRow}>
+              <TouchableOpacity key={apt._id} style={styles.aptRow} activeOpacity={0.85} onPress={() => navigation.navigate('DoctorAppointmentDetail', { appointment: apt.raw })}>
                 <View style={styles.aptRowTop}>
                   {/* Time Badge */}
                   <View style={styles.timeBox}>
@@ -358,11 +359,14 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                     return <View style={[styles.statusBadge, {backgroundColor: key==='coming'?'#DBEAFE':s.bg}]}><Text style={[styles.statusBadgeText, {color: key==='coming'?'#1D4ED8':s.c}]}>{key.toUpperCase()}</Text></View>;
                   })()}
 
+                  {/* Action button — only for actionable states. Completed /
+                      cancelled are already shown by the status badge above, so no
+                      extra control (that was the "double Completed"). */}
                   {updatingId === apt._id ? (
                     <ActivityIndicator size="small" color="#0052FF" />
                   ) : apt.status === 'confirmed' ? (
-                    <TouchableOpacity 
-                      style={styles.startBtn} 
+                    <TouchableOpacity
+                      style={styles.startBtn}
                       onPress={async () => {
                         await handleAction(apt._id, 'start');
                         if (apt.patientUserId) {
@@ -372,11 +376,11 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                     >
                       <Text style={styles.startBtnText}>Start Consultation</Text>
                     </TouchableOpacity>
-                  ) : (
+                  ) : apt.status === 'pending' ? (
                     <TouchableOpacity style={styles.confirmBtn} onPress={() => handleAction(apt._id, 'confirm')}>
                       <Text style={styles.confirmBtnText}>Confirm</Text>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
 
                 {!isWide && (
@@ -384,7 +388,7 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                     <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />
                   </TouchableOpacity>
                 )}
-              </View>
+              </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
@@ -407,7 +411,7 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
         <View style={styles.listContainer}>
           {upcomingAppts.length > 0 ? (
             upcomingAppts.map((apt) => (
-              <View key={apt._id} style={styles.aptRow}>
+              <TouchableOpacity key={apt._id} style={styles.aptRow} activeOpacity={0.85} onPress={() => navigation.navigate('DoctorAppointmentDetail', { appointment: apt.raw })}>
                 <View style={styles.aptRowTop}>
                   {/* Date Box */}
                   <View style={styles.dateBox}>
@@ -458,7 +462,7 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                     <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />
                   </TouchableOpacity>
                 )}
-              </View>
+              </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
@@ -510,11 +514,16 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  headerArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  pageTitle: { fontSize: 20, fontWeight: 'bold', color: '#0A1551' },
-  pageSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4 },
-  calendarGraphic: { position: 'relative', width: 60, height: 60, backgroundColor: '#EFF6FF', borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  calendarGraphicCheck: { position: 'absolute', bottom: -5, right: -5, backgroundColor: '#16A34A', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
+  headerCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 20,
+    borderWidth: 1, borderColor: '#EEF2F7',
+    shadowColor: '#0F172A', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+  },
+  headerIconTile: { position: 'relative', width: 48, height: 48, backgroundColor: '#EFF4FF', borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  pageTitle: { fontSize: 19, fontWeight: '800', color: '#0A1551', letterSpacing: -0.3 },
+  pageSubtitle: { fontSize: 13, color: '#64748B', marginTop: 3, fontWeight: '500' },
+  calendarGraphicCheck: { position: 'absolute', bottom: -4, right: -4, backgroundColor: '#16A34A', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
   
   /* Top 4 Stat Cards */
   topStatsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 30 },

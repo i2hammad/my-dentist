@@ -34,7 +34,7 @@ const getDoctors = async (req, res) => {
 
     // Popular (paid > earned > none) then facilityScore. Sorted in JS so the
     // computed popularRank ordering is exact; dataset is small enough.
-    const all = await prisma.doctorProfile.findMany({ where, include: { user: { select: { email: true, role: true } } } });
+    const all = await prisma.doctorProfile.findMany({ where, include: { user: { select: { id: true, email: true, role: true } } } });
     all.sort((a, b) => popularRank(b) - popularRank(a) || (b.facilityScore || 0) - (a.facilityScore || 0));
 
     const total = all.length;
@@ -92,7 +92,7 @@ const getNearbyDoctors = async (req, res) => {
 
     const results = rows.map((r) => ({
       ...r,
-      user: userMap.get(r.userId) ? { email: userMap.get(r.userId).email, role: userMap.get(r.userId).role } : null,
+      user: userMap.get(r.userId) ? { id: userMap.get(r.userId).id, email: userMap.get(r.userId).email, role: userMap.get(r.userId).role } : null,
       distanceKm: Math.round((r.distance || 0) * 100) / 100,
     }));
 
@@ -131,7 +131,7 @@ const searchDoctors = async (req, res) => {
         orderBy: { facilityScore: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
-        include: { user: { select: { email: true, role: true } } },
+        include: { user: { select: { id: true, email: true, role: true } } },
       }),
     ]);
 
@@ -156,7 +156,7 @@ const getDoctorById = async (req, res) => {
   try {
     const doctor = await prisma.doctorProfile.findUnique({
       where: { id: req.params.id },
-      include: { user: { select: { email: true, role: true } } },
+      include: { user: { select: { id: true, email: true, role: true } } },
     });
     if (!doctor || doctor.isBlocked) return res.status(404).json({ success: false, message: 'Doctor not found' });
 

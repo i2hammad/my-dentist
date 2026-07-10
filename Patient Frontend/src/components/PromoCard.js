@@ -69,7 +69,8 @@ export default function PromoCard({ style }) {
       >
         {campaigns.map((c, i) => {
           const bg = COLORS[i % COLORS.length];
-          const img = c.detailImage || c.bannerImage;
+          // Banner/card uses bannerImage; detailImage is for the detail page only.
+          const img = c.bannerImage || c.detailImage;
           const imgUri = img ? imgUrl(img) : null;
           return (
             <TouchableOpacity

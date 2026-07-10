@@ -83,14 +83,14 @@ export default function DoctorInboxScreen({ navigation }) {
 
     return (
       <TouchableOpacity
-        style={styles.convRow}
+        style={[styles.convRow, hasUnread && styles.convRowUnread]}
         onPress={() => navigation.navigate('Chat', {
           userId: item.otherUser?._id,
           userName: name,
         })}
-        activeOpacity={0.7}
+        activeOpacity={0.75}
       >
-        <View style={styles.avatarWrap}>
+        <View style={[styles.avatarRing, hasUnread && { borderColor: '#0052FF' }]}>
           {photo ? (
             <Image source={{ uri: imgUrl(photo) }} style={styles.avatar} />
           ) : (
@@ -98,7 +98,7 @@ export default function DoctorInboxScreen({ navigation }) {
               <Text style={styles.avatarInitial}>{name.charAt(0).toUpperCase()}</Text>
             </View>
           )}
-          {hasUnread && <View style={styles.onlineDot} />}
+          {hasUnread && <View style={styles.unreadDot} />}
         </View>
 
         <View style={styles.convBody}>
@@ -116,7 +116,9 @@ export default function DoctorInboxScreen({ navigation }) {
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{item.unreadCount > 99 ? '99+' : item.unreadCount}</Text>
               </View>
-            ) : null}
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -172,7 +174,9 @@ export default function DoctorInboxScreen({ navigation }) {
         </View>
       ) : filtered.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="chatbubbles-outline" size={56} color="#E2E8F0" />
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="chatbubbles-outline" size={40} color="#0052FF" />
+          </View>
           <Text style={styles.emptyTitle}>{search ? 'No results found' : 'No conversations yet'}</Text>
           <Text style={styles.emptySubtitle}>
             {search ? 'Try a different name' : 'Patients who message you will appear here'}
@@ -183,9 +187,8 @@ export default function DoctorInboxScreen({ navigation }) {
           data={filtered}
           keyExtractor={(item, index) => item.otherUser?._id?.toString() || item._id?.toString() || String(index)}
           renderItem={renderItem}
-          contentContainerStyle={[{ paddingBottom: 20 }, isWeb && styles.webBlock]}
+          contentContainerStyle={[{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24 }, isWeb && styles.webBlock]}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
     </SafeAreaView>
@@ -206,40 +209,42 @@ const styles = StyleSheet.create({
 
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F8FAFC', borderRadius: 12, marginHorizontal: 16, marginVertical: 10,
+    backgroundColor: '#FFFFFF', borderRadius: 12, marginHorizontal: 16, marginTop: 12, marginBottom: 6,
     paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 6,
     borderWidth: 1, borderColor: '#E2E8F0',
   },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14, color: '#0F172A' },
 
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#0A1551', marginTop: 16 },
-  emptySubtitle: { fontSize: 13, color: '#94A3B8', marginTop: 6, textAlign: 'center', paddingHorizontal: 40 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60, paddingHorizontal: 30 },
+  emptyIconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginBottom: 18 },
+  emptyTitle: { fontSize: 17, fontWeight: '800', color: '#0A1551' },
+  emptySubtitle: { fontSize: 13.5, color: '#94A3B8', marginTop: 6, textAlign: 'center', fontWeight: '500', lineHeight: 20 },
 
-  convRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  avatarWrap: { position: 'relative', marginRight: 12 },
-  avatar: { width: 50, height: 50, borderRadius: 25 },
+  // Conversation card
+  convRow: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: '#FFFFFF', borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#EEF2F7',
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1,
+  },
+  convRowUnread: { backgroundColor: '#F5F8FF', borderColor: '#DBEAFE' },
+  avatarRing: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: '#EEF2F7', justifyContent: 'center', alignItems: 'center', marginRight: 12, position: 'relative' },
+  avatar: { width: 48, height: 48, borderRadius: 24 },
   avatarFallback: { backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
-  avatarInitial: { fontSize: 20, fontWeight: 'bold', color: '#0052FF' },
-  onlineDot: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 14, height: 14, borderRadius: 7, backgroundColor: '#22C55E',
-    borderWidth: 2, borderColor: '#FFFFFF',
-  },
+  avatarInitial: { fontSize: 19, fontWeight: '800', color: '#0052FF' },
+  unreadDot: { position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: '#0052FF', borderWidth: 2.5, borderColor: '#FFFFFF' },
   convBody: { flex: 1 },
-  convTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-  convName: { fontSize: 14, color: '#0F172A', flex: 1, marginRight: 8 },
-  convNameBold: { fontWeight: '700' },
-  convTime: { fontSize: 11, color: '#94A3B8' },
-  convTimeBold: { color: '#0052FF', fontWeight: '600' },
+  convTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  convName: { fontSize: 15, color: '#0F172A', fontWeight: '700', flex: 1, marginRight: 8 },
+  convNameBold: { fontWeight: '800', color: '#0A1551' },
+  convTime: { fontSize: 11.5, color: '#94A3B8', fontWeight: '600' },
+  convTimeBold: { color: '#0052FF', fontWeight: '800' },
   convBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  lastMsg: { fontSize: 12, color: '#94A3B8', flex: 1, marginRight: 8 },
-  lastMsgBold: { color: '#0F172A', fontWeight: '600' },
+  lastMsg: { fontSize: 13, color: '#94A3B8', flex: 1, marginRight: 8 },
+  lastMsgBold: { color: '#334155', fontWeight: '600' },
   badge: {
-    backgroundColor: '#0052FF', borderRadius: 10,
-    minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 5,
+    backgroundColor: '#0052FF', borderRadius: 11,
+    minWidth: 22, height: 22, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6,
   },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-  separator: { height: 1, backgroundColor: '#F1F5F9', marginLeft: 78 },
+  badgeText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
 });

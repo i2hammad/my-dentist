@@ -246,14 +246,19 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.safe}>
-      <View style={[styles.header, !isWeb && { paddingTop: insets.top + 8 }, isWeb && styles.webBlock]}>
-        {isWeb ? <View style={{ width: 40 }} /> : (
-          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={22} color="#FFF" />
-          </TouchableOpacity>
-        )}
-        <Text style={styles.headerTitle}>Appointment</Text>
-        <View style={{ width: 40 }} />
+      {/* Full-width white app bar; its inner row aligns to the centered content column on web. */}
+      <View style={[styles.headerBar, !isWeb && { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.headerInner, isWeb && styles.webBlock]}>
+          {isWeb ? null : (
+            <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={20} color="#0052FF" />
+            </TouchableOpacity>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Appointment Details</Text>
+            <Text style={styles.headerSub}>{fmtDate(appt.date)}</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, isWeb && styles.webBlock]} showsVerticalScrollIndicator={false}>
@@ -410,12 +415,15 @@ function Row({ icon, label, value, last }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: isWeb ? '#F1F5F9' : '#0052FF' },
+  safe: { flex: 1, backgroundColor: isWeb ? '#F1F5F9' : '#FFFFFF' },
   // Web: center + cap content width so the header/cards aren't stretched edge-to-edge.
   webBlock: { width: '100%', maxWidth: 760, alignSelf: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0052FF', paddingHorizontal: 16, paddingBottom: 16, paddingTop: 14, borderBottomLeftRadius: 22, borderBottomRightRadius: 22 },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#FFF' },
+  // Full-bleed white bar (spans the page); the inner row is capped/centered on web to match content.
+  headerBar: { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E8EFFF', paddingBottom: 14, paddingTop: 14 },
+  headerInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, width: '100%' },
+  headerBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
+  headerSub: { fontSize: 12.5, color: '#64748B', marginTop: 2, fontWeight: '600' },
   content: { padding: 16, paddingBottom: 40, backgroundColor: '#F1F5F9', flexGrow: 1 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginBottom: 14 },
   statusText: { fontSize: 13, fontWeight: '700' },

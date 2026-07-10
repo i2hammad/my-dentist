@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 const { serialize } = require('../utils/serialize');
-const { saveUpload } = require('../config/upload');
+const { saveUpload, deleteUpload } = require('../config/upload');
 
 // @desc    Get logged-in doctor's gallery items
 // @route   GET /api/gallery/my
@@ -95,6 +95,13 @@ const deleteGalleryItem = async (req, res) => {
     }
 
     await prisma.gallery.delete({ where: { id: req.params.id } });
+
+    // Best-effort removal of the underlying files so deleting/replacing a gallery
+    // item doesn't leave orphaned uploads on disk. before_after has two images.
+    deleteUpload(galleryItem.imageUrl);
+    deleteUpload(galleryItem.beforeImage);
+    deleteUpload(galleryItem.afterImage);
+
     res.status(200).json({ success: true, message: 'Gallery item deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete gallery item', error: error.message });

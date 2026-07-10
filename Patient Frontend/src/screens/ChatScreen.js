@@ -103,8 +103,10 @@ export default function ChatScreen({ route, navigation }) {
       const token = await storage.getItem('userToken');
       if (!token) return;
 
+      // userId may arrive as a populated object or a string; normalize to an id.
+      const receiverId = userId?._id || userId?.id || userId;
       const res = await axios.post(`${API_BASE_URL}/api/chat/messages`, {
-        receiverId: userId,
+        receiverId,
         message: textToSend
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -116,8 +118,9 @@ export default function ChatScreen({ route, navigation }) {
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
       }
     } catch (error) {
-      console.log('Error sending message:', error);
-      alert('Failed to send message.');
+      console.log('Error sending message:', error?.response?.data || error?.message);
+      setInputText(textToSend); // restore the text so it isn't lost
+      alert(error?.response?.data?.message || 'Failed to send message.');
     } finally {
       setSending(false);
     }
@@ -208,6 +211,18 @@ export default function ChatScreen({ route, navigation }) {
             value={inputText}
             onChangeText={setInputText}
             multiline
+            blurOnSubmit={false}
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+            // Web: Enter sends, Shift+Enter inserts a newline.
+            {...(Platform.OS === 'web' ? {
+              onKeyPress: (e) => {
+                if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              },
+            } : {})}
           />
           <TouchableOpacity
             style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}

@@ -724,8 +724,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
           <Text style={styles.bookBtnTxt}>Book Appointment</Text>
         </TouchableOpacity>
         <View style={styles.webRailActions}>
-          <TouchableOpacity style={styles.webRailAction} onPress={() => {
-            const docUserId = doctor.userId?._id || doctor.userId;
+          <TouchableOpacity style={styles.webRailAction} onPress={async () => {
+            if (!(await ensureAuth(navigation))) return; // guests → login
+            const docUserId = doctor.userId?._id || doctor.userId?.id || doctor.userId;
             if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
             navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
           }}>
@@ -901,8 +902,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
             {/* Chat */}
             <TouchableOpacity
               style={{ flexGrow: 0, flexShrink: 0, width: 48, height: 48, borderRadius: 14, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#DBEAFE' }}
-              onPress={() => {
-                const docUserId = doctor.userId?._id || doctor.userId;
+              onPress={async () => {
+                if (!(await ensureAuth(navigation))) return; // guests → login
+                const docUserId = doctor.userId?._id || doctor.userId?.id || doctor.userId;
                 if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
                 navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
               }}

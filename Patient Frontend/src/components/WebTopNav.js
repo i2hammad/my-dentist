@@ -20,8 +20,15 @@ const PATIENT_TABS = [
   { name: 'Rewards', label: 'Rewards', icon: 'gift', tabsRoute: 'MainTabs' },
   { name: 'Campaigns', label: 'Appointments', icon: 'calendar', tabsRoute: 'MainTabs' },
   { name: 'MyReviews', label: 'My Reviews', icon: 'star', tabsRoute: 'MainTabs' },
-  { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs', guest: true },
-  { name: 'Orthodontics', label: 'Orthodontics', icon: 'options', tabsRoute: 'MainTabs', guest: true },
+  { name: 'BillsHistory', label: 'Bills', icon: 'receipt', tabsRoute: 'MainTabs' },
+];
+// Guests can browse without an account — give them the public discovery tabs
+// (account tabs like Rewards/Appointments/Bills require login and are hidden).
+const GUEST_TABS = [
+  { name: 'Home', label: 'Home', icon: 'home', tabsRoute: 'MainTabs' },
+  { name: 'Cosmetic', label: 'Cosmetic', icon: 'happy', tabsRoute: 'MainTabs' },
+  { name: 'Orthodontics', label: 'Orthodontics', icon: 'options', tabsRoute: 'MainTabs' },
+  { name: 'Implants', label: 'Implants', icon: 'medkit', tabsRoute: 'MainTabs' },
 ];
 const DOCTOR_TABS = [
   { name: 'DoctorHome', label: 'Home', icon: 'home', tabsRoute: 'DoctorTabs' },
@@ -83,7 +90,7 @@ export default function WebTopNav({ navRef, navInfo }) {
     ? userRole === 'doctor'
     : (rootRoute === 'DoctorTabs' || rootRoute === 'ClinicSetup');
   const isPatient = !isDoctorContext;
-  const tabs = isPatient ? PATIENT_TABS.filter((t) => !isGuest || t.guest) : DOCTOR_TABS;
+  const tabs = isPatient ? (isGuest ? GUEST_TABS : PATIENT_TABS) : DOCTOR_TABS;
   const profileTabsRoute = isPatient ? 'MainTabs' : 'DoctorTabs';
 
   // Active highlight: the focused tab if we're on the tabs route, else the root.
@@ -123,12 +130,15 @@ export default function WebTopNav({ navRef, navInfo }) {
           <View style={{ flex: 1 }} />
         )}
 
-        {/* RIGHT: Guest — single Log in action */}
+        {/* RIGHT: Guest — Log in + Sign up */}
         {isPatient && isGuest && (
           <View style={styles.iconGroup}>
-            <Pressable style={styles.loginPill} onPress={() => navigate('Login', { role: 'patient' })}>
-              <Ionicons name="log-in-outline" size={19} color="#FFFFFF" />
-              <Text style={styles.loginLabel}>Log in</Text>
+            <Pressable style={styles.loginGhost} onPress={() => navigate('Login', { role: 'patient' })}>
+              <Text style={styles.loginGhostLabel}>Log in</Text>
+            </Pressable>
+            <Pressable style={styles.loginPill} onPress={() => navigate('RoleSelection')}>
+              <Ionicons name="person-add-outline" size={17} color="#FFFFFF" />
+              <Text style={styles.loginLabel}>Sign up</Text>
             </Pressable>
           </View>
         )}
@@ -156,11 +166,13 @@ export default function WebTopNav({ navRef, navInfo }) {
                 </View>
               </Pressable>
 
+              {showLinks && <View style={styles.vDivider} />}
+
               {/* Profile */}
               <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
                 {userPhoto
                   ? <Image source={{ uri: userPhoto }} style={styles.profileAvatar} />
-                  : <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                  : <View style={[styles.iconCircle, { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF' }]}>
                       <Ionicons name="person-outline" size={18} color="#0052FF" />
                     </View>
                 }
@@ -170,7 +182,6 @@ export default function WebTopNav({ navRef, navInfo }) {
               {/* Logout */}
               <Pressable style={[styles.logoutPill, !showLinks && styles.logoutPillBare]} onPress={handleLogout}>
                 <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-                {showLinks && <Text style={styles.logoutLabel}>Logout</Text>}
               </Pressable>
             </View>
           )}
@@ -188,11 +199,13 @@ export default function WebTopNav({ navRef, navInfo }) {
               </View>
             </Pressable>
 
+            {showLinks && <View style={styles.vDivider} />}
+
             {/* Profile (with photo) */}
             <Pressable style={[styles.profilePill, isActive('Profile') && styles.profilePillActive, !showLinks && styles.profilePillBare]} onPress={goProfile}>
               {userPhoto
                 ? <Image source={{ uri: userPhoto }} style={styles.profileAvatar} />
-                : <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                : <View style={[styles.iconCircle, { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF' }]}>
                     <Ionicons name="person-outline" size={18} color="#0052FF" />
                   </View>
               }
@@ -201,7 +214,6 @@ export default function WebTopNav({ navRef, navInfo }) {
 
             <Pressable style={[styles.logoutPill, !showLinks && styles.logoutPillBare]} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-              {showLinks && <Text style={styles.logoutLabel}>Logout</Text>}
             </Pressable>
           </View>
         )}
@@ -216,81 +228,88 @@ const styles = StyleSheet.create({
   bar: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    ...(typeof document !== 'undefined' ? { boxShadow: '0 2px 12px rgba(15,23,42,0.05)' } : {}),
+    borderBottomColor: '#EEF2F7',
+    ...(typeof document !== 'undefined' ? { boxShadow: '0 1px 0 rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.04)' } : {}),
   },
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 64,
-    paddingHorizontal: 40,
+    height: 66,
+    paddingHorizontal: 32,
     width: '100%',
-    maxWidth: 1280,
-    alignSelf: 'center',
+    // No maxWidth cap: the brand should hug the LEFT edge of the window and the
+    // actions the RIGHT edge, like a normal app bar — not float inset in a
+    // centered 1320px column.
+    alignSelf: 'stretch',
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  logo: { width: 32, height: 32, borderRadius: 8 },
-  brandText: { fontSize: 18, fontWeight: '800', color: '#0A1551' },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
+  logo: { width: 36, height: 36 },
+  brandText: { fontSize: 19, fontWeight: '900', color: '#0A1551', letterSpacing: -0.3 },
   brandAccent: { color: '#60A5FA' },
 
-  leftCluster: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  links: { flexDirection: 'row', alignItems: 'center', gap: 4, flexGrow: 1, justifyContent: 'center', marginHorizontal: 16 },
+  // Center nav — a soft segmented group.
+  links: { flexDirection: 'row', alignItems: 'center', gap: 2, flexGrow: 1, justifyContent: 'center', marginHorizontal: 16 },
   link: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 11,
+    ...(typeof document !== 'undefined' ? { transitionProperty: 'background-color, color', transitionDuration: '150ms', cursor: 'pointer' } : {}),
   },
   linkActive: { backgroundColor: '#EFF4FF' },
-  linkText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
+  linkText: { fontSize: 14, fontWeight: '700', color: '#64748B' },
   linkTextActive: { color: '#0052FF' },
 
-  iconGroup: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-  },
-  iconPill: {
-    alignItems: 'center', justifyContent: 'center',
-  },
+  iconGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // Vertical divider between action icons and the profile/logout cluster.
+  vDivider: { width: 1, height: 26, backgroundColor: '#EEF2F7', marginHorizontal: 8 },
+  iconPill: { alignItems: 'center', justifyContent: 'center' },
   iconCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#EFF6FF',
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#F5F8FF',
     justifyContent: 'center', alignItems: 'center',
     position: 'relative',
+    ...(typeof document !== 'undefined' ? { cursor: 'pointer' } : {}),
   },
-  iconLabel: { fontSize: 10, color: '#64748B', fontWeight: '600', marginTop: 2 },
   profilePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1, borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingLeft: 5, paddingRight: 12, paddingVertical: 5,
+    borderRadius: 24,
+    borderWidth: 1, borderColor: '#EEF2F7',
+    backgroundColor: '#F8FAFC',
+    ...(typeof document !== 'undefined' ? { cursor: 'pointer' } : {}),
   },
-  profilePillActive: { borderColor: '#0052FF', backgroundColor: '#EFF4FF' },
-  // Icon-only (mobile web): strip the rounded-rect chrome so just the round avatar shows.
-  profilePillBare: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 },
-  profilePillText: { fontSize: 13, fontWeight: '700', color: '#334155' },
-  profileAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#0052FF' },
+  profilePillActive: { borderColor: '#BFD4FF', backgroundColor: '#EFF4FF' },
+  profilePillBare: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0, paddingLeft: 0, paddingRight: 0 },
+  profilePillText: { fontSize: 13.5, fontWeight: '800', color: '#334155' },
+  profileAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#FFFFFF' },
   logoutPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1, borderColor: '#FEE2E2',
+    width: 40, height: 40, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
     backgroundColor: '#FEF2F2',
+    ...(typeof document !== 'undefined' ? { cursor: 'pointer' } : {}),
   },
-  // Icon-only (mobile web): a round red-tinted button so it matches the bell/avatar circles.
-  logoutPillBare: { width: 36, height: 36, borderRadius: 18, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center', alignItems: 'center', borderColor: '#FEE2E2', backgroundColor: '#FEF2F2' },
+  logoutPillBare: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FEF2F2' },
   logoutLabel: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
   loginPill: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12,
+    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24,
     backgroundColor: '#0052FF',
+    ...(typeof document !== 'undefined' ? { cursor: 'pointer' } : {}),
   },
-  loginLabel: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  loginLabel: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  loginGhost: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24,
+    borderWidth: 1, borderColor: '#DBEAFE', backgroundColor: '#F5F8FF',
+    ...(typeof document !== 'undefined' ? { cursor: 'pointer' } : {}),
+  },
+  loginGhostLabel: { fontSize: 14, fontWeight: '800', color: '#0052FF' },
 
   badge: {
-    position: 'absolute', top: 2, right: 2,
-    minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444',
+    position: 'absolute', top: -3, right: -3,
+    minWidth: 17, height: 17, borderRadius: 9, backgroundColor: '#EF4444',
     paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#FFFFFF',
+    borderWidth: 2, borderColor: '#FFFFFF',
   },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
 });

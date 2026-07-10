@@ -10,6 +10,10 @@ node_modules/
 **/.env
 !**/.env.example
 
+# ─── Build artifacts (zips / APKs) ───────────────────────────
+mydentist-*.zip
+*.apk
+
 # ─── Expo / React Native ─────────────────────────────────────
 .expo/
 dist/

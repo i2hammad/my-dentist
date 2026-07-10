@@ -11,6 +11,7 @@ export default function SplashScreen({ navigation }) {
     // dentist's profile, ?login=1 opens the login screen directly.
     let deepDoctorId = null;
     let wantLogin = false;
+    let wantSignup = false;
 
     const checkLoginStatus = async () => {
       // Web-only param bootstrap: impersonation token + deep-link params.
@@ -18,6 +19,7 @@ export default function SplashScreen({ navigation }) {
         const params = new URLSearchParams(window.location.search);
         deepDoctorId = params.get('doctor');
         wantLogin = params.get('login') === '1' || params.get('screen') === 'login';
+        wantSignup = params.get('signup') === '1';
 
         const impersonateToken = params.get('impersonate');
         if (impersonateToken) {
@@ -99,7 +101,8 @@ export default function SplashScreen({ navigation }) {
         // Web deep-links: open the requested screen on top of the base route so
         // Back returns to Home. Login takes priority over a doctor link.
         if (Platform.OS === 'web') {
-          if (wantLogin) navigation.navigate('Login', { role: 'patient' });
+          if (wantSignup) navigation.navigate('RoleSelection');
+          else if (wantLogin) navigation.navigate('Login', { role: 'patient' });
           else if (deepDoctorId) navigation.navigate('DoctorProfile', { doctorId: deepDoctorId });
         }
       } else {

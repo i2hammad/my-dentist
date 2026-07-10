@@ -280,7 +280,7 @@ export default function BillsHistoryScreen({ navigation }) {
               <View style={styles.summaryRow}>
                 <SummaryCard icon="receipt-outline" label="Total Bills" value={summary.totalBills} color="#0052FF" />
                 <SummaryCard icon="wallet-outline" label="Outstanding" value={rs(summary.outstanding)} color="#D97706" />
-                <SummaryCard icon="gift-outline" label="Saved" value={rs(summary.totalDiscount)} color="#16A34A" />
+                <SummaryCard icon="checkmark-circle-outline" label="Total Paid" value={rs(summary.totalPaid)} color="#16A34A" />
               </View>
             )}
 

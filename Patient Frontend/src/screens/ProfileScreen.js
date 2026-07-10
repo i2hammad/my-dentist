@@ -14,6 +14,10 @@ import { SkeletonProfile } from '../components/Skeleton';
 import PaymentMethods from '../components/PaymentMethods';
 import CityPicker from '../components/CityPicker';
 import PromoCard from '../components/PromoCard';
+import AvatarCropper from '../components/AvatarCropper';
+import { compressImage, getByteSize, formatBytes } from '../utils/imageTools';
+import { appendImageFile } from '../utils/formImage';
+import { sanitizePhone } from '../utils/phone';
 import { webForm, isWeb } from '../config/webLayout';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 
@@ -39,6 +43,8 @@ export default function ProfileScreen({ navigation }) {
   const [age, setAge] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [cropper, setCropper] = useState(null); // web crop step: { uri }
+  const [up, setUp] = useState(null); // upload progress: { stage, uri, origSize, size, percent, error }
   const [profileExists, setProfileExists] = useState(false);
   const [referral, setReferral] = useState(null);
   const [showReferralModal, setShowReferralModal] = useState(false);
@@ -174,40 +180,43 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const uploadAvatar = async (localUri, token) => {
+  // Upload the (already-compressed) avatar with real progress via XHR.
+  const uploadAvatar = async (localUri, token, onProgress) => {
+    const fd = new FormData();
+    await appendImageFile(fd, 'avatar', localUri, 'avatar.jpg');
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE_URL}/api/users/upload-avatar`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)); };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status >= 200 && xhr.status < 300 && data.success) resolve(data.data.profileImage);
+          else reject(new Error(data.message || `Upload failed (${xhr.status})`));
+        } catch (e) { reject(new Error('Unexpected server response')); }
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(fd);
+    });
+  };
+
+  // Compress → upload the avatar, driving the progress window.
+  const runAvatarUpload = async (asset) => {
+    const origSize = asset.fileSize || (await getByteSize(asset.uri));
+    setProfileImage(asset.uri); // instant local preview
+    setUp({ stage: 'compressing', uri: asset.uri, origSize, size: 0, percent: 0, error: '' });
     try {
-      const formData = new FormData();
-      let uri = localUri;
-      const name = (uri.split('/').pop() || 'avatar.jpg').split('?')[0];
-
-      if (Platform.OS === 'web') {
-        // Browsers need a real Blob/File. The RN `{ uri, name, type }` shape is
-        // sent as "[object Object]" on web, so the server sees no file (400).
-        const blob = await (await fetch(uri)).blob();
-        formData.append('avatar', blob, name.includes('.') ? name : 'avatar.jpg');
-      } else {
-        if (Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://')) uri = `file://${uri}`;
-        const ext = (name.split('.').pop() || 'jpg').toLowerCase();
-        const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-        formData.append('avatar', { uri, name, type });
-      }
-
-      const res = await fetch(`${API_BASE_URL}/api/users/upload-avatar`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data?.success) {
-        return data.data.profileImage;
-      }
-      throw new Error('Avatar upload failed');
+      const token = await storage.getItem('userToken');
+      if (!token) { setUp(null); return; }
+      // Fixed 512² square (native picker already cropped; web cropper handed us a square).
+      const out = await compressImage(asset.uri, { quality: 0.75, square: 512 });
+      setUp((s) => s && { ...s, uri: out.uri, size: out.size, stage: 'uploading', percent: 0 });
+      const url = await uploadAvatar(out.uri, token, (percent) => setUp((s) => (s ? { ...s, percent } : s)));
+      if (url) setProfileImage(url.startsWith('http') ? url : `${API_BASE_URL}${url}`);
+      setUp((s) => s && { ...s, stage: 'done', percent: 100 });
     } catch (err) {
-      console.error('Avatar upload error:', err);
-      throw err;
+      setUp((s) => s && { ...s, stage: 'error', error: err.message || 'Upload failed' });
     }
   };
 
@@ -279,37 +288,28 @@ export default function ProfileScreen({ navigation }) {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: false,
+        // Native: OS square crop UI. Web: allowsEditing is a no-op → our AvatarCropper.
+        allowsEditing: !isWeb,
         aspect: [1, 1],
-        quality: 0.5,
+        quality: 1,
       });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
 
-      if (result.canceled || !result.assets || result.assets.length === 0) return;
-
-      const localUri = result.assets[0].uri;
-      // Show the local preview immediately, then auto-upload + save.
-      setProfileImage(localUri);
-
-      const token = await storage.getItem('userToken');
-      if (!token) return;
-
-      try {
-        setUploadingImage(true);
-        const uploadedUrl = await uploadAvatar(localUri, token);
-        if (uploadedUrl) {
-          setProfileImage(uploadedUrl.startsWith('http') ? uploadedUrl : `${API_BASE_URL}${uploadedUrl}`);
-        }
-      } catch (uploadErr) {
-        console.log('Error uploading avatar:', uploadErr?.message || uploadErr);
-        alert('Failed to upload photo. Please try again.');
-        // Keep the local preview so the user can retry via Save.
-      } finally {
-        setUploadingImage(false);
-      }
+      // Web → open the "Adjust your photo" cropper (drag/zoom), then upload.
+      if (isWeb) { setCropper({ uri: asset.uri }); return; }
+      runAvatarUpload(asset);
     } catch (error) {
       console.log('Error picking image:', error);
       alert('Failed to pick an image: ' + (error?.message || error));
     }
+  };
+
+  // Web cropper confirmed → the returned blob is already a 512² square.
+  const onCropped = (out) => {
+    setCropper(null);
+    if (!out) return;
+    runAvatarUpload({ uri: out.uri, fileSize: out.size });
   };
 
   const handleLogout = async () => {
@@ -463,11 +463,12 @@ export default function ProfileScreen({ navigation }) {
               <Text style={styles.label}>Mobile Number</Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="call-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={mobileNumber}
-                  onChangeText={setMobileNumber}
+                  onChangeText={(t) => setMobileNumber(sanitizePhone(t))}
                   keyboardType="phone-pad"
+                  maxLength={11}
                   placeholder="Enter your mobile number"
                   placeholderTextColor="#94A3B8"
                 />
@@ -748,12 +749,81 @@ export default function ProfileScreen({ navigation }) {
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Web avatar cropper — drag/zoom before upload */}
+      <Modal visible={!!cropper} transparent animationType="fade" onRequestClose={() => setCropper(null)}>
+        <View style={styles.upOverlay}>
+          <View style={styles.upCard}>
+            {!!cropper && <AvatarCropper uri={cropper.uri} out={512} onCancel={() => setCropper(null)} onDone={onCropped} />}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Avatar upload progress window */}
+      <Modal visible={!!up} transparent animationType="fade" onRequestClose={() => up?.stage !== 'uploading' && setUp(null)}>
+        <View style={styles.upOverlay}>
+          <View style={styles.upCard}>
+            <View style={styles.upHeaderRow}>
+              <View style={styles.upIconWrap}>
+                <Ionicons name={up?.stage === 'done' ? 'checkmark-circle' : up?.stage === 'error' ? 'alert-circle' : 'cloud-upload'} size={22} color={up?.stage === 'done' ? '#16A34A' : up?.stage === 'error' ? '#DC2626' : '#0052FF'} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.upTitle}>Profile Photo</Text>
+                <Text style={styles.upStageText}>
+                  {up?.stage === 'compressing' && 'Optimizing image…'}
+                  {up?.stage === 'uploading' && `Uploading… ${up?.percent || 0}%`}
+                  {up?.stage === 'done' && 'Photo updated'}
+                  {up?.stage === 'error' && (up?.error || 'Upload failed')}
+                </Text>
+              </View>
+            </View>
+
+            {!!up?.uri && <View style={styles.upAvatarWrap}><Image source={{ uri: up.uri }} style={styles.upAvatarPreview} resizeMode="cover" /></View>}
+
+            <View style={styles.upSizeRow}>
+              <View style={styles.upSizePill}><Text style={styles.upSizeLabel}>Original</Text><Text style={styles.upSizeVal}>{formatBytes(up?.origSize)}</Text></View>
+              <Ionicons name="arrow-forward" size={14} color="#94A3B8" />
+              <View style={[styles.upSizePill, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}><Text style={[styles.upSizeLabel, { color: '#15803D' }]}>Compressed</Text><Text style={[styles.upSizeVal, { color: '#15803D' }]}>{up?.size ? formatBytes(up.size) : '…'}</Text></View>
+            </View>
+
+            {(up?.stage === 'compressing' || up?.stage === 'uploading') && (
+              <View style={styles.upTrack}><View style={[styles.upFill, { width: `${up?.stage === 'uploading' ? (up?.percent || 0) : 8}%` }]} /></View>
+            )}
+
+            {up?.stage === 'done' && <TouchableOpacity style={styles.upDoneBtn} onPress={() => setUp(null)}><Text style={styles.upDoneText}>Done</Text></TouchableOpacity>}
+            {up?.stage === 'error' && <TouchableOpacity style={styles.upCloseBtn} onPress={() => setUp(null)}><Text style={styles.upCloseText}>Close</Text></TouchableOpacity>}
+            {(up?.stage === 'compressing' || up?.stage === 'uploading') && <View style={styles.upBusyRow}><ActivityIndicator size="small" color="#0052FF" /><Text style={styles.upBusyText}>Please wait…</Text></View>}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  // ── Avatar cropper + upload progress window ──
+  upOverlay: { flex: 1, backgroundColor: 'rgba(10,21,81,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  upCard: { width: 360, maxWidth: '100%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 30, elevation: 12 },
+  upHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  upIconWrap: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#EFF4FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  upTitle: { fontSize: 15.5, fontWeight: '800', color: '#0A1551' },
+  upStageText: { fontSize: 12.5, color: '#64748B', marginTop: 2, fontWeight: '600' },
+  upAvatarWrap: { alignItems: 'center', marginBottom: 14 },
+  upAvatarPreview: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#F1F5F9', borderWidth: 3, borderColor: '#E0EAFF' },
+  upSizeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  upSizePill: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10 },
+  upSizeLabel: { fontSize: 10.5, fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.4 },
+  upSizeVal: { fontSize: 14, fontWeight: '800', color: '#0A1551', marginTop: 1 },
+  upTrack: { height: 8, borderRadius: 4, backgroundColor: '#E8EFFF', overflow: 'hidden', marginBottom: 14 },
+  upFill: { height: 8, borderRadius: 4, backgroundColor: '#0052FF' },
+  upBusyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  upBusyText: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  upDoneBtn: { backgroundColor: '#16A34A', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  upDoneText: { color: '#FFFFFF', fontSize: 14.5, fontWeight: '800' },
+  upCloseBtn: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FEE2E2', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  upCloseText: { color: '#DC2626', fontSize: 14.5, fontWeight: '800' },
+
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',

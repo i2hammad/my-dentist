@@ -121,6 +121,34 @@ async function rewardDoctorReferralOnFirstTreatment(doctorProfile) {
   doctorProfile.referralRewarded = true;
 }
 
+/**
+ * Award referral bonuses for a completed treatment — the patient/doctor "first
+ * completed treatment" referral payouts. Call this wherever an appointment
+ * transitions to `completed`: when its bill is finalized (bill controller) OR via
+ * the direct /complete endpoint. Idempotent — the underlying helpers no-op once
+ * already rewarded. Non-fatal on error.
+ *
+ * NOTE: this covers ONLY referral bonuses; per-appointment/per-bill doctor points
+ * are granted separately by their own callers (so nothing is double-counted).
+ *
+ * @param {string} doctorProfileId
+ * @param {string} patientProfileId
+ */
+async function awardReferralOnCompletion(doctorProfileId, patientProfileId) {
+  try {
+    if (patientProfileId) {
+      const p = await prisma.patientProfile.findUnique({ where: { id: patientProfileId } });
+      await rewardReferralOnFirstTreatment(p);
+    }
+    if (doctorProfileId) {
+      const d = await prisma.doctorProfile.findUnique({ where: { id: doctorProfileId } });
+      await rewardDoctorReferralOnFirstTreatment(d);
+    }
+  } catch (e) {
+    console.error('awardReferralOnCompletion error (non-fatal):', e.message);
+  }
+}
+
 module.exports = {
   generateReferralCode,
   ensureReferralCode,
@@ -128,5 +156,6 @@ module.exports = {
   ensureDoctorReferralCode,
   rewardReferralOnFirstTreatment,
   rewardDoctorReferralOnFirstTreatment,
+  awardReferralOnCompletion,
   REFERRAL_POINTS,
 };

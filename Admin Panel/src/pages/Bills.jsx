@@ -44,7 +44,7 @@ export default function Bills() {
       <StatCards items={[
         { label: 'Total Bills', value: c.total ?? '—', icon: Receipt, tone: 'blue' },
         { label: 'Collected', value: money(c.collected), icon: CheckCircle, tone: 'green' },
-        { label: 'Outstanding', value: money(c.outstanding), icon: WarningCircle, tone: 'amber' },
+        { label: `Outstanding (Drafts${c.draftCount ? ` · ${c.draftCount}` : ''})`, value: money(c.outstanding), icon: WarningCircle, tone: 'amber' },
         { label: 'Total Billed', value: money(c.totalAmount), icon: Wallet, tone: 'purple' },
       ]} />
       )}
@@ -65,7 +65,7 @@ export default function Bills() {
         <>
           <div className="table-scroll">
           <table>
-            <thead><tr><th>Invoice</th><th>Patient</th><th>Dentist</th><th>Treatment</th><th>Final</th><th>Paid</th><th>Status</th><th>Date</th><th></th></tr></thead>
+            <thead><tr><th>Invoice</th><th>Patient</th><th>Dentist</th><th>Treatment</th><th>Final</th><th>Paid</th><th>Draft Amount</th><th>Status</th><th>Date</th><th></th></tr></thead>
             <tbody>
               {L.data.map((b) => (
                 <tr key={b._id}>
@@ -75,6 +75,7 @@ export default function Bills() {
                   <td>{b.treatmentName || '—'}</td>
                   <td>{money(b.finalAmount)}</td>
                   <td>{money(b.paidAmount)}</td>
+                  <td>{b.status === 'draft' ? <span style={{ color: '#D97706', fontWeight: 600 }}>{money(Math.max(0, (b.finalAmount || b.amount || 0) - (b.paidAmount || 0)))}</span> : '—'}</td>
                   <td><span className={`badge ${statusBadgeClass(b.status)}`}>{statusLabel(b.status)}</span></td>
                   <td>{fmtDate(b.createdAt)}</td>
                   <td className="row-actions">
@@ -82,7 +83,7 @@ export default function Bills() {
                   </td>
                 </tr>
               ))}
-              {!L.data.length && <tr><td colSpan={9} className="empty">No bills found</td></tr>}
+              {!L.data.length && <tr><td colSpan={10} className="empty">No bills found</td></tr>}
             </tbody>
           </table>
           </div>

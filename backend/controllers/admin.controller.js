@@ -319,14 +319,20 @@ exports.listBills = async (req, res) => {
       include: { patient: { select: { fullName: true, profileImage: true } }, doctor: { select: { fullName: true, photo: true } } },
       refmap: { patient: 'patientId', doctor: 'doctorId' },
     });
-    const filtered = await prisma.bill.findMany({ where, select: { finalAmount: true, paidAmount: true, status: true } });
-    const collected = filtered.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
-    const billed = filtered.reduce((s, b) => s + (b.finalAmount || 0), 0);
+    const filtered = await prisma.bill.findMany({ where, select: { finalAmount: true, amount: true, paidAmount: true, status: true } });
+    // Drafts are unfinished bills — kept out of collected/billed, and their
+    // unpaid balance (Final − Paid) is surfaced as "Outstanding".
+    const realBills = filtered.filter((b) => b.status !== 'draft');
+    const draftBills = filtered.filter((b) => b.status === 'draft');
+    const collected = realBills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
+    const billed = realBills.reduce((s, b) => s + (b.finalAmount || 0), 0);
+    const draftsOutstanding = draftBills.reduce((s, b) => s + Math.max(0, (b.finalAmount || b.amount || 0) - (b.paidAmount || 0)), 0);
     const counts = {
       total: result.total,
-      paid: filtered.filter((b) => b.status === 'paid').length,
-      pending: filtered.filter((b) => b.status !== 'paid').length,
-      totalAmount: billed, collected, outstanding: Math.max(0, billed - collected),
+      paid: realBills.filter((b) => b.status === 'paid').length,
+      pending: realBills.filter((b) => b.status !== 'paid').length,
+      draftCount: draftBills.length,
+      totalAmount: billed, collected, outstanding: draftsOutstanding,
     };
     ok(res, result.data, { total: result.total, page: result.page, pages: result.pages, counts });
   } catch (e) { fail(res, 500, e.message); }
@@ -432,12 +438,19 @@ exports.getDentist = async (req, res) => {
       getOrCreateSettings(),
     ]);
 
-    const collected = bills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
-    const billed = bills.reduce((s, b) => s + (b.finalAmount || 0), 0);
+    // Drafts are unfinished bills, not real invoices — keep them out of the
+    // billed/collected/paid figures and report them as their own line.
+    const realBills = bills.filter((b) => b.status !== 'draft');
+    const draftBills = bills.filter((b) => b.status === 'draft');
+    const collected = realBills.reduce((s, b) => s + (b.paidAmount || (b.status === 'paid' ? b.finalAmount : 0) || 0), 0);
+    const billed = realBills.reduce((s, b) => s + (b.finalAmount || 0), 0);
+    const draftsAmount = draftBills.reduce((s, b) => s + (b.finalAmount || b.amount || 0), 0);
+    const draftsOutstanding = draftBills.reduce((s, b) => s + Math.max(0, (b.finalAmount || b.amount || 0) - (b.paidAmount || 0)), 0);
     const commissionRate = settings.commissionRate ?? 10;
     const earnings = {
       totalEarned: collected, totalBilled: billed, outstanding: Math.max(0, billed - collected),
-      paidCount: bills.filter((b) => b.status === 'paid').length, billCount: bills.length,
+      draftsAmount, draftsOutstanding, draftCount: draftBills.length,
+      paidCount: realBills.filter((b) => b.status === 'paid').length, billCount: realBills.length,
       commissionRate, commissionEarned: Math.round(collected * (commissionRate / 100)),
       commissionDue: doctor.commissionDue || 0, commissionPaid: doctor.commissionPaid || 0,
     };
@@ -549,6 +562,32 @@ exports.backupData = async (req, res) => {
   } catch (e) { fail(res, 500, e.message); }
 };
 
+// ─── Image backup stats (count + raw size) ──────────────────
+// Super-admin only. Lets the UI show "N images · X MB" before downloading.
+exports.backupImagesInfo = async (req, res) => {
+  try {
+    const me = await prisma.adminProfile.findUnique({ where: { userId: req.user._id } });
+    if (me?.adminRole !== 'super_admin') return fail(res, 403, 'Only super admins can view backup info');
+
+    const path = require('path');
+    const fs = require('fs');
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadsDir)) return ok(res, { count: 0, bytes: 0 });
+
+    // Walk the uploads tree, counting files and summing their sizes.
+    let count = 0, bytes = 0;
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (entry.isFile()) { count++; try { bytes += fs.statSync(p).size; } catch {} }
+      }
+    };
+    walk(uploadsDir);
+    ok(res, { count, bytes });
+  } catch (e) { fail(res, 500, e.message); }
+};
+
 // ─── Image backup (uploaded files as .tar.gz) ───────────────
 // Super-admin only. Streams the on-disk uploads folder as a gzipped tarball via
 // the system `tar` (no npm dependency, memory-friendly for large folders).
@@ -565,17 +604,53 @@ exports.backupImages = async (req, res) => {
     }
 
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    res.setHeader('Content-Type', 'application/gzip');
-    res.setHeader('Content-Disposition', `attachment; filename="mydentist-images-${stamp}.tar.gz"`);
-
+    const os = require('os');
     const { spawn } = require('child_process');
+
+    // Build the tarball to a temp FILE first (not straight to the response) so we
+    // can send an accurate Content-Length. That lets the client show a real
+    // download percentage + ETA instead of an indeterminate spinner.
+    const tmpFile = path.join(os.tmpdir(), `mydentist-images-${stamp}-${process.pid}.tar.gz`);
+    const out = fs.createWriteStream(tmpFile);
     const tar = spawn('tar', ['-czf', '-', '-C', uploadsDir, '.']);
-    tar.stdout.pipe(res);
-    tar.stderr.on('data', (d) => console.error('[backup-images] tar:', d.toString()));
+    let tarErr = '';
+    tar.stderr.on('data', (d) => { tarErr += d.toString(); });
+    tar.stdout.pipe(out);
+
+    const cleanup = () => { fs.promises.unlink(tmpFile).catch(() => {}); };
+
     tar.on('error', (e) => {
+      out.destroy(); cleanup();
       if (!res.headersSent) fail(res, 500, `Could not create archive (tar unavailable): ${e.message}`);
-      else res.end();
     });
+
+    out.on('error', (e) => {
+      cleanup();
+      if (!res.headersSent) fail(res, 500, `Could not write archive: ${e.message}`);
+    });
+
+    tar.on('close', (code) => {
+      if (code !== 0) {
+        cleanup();
+        if (!res.headersSent) fail(res, 500, `Archive failed (tar exit ${code}). ${tarErr.slice(0, 200)}`);
+        return;
+      }
+      // tar finished writing to disk — now stream the finished file with a size.
+      out.end(() => {
+        fs.stat(tmpFile, (err, st) => {
+          if (err) { cleanup(); if (!res.headersSent) fail(res, 500, 'Could not stat archive'); return; }
+          res.setHeader('Content-Type', 'application/gzip');
+          res.setHeader('Content-Disposition', `attachment; filename="mydentist-images-${stamp}.tar.gz"`);
+          res.setHeader('Content-Length', st.size); // ← enables % + ETA on the client
+          const rs = fs.createReadStream(tmpFile);
+          rs.on('error', () => { cleanup(); if (!res.headersSent) fail(res, 500, 'Could not read archive'); });
+          rs.on('close', cleanup);
+          res.on('close', cleanup); // client aborted mid-download → still clean up
+          rs.pipe(res);
+        });
+      });
+    });
+
     logAudit(req, { action: 'export', entity: 'backup', description: 'Exported uploaded images archive' }).catch(() => {});
   } catch (e) { if (!res.headersSent) fail(res, 500, e.message); }
 };

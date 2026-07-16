@@ -189,38 +189,30 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
     act(rr?.requested ? 'updated' : 'confirmed', (h) => axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/confirm`, {}, { headers: h }), optimistic);
   };
 
-  // Mark completed, then jump straight to the Bills tab with a draft bill prefilled
-  // from this appointment (patient + treatments) so the doctor can price and save it.
-  const completeAndBill = async () => {
-    setBusy(true);
-    try {
-      const res = await axios.put(`${API_BASE_URL}/api/appointments/${appt._id}/complete`, {}, { headers: await headers() });
-      if (res.data?.success) {
-        setAppt((a) => ({ ...a, status: 'completed' }));
-        const pat = appt.patientId || {};
-        navigation.navigate('DoctorTabs', {
-          screen: 'DoctorBills',
-          params: {
-            billPrefill: {
-              appointmentId: appt._id,
-              patientId: pat._id || pat,
-              patientName: pat.fullName || 'Patient',
-              patientPhone: pat.mobileNumber || '',
-              treatmentType: appt.treatmentType || '',
-            },
-          },
-        });
-      } else {
-        Alert.alert('Error', res.data?.message || 'Could not complete the appointment.');
-      }
-    } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Could not complete the appointment.');
-    } finally { setBusy(false); }
+  // Jump straight to the Bills tab with a bill prefilled from this appointment
+  // (patient + treatments). The visit is NOT marked completed here — the backend
+  // marks the appointment completed automatically once the doctor actually
+  // *creates* (finalizes) the bill, so a visit can never be "completed" without
+  // a bill, and one appointment can only ever produce one bill.
+  const completeAndBill = () => {
+    const pat = appt.patientId || {};
+    navigation.navigate('DoctorTabs', {
+      screen: 'DoctorBills',
+      params: {
+        billPrefill: {
+          appointmentId: appt._id,
+          patientId: pat._id || pat,
+          patientName: pat.fullName || 'Patient',
+          patientPhone: pat.mobileNumber || '',
+          treatmentType: appt.treatmentType || '',
+        },
+      },
+    });
   };
 
-  const complete = () => Alert.alert('Mark as Completed', 'Mark this visit as completed? A draft bill will open with this appointment’s treatments.', [
+  const complete = () => Alert.alert('Generate Bill', 'Generate the bill for this visit? The appointment is marked completed automatically once the bill is created.', [
     { text: 'No', style: 'cancel' },
-    { text: 'Yes, Complete', onPress: completeAndBill },
+    { text: 'Continue', onPress: completeAndBill },
   ]);
 
   const cancel = () => Alert.alert('Cancel Appointment', 'Cancel this appointment?', [
@@ -321,8 +313,8 @@ export default function DoctorAppointmentDetailScreen({ route, navigation }) {
             )}
             {canComplete && (
               <TouchableOpacity style={styles.completeBtn} disabled={busy} onPress={complete}>
-                <Ionicons name="checkmark-done-circle-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                <Text style={styles.completeBtnText}>Mark Visit as Completed</Text>
+                <Ionicons name="receipt-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.completeBtnText}>Generate Bill &amp; Complete Visit</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.rescheduleBtn} disabled={busy} onPress={openReschedule}>

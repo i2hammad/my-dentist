@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { UserCircle, Lock, ShieldCheck, Gear, Database } from '@phosphor-icons/react';
 import api, { imgUrl, API_URL } from '../lib/api';
 import { useAuth } from '../lib/auth.jsx';
@@ -46,41 +46,102 @@ export default function Settings() {
   );
 }
 
+const fmtBytes = (n) => {
+  if (!n || n < 1024) return `${n || 0} B`;
+  const u = ['KB', 'MB', 'GB']; let i = -1; let v = n;
+  do { v /= 1024; i++; } while (v >= 1024 && i < u.length - 1);
+  return `${v.toFixed(1)} ${u[i]}`;
+};
+const fmtTime = (s) => {
+  if (s == null || !isFinite(s)) return '';
+  if (s < 60) return `${Math.round(s)}s`;
+  const m = Math.floor(s / 60); const sec = Math.round(s % 60);
+  if (m < 60) return `${m}m ${sec}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+};
+
 function BackupTab({ isSuper }) {
   const toast = useToast();
-  const [busy, setBusy] = useState(false);
+  // which download is running: null | 'db' | 'images'
+  const [job, setJob] = useState(null);
+  // { loaded, total|null } — total is null when the server doesn't send Content-Length
+  const [progress, setProgress] = useState(null);
   const [restoring, setRestoring] = useState(false);
+  const [imgInfo, setImgInfo] = useState(null); // { count, bytes }
+  const abortRef = useRef(null);
+
+  // Fetch how many images / total size there are so the admin knows what the
+  // "Download Images" button will produce before clicking it.
+  useEffect(() => {
+    if (!isSuper) return;
+    api.get('/api/admin/backup/images/info')
+      .then(({ data }) => { if (data?.success) setImgInfo(data.data); })
+      .catch(() => {});
+  }, [isSuper]);
 
   if (!isSuper) return <div className="card"><div className="empty">Only super admins can back up or restore data.</div></div>;
 
-  const grab = async (endpoint, fallbackName, okMsg) => {
-    const res = await api.get(endpoint, { responseType: 'blob' });
-    const cd = res.headers['content-disposition'] || '';
-    const m = cd.match(/filename="?([^"]+)"?/);
-    const url = URL.createObjectURL(res.data);
-    const a = document.createElement('a');
-    a.href = url; a.download = m ? m[1] : fallbackName;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-    toast(okMsg);
+  const busy = job !== null;
+
+  const cancel = () => {
+    abortRef.current?.abort();
   };
 
+  const grab = async (endpoint, fallbackName, okMsg, which) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setJob(which);
+    setProgress({ loaded: 0, total: null, rate: 0, eta: null });
+    const startedAt = Date.now();
+    try {
+      const res = await api.get(endpoint, {
+        responseType: 'blob',
+        signal: controller.signal,
+        onDownloadProgress: (e) => {
+          const total = e.total || null;
+          // axios provides e.rate (bytes/s) & e.estimated (s) when it can; fall
+          // back to our own average rate so we always have a number to show.
+          const elapsed = (Date.now() - startedAt) / 1000;
+          const rate = e.rate || (elapsed > 0 ? e.loaded / elapsed : 0);
+          const eta = total && rate > 0
+            ? Math.max(0, Math.round((total - e.loaded) / rate))
+            : (e.estimated != null ? Math.round(e.estimated) : null);
+          setProgress({ loaded: e.loaded, total, rate, eta });
+        },
+      });
+      const cd = res.headers['content-disposition'] || '';
+      const m = cd.match(/filename="?([^"]+)"?/);
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = m ? m[1] : fallbackName;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast(okMsg);
+    } finally {
+      abortRef.current = null;
+      setJob(null);
+      setProgress(null);
+    }
+  };
+
+  const isCancel = (e) =>
+    e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError' || e?.name === 'AbortError';
+
   const download = async () => {
-    setBusy(true);
-    try { await grab('/api/admin/backup', 'mydentist-backup.json', 'Database backup downloaded'); }
-    catch (e) { toast(e.response?.data?.message || 'Backup failed', 'error'); }
-    finally { setBusy(false); }
+    try { await grab('/api/admin/backup', 'mydentist-backup.json', 'Database backup downloaded', 'db'); }
+    catch (e) { if (isCancel(e)) toast('Backup canceled', 'error'); else toast(e.response?.data?.message || 'Backup failed', 'error'); }
   };
 
   const downloadImages = async () => {
-    setBusy(true);
-    try { await grab('/api/admin/backup/images', 'mydentist-images.tar.gz', 'Images backup downloaded'); }
+    try { await grab('/api/admin/backup/images', 'mydentist-images.tar.gz', 'Images backup downloaded', 'images'); }
     catch (e) {
+      if (isCancel(e)) { toast('Images backup canceled', 'error'); return; }
       // blob error bodies aren't JSON — read the message out if present
       let msg = 'Images backup failed';
       try { const t = await e.response?.data?.text?.(); if (t) msg = JSON.parse(t).message || msg; } catch {}
       toast(msg, 'error');
-    } finally { setBusy(false); }
+    }
   };
 
   const restore = async (e) => {
@@ -130,12 +191,72 @@ function BackupTab({ isSuper }) {
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn primary" disabled={busy} onClick={download}>
-            {busy ? 'Preparing…' : 'Download Database (JSON)'}
+            {job === 'db' ? 'Preparing…' : 'Download Database (JSON)'}
           </button>
-          <button className="btn" disabled={busy} onClick={downloadImages}>
-            {busy ? 'Preparing…' : 'Download Images (.tar.gz)'}
+          <button className="btn" disabled={busy || imgInfo?.count === 0} onClick={downloadImages}>
+            {job === 'images'
+              ? 'Preparing…'
+              : imgInfo
+                ? `Download Images (${imgInfo.count} ${imgInfo.count === 1 ? 'image' : 'images'} · ${fmtBytes(imgInfo.bytes)})`
+                : 'Download Images (.tar.gz)'}
           </button>
         </div>
+        {imgInfo?.count === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 12.5, margin: '8px 0 0' }}>No uploaded images to back up yet.</p>
+        )}
+
+        {busy && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                {job === 'db' ? 'Preparing database backup…' : 'Preparing images archive…'}
+                {progress && (
+                  <b style={{ color: 'var(--text, #0A1551)', marginLeft: 8 }}>
+                    {fmtBytes(progress.loaded)}
+                    {progress.total ? ` / ${fmtBytes(progress.total)}` : ''}
+                  </b>
+                )}
+              </span>
+              <button
+                className="btn ghost"
+                onClick={cancel}
+                style={{ padding: '4px 12px', fontSize: 13, color: '#DC2626' }}
+              >
+                Cancel
+              </button>
+            </div>
+            <div style={{ height: 8, borderRadius: 6, background: '#EEF2F7', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: 6,
+                  background: 'linear-gradient(90deg,#0052FF,#3B82F6)',
+                  width: progress?.total
+                    ? `${Math.min(100, Math.round((progress.loaded / progress.total) * 100))}%`
+                    : '40%',
+                  // when the total is unknown, sweep an indeterminate chunk across
+                  animation: progress?.total ? 'none' : 'bkpIndeterminate 1.1s ease-in-out infinite',
+                  transition: progress?.total ? 'width .15s ease' : 'none',
+                }}
+              />
+            </div>
+            {progress?.total ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, color: 'var(--muted)', fontSize: 12, marginTop: 8 }}>
+                <span>{Math.min(100, Math.round((progress.loaded / progress.total) * 100))}% • {fmtBytes(Math.max(0, progress.total - progress.loaded))} left</span>
+                <span>
+                  {progress.eta != null && progress.eta > 0 ? `~${fmtTime(progress.eta)} remaining` : 'finishing…'}
+                  {progress.rate > 0 ? ` • ${fmtBytes(progress.rate)}/s` : ''}
+                </span>
+              </div>
+            ) : (
+              <p style={{ color: 'var(--muted)', fontSize: 12, margin: '8px 0 0' }}>
+                The server is generating the file… {progress?.loaded ? fmtBytes(progress.loaded) + ' received' : ''}
+                {progress?.rate > 0 ? ` • ${fmtBytes(progress.rate)}/s` : ''}. This can take a while for large datasets — you can cancel anytime.
+              </p>
+            )}
+          </div>
+        )}
+
         <p style={{ color: 'var(--muted)', fontSize: 12.5, margin: '12px 0 0', lineHeight: 1.5 }}>
           A full backup is <b>both</b> files — the database (record data) and the images
           (uploaded photos the records point to).

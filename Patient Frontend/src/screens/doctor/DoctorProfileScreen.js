@@ -87,6 +87,13 @@ export default function DoctorProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [dropdownConfig, setDropdownConfig] = useState({ field: '', options: [], label: '' });
+  // Admin "view-as" (impersonation) sessions may edit the locked identity fields.
+  const [impersonating, setImpersonating] = useState(false);
+  // Identity/verification fields lock once set. A field is locked when it already
+  // had a saved value at load time — captured here so typing doesn't unlock it.
+  const [lockedFields, setLockedFields] = useState({});
+  // A field is editable if we're impersonating, or it wasn't set yet.
+  const isLocked = (field) => !impersonating && !!lockedFields[field];
 
   const [formData, setFormData] = useState({
     mobileNumber: '',
@@ -125,12 +132,24 @@ export default function DoctorProfileScreen({ navigation }) {
   const fetchProfile = async () => {
     try {
       const token = await storage.getItem('userToken');
+      // Admin view-as session? Then the identity fields stay editable.
+      const imp = (await storage.getItem('impersonating')) === '1';
+      setImpersonating(imp);
       const res = await axios.get(`${API_BASE_URL}/api/users/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data?.success && res.data.data.profile) {
         const p = res.data.data.profile;
         const u = res.data.data.user;
+        // Lock each identity field that already has a saved value.
+        setLockedFields({
+          fullName: !!(p.fullName && p.fullName.trim()),
+          gender: !!(p.gender && p.gender.trim()),
+          mobileNumber: !!((p.phone || p.mobileNumber || '').trim()),
+          pmdcNumber: !!(p.pmdcNumber && p.pmdcNumber.trim()),
+          emailAddress: !!(u?.email && u.email.trim()),
+          avatar: !!(p.photo && p.photo.trim()),
+        });
         setFormData({
           fullName: p.fullName || '',
           gender: p.gender || '',
@@ -432,11 +451,11 @@ export default function DoctorProfileScreen({ navigation }) {
             <View style={styles.badgeGrey}><Text style={styles.badgeGreyText}>Private</Text></View>
           </View>
 
-          <FieldRow icon="call-outline" label="Mobile" placeholder="03XXXXXXXXX" value={formData.mobileNumber} onChangeText={t => setField('mobileNumber', sanitizePhone(t))} keyboardType="phone-pad" maxLength={11} />
-          <FieldRow icon="mail-outline" label="Email" placeholder="Email address" value={formData.emailAddress} editable={false} />
-          <FieldRow icon="id-card-outline" label="PMDC No." placeholder="PMDC Number" value={formData.pmdcNumber} onChangeText={t => setField('pmdcNumber', t)} />
+          <FieldRow icon="call-outline" label="Mobile" placeholder="03XXXXXXXXX" value={formData.mobileNumber} onChangeText={t => setField('mobileNumber', sanitizePhone(t))} keyboardType="phone-pad" maxLength={11} editable={!isLocked('mobileNumber')} locked={isLocked('mobileNumber')} />
+          <FieldRow icon="mail-outline" label="Email" placeholder="Email address" value={formData.emailAddress} editable={false} locked={isLocked('emailAddress')} />
+          <FieldRow icon="id-card-outline" label="PMDC No." placeholder="PMDC Number" value={formData.pmdcNumber} onChangeText={t => setField('pmdcNumber', t)} editable={!isLocked('pmdcNumber')} locked={isLocked('pmdcNumber')} />
 
-          <UploadRow icon="person-circle-outline" label="Profile Picture" subLabel="Clear face photo · square, 512×512px" onPress={() => pickDocument('avatar', 'Profile Picture')} imageUrl={formData.avatar} />
+          <UploadRow icon="person-circle-outline" label="Profile Picture" subLabel={isLocked('avatar') ? 'Locked — contact admin to change' : 'Clear face photo · square, 512×512px'} onPress={() => { if (!isLocked('avatar')) pickDocument('avatar', 'Profile Picture'); }} imageUrl={formData.avatar} locked={isLocked('avatar')} />
           <UploadRow icon="document-text-outline" label="License / Registration" subLabel="Clear scan · portrait, ~1200×1600px" onPress={() => pickDocument('licenseCert', 'License / Registration')} imageUrl={formData.licenseCert} />
           <UploadRow icon="id-card-outline" label="ID Card Front" subLabel="Clear photo · ~1000×640px" onPress={() => pickDocument('idFront', 'ID Card Front')} imageUrl={formData.idFront} />
           <UploadRow icon="id-card-outline" label="ID Card Back" subLabel="Clear photo · ~1000×640px" onPress={() => pickDocument('idBack', 'ID Card Back')} imageUrl={formData.idBack} />
@@ -452,12 +471,13 @@ export default function DoctorProfileScreen({ navigation }) {
             <View style={styles.badgeGreen}><Text style={styles.badgeGreenText}>Public</Text></View>
           </View>
 
-          <FieldRow icon="person-outline" label="Full Name" placeholder="Dr. Full Name" value={formData.fullName} onChangeText={t => setField('fullName', t)} />
+          <FieldRow icon="person-outline" label="Full Name" placeholder="Dr. Full Name" value={formData.fullName} onChangeText={t => setField('fullName', t)} editable={!isLocked('fullName')} locked={isLocked('fullName')} />
 
           <DropdownRow
             icon="male-female-outline" label="Gender"
             value={formData.gender} placeholder="Select Gender"
-            onPress={() => openDropdown('gender', GENDERS, 'Select Gender')}
+            onPress={() => { if (!isLocked('gender')) openDropdown('gender', GENDERS, 'Select Gender'); }}
+            locked={isLocked('gender')}
           />
           <DropdownRow
             icon="people-outline" label="Specialisation"
@@ -848,12 +868,13 @@ export default function DoctorProfileScreen({ navigation }) {
   );
 }
 
-function FieldRow({ icon, label, placeholder, value, onChangeText, keyboardType = 'default', editable = true, maxLength }) {
+function FieldRow({ icon, label, placeholder, value, onChangeText, keyboardType = 'default', editable = true, maxLength, locked = false }) {
   return (
     <View style={styles.fieldRow}>
       <View style={styles.labelCol}>
         <Ionicons name={icon} size={18} color="#0052FF" />
         <Text style={styles.fieldLabel}>{label}</Text>
+        {locked && <Ionicons name="lock-closed" size={12} color="#94A3B8" style={{ marginLeft: 4 }} />}
       </View>
       <View style={[styles.inputCol, !editable && { backgroundColor: '#F8FAFC' }]}>
         <TextInput
@@ -871,41 +892,47 @@ function FieldRow({ icon, label, placeholder, value, onChangeText, keyboardType 
   );
 }
 
-function DropdownRow({ icon, label, value, placeholder, onPress }) {
+function DropdownRow({ icon, label, value, placeholder, onPress, locked = false }) {
   return (
-    <TouchableOpacity style={styles.fieldRow} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.fieldRow} onPress={onPress} activeOpacity={locked ? 1 : 0.7}>
       <View style={styles.labelCol}>
         <Ionicons name={icon} size={18} color="#0052FF" />
         <Text style={styles.fieldLabel}>{label}</Text>
+        {locked && <Ionicons name="lock-closed" size={12} color="#94A3B8" style={{ marginLeft: 4 }} />}
       </View>
-      <View style={[styles.inputCol, { paddingRight: 8 }]}>
+      <View style={[styles.inputCol, { paddingRight: 8 }, locked && { backgroundColor: '#F8FAFC' }]}>
         <Text style={[styles.fieldInput, !value && { color: '#94A3B8' }]} numberOfLines={1}>
           {value || placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={16} color="#64748B" />
+        {!locked && <Ionicons name="chevron-down" size={16} color="#64748B" />}
       </View>
     </TouchableOpacity>
   );
 }
 
-function UploadRow({ icon, label, subLabel, onPress, imageUrl }) {
+function UploadRow({ icon, label, subLabel, onPress, imageUrl, locked = false }) {
   return (
     <View style={[styles.uploadRow, { flexDirection: 'column', alignItems: 'stretch' }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={styles.labelColUpload}>
           <Ionicons name={icon} size={18} color="#0052FF" style={{ marginTop: 2 }} />
           <View style={{ marginLeft: 10, flex: 1 }}>
-            <Text style={styles.fieldLabelUpload}>{label}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.fieldLabelUpload}>{label}</Text>
+              {locked && <Ionicons name="lock-closed" size={12} color="#94A3B8" style={{ marginLeft: 4 }} />}
+            </View>
             <Text style={styles.fieldSubLabel}>{subLabel}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={[styles.uploadBtn, imageUrl && { borderColor: '#16A34A', backgroundColor: '#F0FDF4' }]}
-          onPress={onPress}
-        >
-          <Ionicons name={imageUrl ? 'checkmark-circle' : 'cloud-upload-outline'} size={16} color={imageUrl ? '#16A34A' : '#0052FF'} style={{ marginRight: 6 }} />
-          <Text style={[styles.uploadBtnText, imageUrl && { color: '#16A34A' }]}>{imageUrl ? 'Replace' : 'Upload'}</Text>
-        </TouchableOpacity>
+        {!locked && (
+          <TouchableOpacity
+            style={[styles.uploadBtn, imageUrl && { borderColor: '#16A34A', backgroundColor: '#F0FDF4' }]}
+            onPress={onPress}
+          >
+            <Ionicons name={imageUrl ? 'checkmark-circle' : 'cloud-upload-outline'} size={16} color={imageUrl ? '#16A34A' : '#0052FF'} style={{ marginRight: 6 }} />
+            <Text style={[styles.uploadBtnText, imageUrl && { color: '#16A34A' }]}>{imageUrl ? 'Replace' : 'Upload'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
       {!!imageUrl && (
         <View style={{ marginTop: 12, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' }}>

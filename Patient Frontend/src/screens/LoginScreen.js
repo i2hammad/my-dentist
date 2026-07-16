@@ -7,7 +7,6 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
-import RoleBadge from '../components/RoleBadge';
 import { webForm } from '../config/webLayout';
 
 export default function LoginScreen({ route, navigation }) {
@@ -55,19 +54,9 @@ export default function LoginScreen({ route, navigation }) {
       });
       const token = res.data.data.accessToken;
       await storage.setItem('userToken', token);
+      // Role is whatever the account actually is — no role selection on login.
       const userRole = res.data.data.user.role || 'patient';
-      
-      // Enforce strict separation: block login if they chose the wrong role tab
-      if (role !== userRole) {
-        // Remove token since they shouldn't be logged in
-        await storage.removeItem('userToken');
-        
-        const registeredAs = userRole === 'doctor' ? 'Doctor' : 'Patient';
-        const triedToLogAs = role === 'doctor' ? 'Doctor' : 'Patient';
-        
-        return alert(`This account is registered as a ${registeredAs}. Please select "I'm a ${registeredAs}" to login, or register a new account as a ${triedToLogAs}.`);
-      }
-      
+
       // Fetch profile to check if it's new
       const profileRes = await axios.get(`${API_BASE_URL}/api/users/me`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -104,9 +93,6 @@ export default function LoginScreen({ route, navigation }) {
   // card; on mobile it keeps the original scroll layout with logo header.
   const formBody = (
     <View style={styles.form}>
-
-          {/* Which role is being logged into */}
-          <RoleBadge role={role} onSwitch={() => navigation.navigate('RoleSelection')} />
 
           {/* Email */}
           <Text style={styles.label}>Email Address</Text>
@@ -198,12 +184,23 @@ export default function LoginScreen({ route, navigation }) {
           </View>
 
           {/* Sign Up Button (Outlined style as shown in screens) */}
-          <TouchableOpacity 
-            style={styles.signUpButton} 
+          <TouchableOpacity
+            style={styles.signUpButton}
             onPress={() => navigation.navigate('Register', { role })}
           >
             <Text style={styles.signUpButtonText}>Sign Up</Text>
           </TouchableOpacity>
+
+          {/* Continue as Guest — web visitors can browse without an account */}
+          {Platform.OS === 'web' && (
+            <TouchableOpacity
+              style={styles.guestButton}
+              onPress={() => navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }] })}
+            >
+              <Ionicons name="compass-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
+              <Text style={styles.guestButtonText}>Continue as Guest</Text>
+            </TouchableOpacity>
+          )}
 
           {/* "or continue with" Divider */}
           <View style={styles.continueWithRow}>
@@ -242,7 +239,7 @@ export default function LoginScreen({ route, navigation }) {
       <WebAuthLayout
         title={'Welcome back.\nLet’s get you in.'}
         subtitle="Log in to manage your appointments, chat with your dentist, and track your care."
-        onBack={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('RoleSelection')}
+        onBack={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs', { screen: 'Home' })}
       >
         <Text style={styles.webHeading}>Welcome Back!</Text>
         <Text style={styles.webSubheading}>Login to continue to your account</Text>
@@ -266,7 +263,7 @@ export default function LoginScreen({ route, navigation }) {
       >
 
         {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('RoleSelection')}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs', { screen: 'Home' })}>
           <Ionicons name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
 
@@ -477,6 +474,22 @@ const styles = StyleSheet.create({
     color: '#0052FF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  guestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 12,
+  },
+  guestButtonText: {
+    color: '#475569',
+    fontSize: 15,
+    fontWeight: '600',
   },
   continueWithRow: {
     flexDirection: 'row',

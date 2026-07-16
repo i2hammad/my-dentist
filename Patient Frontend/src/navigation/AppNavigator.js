@@ -7,8 +7,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
-import NoticeScreen from '../screens/NoticeScreen';
-import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -317,8 +315,6 @@ export default function AppNavigator() {
         <View style={{ flex: 1 }}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />
-        <Stack.Screen name="Notice" component={NoticeScreen} />
-        <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="PatientSetup" component={PatientSetupScreen} />

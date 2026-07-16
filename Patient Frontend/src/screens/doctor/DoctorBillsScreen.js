@@ -28,24 +28,23 @@ export default function DoctorBillsScreen({ route }) {
   const editBillId = route?.params?.editBillId || null;
   const billPrefill = route?.params?.billPrefill || null;
 
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    (async () => {
-      try {
-        const token = await storage.getItem('userToken');
-        if (!token) return;
-        const headers = { Authorization: `Bearer ${token}` };
-        const [meRes, apptRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/api/users/me`, { headers }),
-          axios.get(`${API_BASE_URL}/api/appointments/my`, { headers }).catch(() => null),
-        ]);
-        if (!active) return;
-        if (meRes.data?.success) setProfile(meRes.data.data?.profile || null);
-        if (apptRes?.data?.success) setAppointments(apptRes.data.data || { upcoming: [], past: [] });
-      } catch { /* ignore */ }
-    })();
-    return () => { active = false; };
-  }, []));
+  // Refetch profile + appointments. Called on focus AND after a bill is created
+  // (so a just-completed appointment drops out of the billing patient picker).
+  const loadData = useCallback(async () => {
+    try {
+      const token = await storage.getItem('userToken');
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+      const [meRes, apptRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/users/me`, { headers }),
+        axios.get(`${API_BASE_URL}/api/appointments/my`, { headers }).catch(() => null),
+      ]);
+      if (meRes.data?.success) setProfile(meRes.data.data?.profile || null);
+      if (apptRes?.data?.success) setAppointments(apptRes.data.data || { upcoming: [], past: [] });
+    } catch { /* ignore */ }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const missingFields = profile ? getMissingProfileFields(profile) : [];
   const isProfileComplete = profile ? missingFields.length === 0 : true;
@@ -60,6 +59,7 @@ export default function DoctorBillsScreen({ route }) {
         <BillsTab
           profile={profile}
           appointments={appointments}
+          onAppointmentsChanged={loadData}
           isProfileComplete={isProfileComplete}
           missingFields={missingFields}
           editBillId={editBillId}

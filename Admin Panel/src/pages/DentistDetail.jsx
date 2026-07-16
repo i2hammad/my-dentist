@@ -164,7 +164,7 @@ export default function DentistDetail() {
         <StatCards items={[
           { label: 'Total Earned', value: money(d.earnings.totalEarned), icon: Wallet, tone: 'green' },
           { label: 'Total Billed', value: money(d.earnings.totalBilled), icon: Receipt, tone: 'blue' },
-          { label: 'Drafts Amount', value: money(d.earnings.outstanding), icon: WarningCircle, tone: 'amber' },
+          { label: `Drafts Amount${d.earnings.draftCount ? ` (${d.earnings.draftCount})` : ''}`, value: money(d.earnings.draftsAmount || 0), icon: WarningCircle, tone: 'amber' },
           { label: 'Paid Bills', value: `${d.earnings.paidCount} / ${d.earnings.billCount}`, icon: CheckCircle, tone: 'purple' },
         ]} />
       )}

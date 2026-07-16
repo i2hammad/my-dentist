@@ -145,11 +145,11 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
       let endpoint = '';
       if (action === 'confirm') {
         endpoint = `${API_BASE_URL}/api/appointments/${id}/confirm`;
-      } else if (action === 'start') {
-        endpoint = `${API_BASE_URL}/api/appointments/${id}/complete`;
       } else if (action === 'cancel') {
         endpoint = `${API_BASE_URL}/api/appointments/${id}/cancel`;
       } else {
+        // 'start'/'complete' is no longer done here — completion happens via the
+        // bill flow ("Generate Bill & Complete"). Ignore any other action.
         return;
       }
       
@@ -193,8 +193,22 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
       });
     } else if (apt.status === 'confirmed') {
       options.push({
-        text: 'Mark as Completed',
-        onPress: () => handleAction(apt._id, 'start')
+        text: 'Generate Bill & Complete',
+        onPress: () => {
+          const pat = apt.raw?.patientId || {};
+          navigation.navigate('DoctorTabs', {
+            screen: 'DoctorBills',
+            params: {
+              billPrefill: {
+                appointmentId: apt._id,
+                patientId: pat._id || pat,
+                patientName: apt.patientName || 'Patient',
+                patientPhone: apt.phone && apt.phone !== 'Not provided' ? apt.phone : '',
+                treatmentType: apt.raw?.treatmentType || apt.treatment || '',
+              },
+            },
+          });
+        },
       });
     }
 
@@ -367,8 +381,10 @@ export default function AppointmentsTab({ appointments, onRefresh, navigation, s
                   ) : apt.status === 'confirmed' ? (
                     <TouchableOpacity
                       style={styles.startBtn}
-                      onPress={async () => {
-                        await handleAction(apt._id, 'start');
+                      onPress={() => {
+                        // Start Consultation just opens the chat — it no longer
+                        // completes the visit. Completion happens when the doctor
+                        // generates the bill (menu → "Generate Bill & Complete").
                         if (apt.patientUserId) {
                           navigation.navigate('Chat', { userId: apt.patientUserId, userName: apt.patientName });
                         }

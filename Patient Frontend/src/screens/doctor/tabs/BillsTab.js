@@ -15,6 +15,17 @@ const isWide = width >= 768;
 // ── Bill helpers (module scope) ──
 const rsFmt = (n) => `PKR ${Number(n || 0).toLocaleString()}`;
 const outstandingOf = (b) => Math.max((b.finalAmount || b.amount || 0) - (b.paidAmount || 0), 0);
+// Invoice-table column sizing: on wide screens columns FLEX to fill the container
+// (nothing clipped); on narrow they keep fixed px widths and scroll horizontally.
+const col = (wide, w, flex) => (wide ? { flex, minWidth: 0, paddingHorizontal: 4 } : { width: w });
+// On wide screens the table fills its parent (no horizontal scroll); on narrow it
+// scrolls. Rendering a plain View when wide avoids the RN-web scroll clipping.
+const TableScroller = ({ wide, children }) =>
+  wide ? (
+    <View style={{ marginBottom: 24, width: '100%' }}>{children}</View>
+  ) : (
+    <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginBottom: 24 }}>{children}</ScrollView>
+  );
 const startOfToday = () => new Date(new Date().toDateString());
 const isOverdue = (b) =>
   ['unpaid', 'payment_pending'].includes(b.status) &&
@@ -115,7 +126,7 @@ export function buildReceiptHtml(invoice, { docName, clinic, spec, type = 'therm
     </html>`;
 }
 
-export default function BillsTab({ profile, appointments, isProfileComplete = true, missingFields = [], editBillId = null, billPrefill = null }) {
+export default function BillsTab({ profile, appointments, onAppointmentsChanged, isProfileComplete = true, missingFields = [], editBillId = null, billPrefill = null }) {
   // Reactive breakpoint (module-scope `isWide` is only used for static styles).
   // Two-column bill form + wide invoice table need real room → 900px.
   const winW = useWindowDimensions().width;
@@ -136,6 +147,9 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  // The appointment this bill is being raised for (from "Mark Visit as Completed").
+  // Sent to the backend so it can enforce one-bill-per-appointment.
+  const [billAppointmentId, setBillAppointmentId] = useState(null);
 
   // Current Bill State — start with one empty row (no demo seed; appointment
   // treatments auto-load below when a patient is selected).
@@ -372,13 +386,18 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   useEffect(() => {
     fetchBills();
     
-    // Parse unique patients from appointments prop
+    // Parse unique patients from appointments prop. Only *billable* appointments
+    // count — a completed appointment already has its bill (one bill per
+    // appointment), and cancelled ones are never billed, so both are excluded.
+    // This is why a patient drops off the picker once their bill is created.
     const upcoming = appointments?.upcoming || [];
     const past = appointments?.past || [];
-    const allApts = [...upcoming, ...past];
-    
+    const billable = [...upcoming, ...past].filter(
+      (apt) => apt.status !== 'completed' && apt.status !== 'cancelled'
+    );
+
     const patientMap = {};
-    allApts.forEach(apt => {
+    billable.forEach(apt => {
       const pobj = apt.patientId;
       const pid = pobj && typeof pobj === 'object' ? (pobj._id || pobj.id) : pobj;
       if (pobj && pid) {
@@ -421,6 +440,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
     setEditingBillId(null);
     const bpid = (typeof billPrefill.patientId === 'object') ? (billPrefill.patientId._id || billPrefill.patientId.id) : billPrefill.patientId;
     setSelectedPatient({ id: bpid, name: billPrefill.patientName || 'Patient', phone: billPrefill.patientPhone || '' });
+    setBillAppointmentId(billPrefill.appointmentId || null);
     const names = String(billPrefill.treatmentType || '').split(',').map((t) => t.trim()).filter(Boolean);
     setItems(names.length ? names.map((name) => ({ name, price: '' })) : [{ name: '', price: '' }]);
     setTreatmentMode('edit');
@@ -527,6 +547,14 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       Alert.alert('Error', 'Please ensure all treatments have a name and price.');
       return;
     }
+    // A bill can only be finalized when paid in full — otherwise it stays a draft.
+    if (!asDraft && !(finalAmount > 0 && paidVal >= finalAmount)) {
+      Alert.alert(
+        'Not fully paid',
+        'This bill isn\'t paid in full yet. Collect the full payable amount to create it, or save it as a draft.'
+      );
+      return;
+    }
 
     try {
       setSaving(true);
@@ -545,6 +573,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
       const treatmentName = items.map(it => it.name).filter(Boolean).join(', ') || 'Draft Bill';
       const payload = {
         patientId,
+        ...(billAppointmentId ? { appointmentId: billAppointmentId } : {}),
         treatmentName,
         // Persist per-treatment line items so editing later restores exact prices.
         treatments: items
@@ -576,6 +605,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         if (asDraft) {
           setItems([{ name: '', price: '' }]);
           setPaidAmount('0'); setDiscount('0'); setPointsCode('');
+          setBillAppointmentId(null);
           fetchBills();
           setSubTab('previous');
           setSaving(false);
@@ -605,7 +635,11 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
         setPaidAmount('0');
         setDiscount('0');
         setPointsCode('');
+        setBillAppointmentId(null);
         fetchBills();
+        // Finalizing a bill completes its appointment on the backend — refresh the
+        // appointment-derived patient picker so that patient drops off the list.
+        onAppointmentsChanged?.();
 
         // Navigate to Print Preview after user acknowledges success.
         Alert.alert(
@@ -876,7 +910,8 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
   // Draft-tab summary stats (all drafts, independent of the search box).
   const draftAll = bills.filter((b) => b.status === 'draft');
   const draftTotal = draftAll.reduce((s, b) => s + (b.finalAmount || b.amount || 0), 0);
-  const draftAvg = draftAll.length ? Math.round(draftTotal / draftAll.length) : 0;
+  const draftOutstanding = draftAll.reduce((s, b) => s + outstandingOf(b), 0);
+  const draftPaid = draftAll.reduce((s, b) => s + (b.paidAmount || 0), 0);
   React.useEffect(() => { setBillVisible(20); }, [billSearch, billStatusFilter, dateRange, sort]);
 
   return (
@@ -917,30 +952,34 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
             {subTab === 'drafts' ? (
               <>
-                {/* TIER 1 — drafts hero */}
+                {/* TIER 1 — drafts hero (leads with outstanding dues) */}
                 <View style={styles.revHero}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.revLabel}>Value in drafts</Text>
-                    <Text style={styles.revValue}>{rsFmt(draftTotal)}</Text>
+                    <Text style={styles.revLabel}>Total Outstanding Amount</Text>
+                    <Text style={styles.revValue}>{rsFmt(draftOutstanding)}</Text>
                     <Text style={styles.revSub}>
-                      {draftAll.length} draft{draftAll.length !== 1 ? 's' : ''} waiting to be finished
+                      {rsFmt(draftTotal)} total value · {draftAll.length} draft{draftAll.length !== 1 ? 's' : ''} waiting to be finished
                     </Text>
                   </View>
                 </View>
 
-                {/* TIER 2 — drafts stat chips */}
+                {/* TIER 2 — drafts stat chips (complement the hero, no repeat of Outstanding) */}
                 <View style={styles.statsRow}>
                   <View style={styles.miniStat}>
-                    <Text style={styles.miniStatLabel}>Drafts</Text>
-                    <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{draftAll.length}</Text>
-                  </View>
-                  <View style={styles.miniStat}>
-                    <Text style={styles.miniStatLabel}>Total value</Text>
+                    <Text style={styles.miniStatLabel}>Draft Total Amount</Text>
                     <Text style={[styles.miniStatValue, { color: '#0052FF' }]}>{rsFmt(draftTotal)}</Text>
                   </View>
                   <View style={styles.miniStat}>
-                    <Text style={styles.miniStatLabel}>Avg / draft</Text>
-                    <Text style={[styles.miniStatValue, { color: '#7C3AED' }]}>{rsFmt(draftAvg)}</Text>
+                    <Text style={styles.miniStatLabel}>Total Outstanding Amount</Text>
+                    <Text style={[styles.miniStatValue, { color: '#D97706' }]}>{rsFmt(draftOutstanding)}</Text>
+                  </View>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Paid so far</Text>
+                    <Text style={[styles.miniStatValue, { color: '#16A34A' }]}>{rsFmt(draftPaid)}</Text>
+                  </View>
+                  <View style={styles.miniStat}>
+                    <Text style={styles.miniStatLabel}>Drafts</Text>
+                    <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{draftAll.length}</Text>
                   </View>
                 </View>
               </>
@@ -965,21 +1004,13 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
 
                 {/* TIER 2 — secondary stat chips */}
                 <View style={styles.statsRow}>
-                  <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('outstanding')}>
-                    <Text style={styles.miniStatLabel}>Outstanding</Text>
-                    <Text style={[styles.miniStatValue, { color: '#D97706' }]}>{rsFmt(totalOutstanding)}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.85} style={styles.miniStat} onPress={() => setBillStatusFilter('overdue')}>
-                    <Text style={styles.miniStatLabel}>Overdue ({overdueBills.length})</Text>
-                    <Text style={[styles.miniStatValue, { color: '#DC2626' }]}>{rsFmt(overdueSum)}</Text>
-                  </TouchableOpacity>
                   <View style={styles.miniStat}>
-                    <Text style={styles.miniStatLabel}>Discount given</Text>
-                    <Text style={[styles.miniStatValue, { color: '#16A34A' }]}>{rsFmt(totalDiscount)}</Text>
+                    <Text style={styles.miniStatLabel}>Total collected</Text>
+                    <Text style={[styles.miniStatValue, { color: '#16A34A' }]}>{rsFmt(totalPaid)}</Text>
                   </View>
                   <View style={styles.miniStat}>
-                    <Text style={styles.miniStatLabel}>Collection rate</Text>
-                    <Text style={[styles.miniStatValue, { color: '#0A1551' }]}>{collectionRate}%</Text>
+                    <Text style={styles.miniStatLabel}>Discount given</Text>
+                    <Text style={[styles.miniStatValue, { color: '#0052FF' }]}>{rsFmt(totalDiscount)}</Text>
                   </View>
                 </View>
               </>
@@ -1098,18 +1129,18 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                 })}
               </View>
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginBottom: 24 }}>
-                <View style={styles.tableContainer}>
+              <TableScroller wide={wide}>
+                <View style={[styles.tableContainer, wide && { width: '100%' }]}>
                   <View style={styles.tableHeader}>
-                    <Text style={[styles.th, {width: 140}]}>Invoice / Patient</Text>
-                    <Text style={[styles.th, {width: 100}]}>Date</Text>
-                    <Text style={[styles.th, {width: 150}]}>Description</Text>
-                    <Text style={[styles.th, {width: 100}]}>Total Amount</Text>
-                    <Text style={[styles.th, {width: 100}]}>Paid Amount</Text>
-                    <Text style={[styles.th, {width: 100}]}>Discount</Text>
-                    <Text style={[styles.th, {width: 100}]}>Outstanding</Text>
-                    <Text style={[styles.th, {width: 90, textAlign: 'center'}]}>Status</Text>
-                    <Text style={[styles.th, {width: 200, textAlign: 'center'}]}>Actions</Text>
+                    <Text style={[styles.th, col(wide, 140, 2)]}>Invoice / Patient</Text>
+                    <Text style={[styles.th, col(wide, 100, 1.1)]}>Date</Text>
+                    <Text style={[styles.th, col(wide, 150, 1.6)]}>Description</Text>
+                    <Text style={[styles.th, col(wide, 100, 1.2)]}>Total Amount</Text>
+                    <Text style={[styles.th, col(wide, 100, 1.2)]}>Paid Amount</Text>
+                    <Text style={[styles.th, col(wide, 100, 1)]}>Discount</Text>
+                    <Text style={[styles.th, col(wide, 100, 1.2)]}>Outstanding</Text>
+                    <Text style={[styles.th, col(wide, 90, 1), {textAlign: 'center'}]}>Status</Text>
+                    <Text style={[styles.th, col(wide, 200, 2), {textAlign: 'center'}]}>Actions</Text>
                   </View>
 
                   {visibleBills.map((inv, idx) => {
@@ -1121,7 +1152,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                     const overdue = isOverdue(inv);
                     return (
                       <View key={inv._id || idx} style={[styles.tableRow, overdue && styles.billCardOverdue]}>
-                        <View style={{width: 140}}>
+                        <View style={col(wide, 140, 2)}>
                           <Text style={[styles.td, {color: '#0A1551', fontWeight: 'bold'}]}>{inv.invoiceNumber}</Text>
                           <TouchableOpacity
                             onPress={() => setPatientModal({ _id: patientId, name: patientName })}
@@ -1133,13 +1164,13 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                             </View>
                           </TouchableOpacity>
                         </View>
-                        <Text style={[styles.td, {width: 100}]}>{billDate}</Text>
-                        <Text style={[styles.td, {width: 150}]}>{inv.treatmentName}</Text>
-                        <Text style={[styles.td, {width: 100, fontWeight: 'bold'}]}>PKR {inv.finalAmount || inv.amount}</Text>
-                        <Text style={[styles.td, {width: 100}]}>PKR {inv.paidAmount || 0}</Text>
-                        <Text style={[styles.td, {width: 100}]}>PKR {inv.discountFromRewards || 0}</Text>
-                        <Text style={[styles.td, {width: 100}]}>PKR {billOut}</Text>
-                        <View style={{width: 90, alignItems: 'center'}}>
+                        <Text style={[styles.td, col(wide, 100, 1.1)]}>{billDate}</Text>
+                        <Text style={[styles.td, col(wide, 150, 1.6)]}>{inv.treatmentName}</Text>
+                        <Text style={[styles.td, col(wide, 100, 1.2), {fontWeight: 'bold'}]}>PKR {inv.finalAmount || inv.amount}</Text>
+                        <Text style={[styles.td, col(wide, 100, 1.2)]}>PKR {inv.paidAmount || 0}</Text>
+                        <Text style={[styles.td, col(wide, 100, 1)]}>PKR {inv.discountFromRewards || 0}</Text>
+                        <Text style={[styles.td, col(wide, 100, 1.2)]}>PKR {billOut}</Text>
+                        <View style={[col(wide, 90, 1), {alignItems: 'center'}]}>
                           <View style={[styles.statusBadge, { backgroundColor: sm.bg }]}>
                             <Text style={[styles.statusBadgeText, { color: sm.color }]}>{sm.label}</Text>
                           </View>
@@ -1150,14 +1181,14 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                             </View>
                           )}
                         </View>
-                        <View style={{ width: 200, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }}>
+                        <View style={[col(wide, 200, 2), { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }]}>
                           {renderBillActions(inv, { compact: true })}
                         </View>
                       </View>
                     );
                   })}
                 </View>
-              </ScrollView>
+              </TableScroller>
             )}
 
             {/* Pagination: showing count + Load More */}
@@ -1226,6 +1257,7 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                         setPaidAmount('0');
                         setPointsCode('');
                         setEditingBillId(null);
+                        setBillAppointmentId(null);
                       }}
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1381,18 +1413,40 @@ export default function BillsTab({ profile, appointments, isProfileComplete = tr
                   </View>
                 </View>
 
-                {/* Action Buttons */}
-                <View style={styles.actionBtnsRow}>
-                  <TouchableOpacity style={styles.draftBtn} onPress={() => handleCreateBill(true)} disabled={saving}>
-                    <Ionicons name="save-outline" size={16} color="#0052FF" style={{ marginRight: 6 }} />
-                    <Text style={styles.draftBtnText}>Save as Draft</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.createBtn, paidVal <= 0 && { opacity: 0.5 }]} onPress={() => handleCreateBill(false)} disabled={saving || paidVal <= 0}>
-                    {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.createBtnText}>{editingBillId ? 'Save Bill' : 'Create Bill'}</Text>}
-                  </TouchableOpacity>
-                </View>
+                {/* Action Buttons — a bill can only be *created* (finalized) once it's
+                    paid in full. If it's underpaid, only "Save as Draft" is offered. */}
+                {(() => {
+                  const fullyPaid = finalAmount > 0 && paidVal >= finalAmount;
+                  return (
+                    <>
+                      <View style={styles.actionBtnsRow}>
+                        <TouchableOpacity
+                          style={[styles.draftBtn, !fullyPaid && { flex: 1 }]}
+                          onPress={() => handleCreateBill(true)}
+                          disabled={saving}
+                        >
+                          <Ionicons name="save-outline" size={16} color="#0052FF" style={{ marginRight: 6 }} />
+                          <Text style={styles.draftBtnText}>Save as Draft</Text>
+                        </TouchableOpacity>
+                        {fullyPaid && (
+                          <TouchableOpacity style={styles.createBtn} onPress={() => handleCreateBill(false)} disabled={saving}>
+                            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.createBtnText}>{editingBillId ? 'Save Bill' : 'Create Bill'}</Text>}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {!fullyPaid && (
+                        <View style={styles.draftHintRow}>
+                          <Ionicons name="information-circle-outline" size={14} color="#94A3B8" />
+                          <Text style={styles.draftHintText}>
+                            Collect the full payable amount to finalize this bill. Until then it can only be saved as a draft.
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
                 {editingBillId && (
-                  <TouchableOpacity onPress={() => { setEditingBillId(null); setItems([{ name: '', price: '' }]); setSelectedPatient(null); }} style={{ marginTop: 10, alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => { setEditingBillId(null); setItems([{ name: '', price: '' }]); setSelectedPatient(null); setBillAppointmentId(null); }} style={{ marginTop: 10, alignItems: 'center' }}>
                     <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancel editing draft</Text>
                   </TouchableOpacity>
                 )}
@@ -2031,6 +2085,8 @@ const styles = StyleSheet.create({
   createBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: 'bold' },
   draftBtn: { flex: 1.4, height: 40, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#0052FF', borderRadius: 8, backgroundColor: '#EFF6FF' },
   draftBtnText: { color: '#0052FF', fontSize: 12.5, fontWeight: 'bold' },
+  draftHintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 10 },
+  draftHintText: { flex: 1, color: '#94A3B8', fontSize: 12, lineHeight: 16 },
 
   /* Print Preview header */
   printHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 },

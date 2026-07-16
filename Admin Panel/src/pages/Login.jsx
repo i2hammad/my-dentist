@@ -6,7 +6,7 @@ import { useAuth } from '../lib/auth.jsx';
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState('admin@mydentist.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -32,7 +32,7 @@ export default function Login() {
         <div className="sub">Please enter your login credentials to continue</div>
 
         <label>Login ID</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your login ID" />
+        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" />
 
         <label>Password</label>
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" />

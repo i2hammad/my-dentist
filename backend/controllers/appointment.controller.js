@@ -284,6 +284,20 @@ const completeAppointment = async (req, res) => {
     if (appointment.status === 'completed') return res.status(400).json({ success: false, message: 'Appointment is already completed' });
     if (appointment.status === 'cancelled') return res.status(400).json({ success: false, message: 'Cannot complete a cancelled appointment' });
 
+    // A visit can only be completed once its bill has been generated. The bill
+    // controller auto-completes on finalize; this blocks any other path that
+    // tries to complete a visit with no (finalized) bill.
+    const finalizedBill = await prisma.bill.findFirst({
+      where: { appointmentId: appointment.id, status: { not: 'draft' } },
+    });
+    if (!finalizedBill) {
+      return res.status(400).json({
+        success: false,
+        code: 'BILL_REQUIRED',
+        message: 'Generate the bill for this visit before marking it completed.',
+      });
+    }
+
     const updated = await prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: 'completed', ...(visitSummary ? { visitSummary } : {}) },

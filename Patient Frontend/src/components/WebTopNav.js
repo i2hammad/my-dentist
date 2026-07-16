@@ -102,7 +102,7 @@ export default function WebTopNav({ navRef, navInfo }) {
 
   const handleLogout = async () => {
     try { await storage.removeItem('userToken'); } catch {}
-    try { navRef?.reset?.({ index: 0, routes: [{ name: 'RoleSelection' }] }); } catch {}
+    try { navRef?.reset?.({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }] }); } catch {}
   };
 
   const isActive = (name) => activeName === name;
@@ -136,7 +136,7 @@ export default function WebTopNav({ navRef, navInfo }) {
             <Pressable style={styles.loginGhost} onPress={() => navigate('Login', { role: 'patient' })}>
               <Text style={styles.loginGhostLabel}>Log in</Text>
             </Pressable>
-            <Pressable style={styles.loginPill} onPress={() => navigate('RoleSelection')}>
+            <Pressable style={styles.loginPill} onPress={() => navigate('Register', { role: 'patient' })}>
               <Ionicons name="person-add-outline" size={17} color="#FFFFFF" />
               <Text style={styles.loginLabel}>Sign up</Text>
             </Pressable>

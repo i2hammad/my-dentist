@@ -55,3 +55,4 @@ yarn-error.*
 # ─── OS / editor ─────────────────────────────────────────────
 .DS_Store
 *.tsbuildinfo
+dentist-project.zip

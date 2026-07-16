@@ -13,6 +13,26 @@ export default function SplashScreen({ navigation }) {
     let wantLogin = false;
     let wantSignup = false;
 
+    // Which inner tab each root navigator legitimately owns. Used to restore the
+    // exact tab from the URL path on web reload (so refreshing /DoctorTabs/DoctorBills
+    // keeps you on Bills instead of bouncing to the default Home tab).
+    const TABS_BY_ROOT = {
+      DoctorTabs: ['DoctorHome', 'Appointments', 'Patients', 'DoctorBills', 'Inbox', 'Profile', 'DoctorAppointmentDetail'],
+      MainTabs: ['Home', 'Rewards', 'MyReviews', 'Campaigns', 'BillsHistory', 'Profile', 'Cosmetic', 'Implants', 'Orthodontics'],
+    };
+    // Read {root, screen} from the current web URL path, if it names a known
+    // tab navigator + a valid inner screen. Returns null otherwise.
+    const readPathTarget = () => {
+      if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+      const parts = (window.location.pathname || '').split('/').filter(Boolean);
+      const root = parts[0];
+      const screen = parts[1];
+      if (TABS_BY_ROOT[root] && screen && TABS_BY_ROOT[root].includes(screen)) {
+        return { route: root, params: { screen } };
+      }
+      return null;
+    };
+
     const checkLoginStatus = async () => {
       // Web-only param bootstrap: impersonation token + deep-link params.
       if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.search) {
@@ -41,7 +61,7 @@ export default function SplashScreen({ navigation }) {
           if (!token) {
             return Platform.OS === 'web'
               ? { route: 'MainTabs', params: { screen: 'Home' } }
-              : { route: 'RoleSelection' };
+              : { route: 'Login' };
           }
 
           // Fetch user details from the backend to verify the token and get the role/profile
@@ -72,17 +92,17 @@ export default function SplashScreen({ navigation }) {
             }
           }
 
-          // If token verification fails (expired/invalid), clean up and redirect to RoleSelection
+          // If token verification fails (expired/invalid), clean up and redirect to Login
           await storage.removeItem('userToken');
-          return { route: 'RoleSelection' };
+          return { route: 'Login' };
         } catch (err) {
           // Suspended account → log out cleanly so they can't proceed.
           if (err?.response?.status === 403 && err?.response?.data?.blocked) {
             await storage.removeItem('userToken');
-            return { route: 'RoleSelection' };
+            return { route: 'Login' };
           }
           console.log('Error checking status in splash:', err);
-          return { route: 'RoleSelection' }; // Default fallback on connection issue/error
+          return { route: 'Login' }; // Default fallback on connection issue/error
         }
       };
 
@@ -91,22 +111,26 @@ export default function SplashScreen({ navigation }) {
 
       if (isCancelled) return;
 
-      // Skip the one-time consent notice for returning users who already agreed
-      // and on web (guests/visitors go straight in).
-      const agreed = await storage.getItem('hasAgreedNotice');
-      if (Platform.OS === 'web' || agreed === 'true') {
-        if (navData.params) navigation.replace(navData.route, navData.params);
-        else navigation.replace(navData.route);
+      // Web reload: if the URL path names a valid tab and it belongs to the SAME
+      // root the role resolved to (doctor→DoctorTabs, patient→MainTabs), restore
+      // that exact tab instead of the default landing tab. Guards against a stale
+      // cross-role URL (e.g. a doctor path while logged in as a patient).
+      const pathTarget = readPathTarget();
+      if (pathTarget && pathTarget.route === navData.route) {
+        navData.params = pathTarget.params;
+      }
 
-        // Web deep-links: open the requested screen on top of the base route so
-        // Back returns to Home. Login takes priority over a doctor link.
-        if (Platform.OS === 'web') {
-          if (wantSignup) navigation.navigate('RoleSelection');
-          else if (wantLogin) navigation.navigate('Login', { role: 'patient' });
-          else if (deepDoctorId) navigation.navigate('DoctorProfile', { doctorId: deepDoctorId });
-        }
-      } else {
-        navigation.replace('Notice', { nextRoute: navData.route, nextParams: navData.params });
+      // Route straight to the resolved destination — the one-time consent Notice
+      // screen has been removed (was previously shown to first-time native users).
+      if (navData.params) navigation.replace(navData.route, navData.params);
+      else navigation.replace(navData.route);
+
+      // Web deep-links: open the requested screen on top of the base route so
+      // Back returns to Home. Login takes priority over a doctor link.
+      if (Platform.OS === 'web') {
+        if (wantSignup) navigation.navigate('Register', { role: 'patient' });
+        else if (wantLogin) navigation.navigate('Login', { role: 'patient' });
+        else if (deepDoctorId) navigation.navigate('DoctorProfile', { doctorId: deepDoctorId });
       }
     };
 

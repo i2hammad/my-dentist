@@ -253,35 +253,15 @@ export default function DoctorRegisterScreen({ navigation }) {
   };
 
   const handleSaveProfile = async (skip = false) => {
-    // When skipping, only a name is required so the profile isn't a placeholder;
-    // the rest (and verification docs) can be completed later from Profile.
-    if (skip) {
-      if (!fullName) {
-        const msg = 'Please at least enter your full name to continue.';
-        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Name required', msg);
-        return;
-      }
-    } else {
-      // Basic validation
-      if (!mobile || !email || !fullName || !specialisation || !about || !clinicName || !clinicAddress || !city || !gender || !experience || !clinicContact) {
-        const msg = 'Please fill in all text fields before continuing — or tap “Skip for now” to finish later.';
-        if (Platform.OS === 'web') {
-          window.alert(msg);
-        } else {
-          Alert.alert('Missing Fields', msg);
-        }
-        return;
-      }
-
-      if (!avatar || !licenseCert || !idFront || !idBack) {
-        const msg = 'Please upload all required images and certificates (Profile Pic, License, ID Front, ID Back) — or tap “Skip for now” to finish later.';
-        if (Platform.OS === 'web') {
-          window.alert(msg);
-        } else {
-          Alert.alert('Missing Documents', msg);
-        }
-        return;
-      }
+    // Only the full name is truly required — every other field (and the
+    // verification documents) is optional and can be completed later from the
+    // Profile screen. A doctor can enter whatever they have and continue; partial
+    // details never block progress. (The DB only requires fullName + a defaulted
+    // specialization; everything else has a safe default.)
+    if (!fullName || !fullName.trim()) {
+      const msg = 'Please enter your full name to continue. Everything else is optional and can be added later.';
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Name required', msg);
+      return;
     }
 
     try {
@@ -436,7 +416,7 @@ export default function DoctorRegisterScreen({ navigation }) {
 
         <View style={styles.card}>
           {/* Mobile Number */}
-          <Text style={styles.label}>Mobile Number <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.label}>Mobile Number</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="call-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
@@ -451,7 +431,7 @@ export default function DoctorRegisterScreen({ navigation }) {
           </View>
 
           {/* Email */}
-          <Text style={styles.label}>Email Address <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.label}>Email Address</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput
@@ -640,11 +620,11 @@ export default function DoctorRegisterScreen({ navigation }) {
           </View>
 
           {/* City */}
-          <Text style={styles.label}>City <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.label}>City</Text>
           <CityPicker value={city} onSelect={setCity} placeholder="Select your city" />
 
           {/* About / Biography */}
-          <Text style={styles.label}>About You (Biography) <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.label}>About You (Biography)</Text>
           <View style={[styles.inputContainer, { height: 100, alignItems: 'flex-start', paddingTop: 12 }]}>
             <Ionicons name="information-circle-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
             <TextInput

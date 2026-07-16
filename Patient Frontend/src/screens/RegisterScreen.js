@@ -7,7 +7,6 @@ import API_BASE_URL from '../config/api';
 import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
-import RoleBadge from '../components/RoleBadge';
 import { webForm } from '../config/webLayout';
 
 export default function RegisterScreen({ route, navigation }) {
@@ -100,9 +99,24 @@ export default function RegisterScreen({ route, navigation }) {
   const formBody = (
     <View style={styles.form}>
 
-          {/* Which role is being registered */}
-          <RoleBadge role={role} onSwitch={() => navigation.navigate('RoleSelection')} />
-          
+          {/* Role switch — choose Patient or Dentist right here */}
+          <View style={styles.roleSwitcherContainer}>
+            <TouchableOpacity
+              style={[styles.roleButton, role === 'patient' && styles.roleButtonActive]}
+              onPress={() => setRole('patient')}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.roleButtonText, role === 'patient' && styles.roleButtonTextActive]}>I'm a Patient</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.roleButton, role === 'doctor' && styles.roleButtonActive]}
+              onPress={() => setRole('doctor')}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.roleButtonText, role === 'doctor' && styles.roleButtonTextActive]}>I'm a Dentist</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Email Address */}
           <Text style={styles.label}>Email Address</Text>
           <View style={styles.inputContainer}>

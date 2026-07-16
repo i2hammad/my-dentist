@@ -103,8 +103,13 @@ const createBill = async (req, res) => {
     const patientProfile = await prisma.patientProfile.findUnique({ where: { id: patientId } });
     if (!patientProfile) return res.status(404).json({ success: false, message: 'Patient not found' });
 
+    // One appointment → at most one bill. A leftover draft for the same
+    // appointment doesn't count (it's the same in-progress bill), but any
+    // finalized bill blocks a duplicate.
     if (appointmentId) {
-      const existingBill = await prisma.bill.findFirst({ where: { appointmentId } });
+      const existingBill = await prisma.bill.findFirst({
+        where: { appointmentId, status: { not: 'draft' } },
+      });
       if (existingBill) return res.status(409).json({ success: false, message: 'A bill already exists for this appointment' });
     }
 
@@ -134,6 +139,19 @@ const createBill = async (req, res) => {
 
     if (status !== 'draft') {
       await prisma.doctorProfile.update({ where: { id: doctorProfile.id }, data: { rewardPoints: { increment: 50 } } });
+      // Finalizing a bill for an appointment is what completes the visit — the
+      // appointment is never marked completed until its bill is generated.
+      if (appointmentId) {
+        const done = await prisma.appointment.updateMany({
+          where: { id: appointmentId, status: { notIn: ['completed', 'cancelled'] } },
+          data: { status: 'completed' },
+        });
+        // Only fire completion rewards if THIS call actually completed it.
+        if (done.count > 0) {
+          const { awardReferralOnCompletion } = require('../utils/referral');
+          await awardReferralOnCompletion(doctorProfile.id, patientId);
+        }
+      }
     }
 
     if (status === 'paid') {
@@ -382,6 +400,18 @@ const updateBill = async (req, res) => {
       if (pts > 0) {
         const existing = await prisma.reward.findFirst({ where: { billId: bill.id } });
         if (!existing) await prisma.reward.create({ data: { patientId: bill.patientId, type: 'visit', points: pts, description: 'Points earned from treatment payment (2%)', billId: bill.id } });
+      }
+    }
+
+    // Finalizing a draft (→ non-draft) for an appointment completes the visit.
+    if (bill.status === 'draft' && updates.status && updates.status !== 'draft' && bill.appointmentId) {
+      const done = await prisma.appointment.updateMany({
+        where: { id: bill.appointmentId, status: { notIn: ['completed', 'cancelled'] } },
+        data: { status: 'completed' },
+      });
+      if (done.count > 0) {
+        const { awardReferralOnCompletion } = require('../utils/referral');
+        await awardReferralOnCompletion(bill.doctorId, bill.patientId);
       }
     }
 

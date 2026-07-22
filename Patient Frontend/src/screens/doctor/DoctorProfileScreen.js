@@ -87,13 +87,23 @@ export default function DoctorProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [dropdownConfig, setDropdownConfig] = useState({ field: '', options: [], label: '' });
-  // Admin "view-as" (impersonation) sessions may edit the locked identity fields.
+  // Admin "view-as" (impersonation) sessions may edit any locked field.
   const [impersonating, setImpersonating] = useState(false);
-  // Identity/verification fields lock once set. A field is locked when it already
-  // had a saved value at load time — captured here so typing doesn't unlock it.
+  // Whether this doctor has been verified/approved by admin (pmdcVerified).
+  const [pmdcVerified, setPmdcVerified] = useState(false);
+  // Fields that had a saved value at load time — captured so typing doesn't unlock.
   const [lockedFields, setLockedFields] = useState({});
-  // A field is editable if we're impersonating, or it wasn't set yet.
-  const isLocked = (field) => !impersonating && !!lockedFields[field];
+  // Verification documents: editable until admin verifies, then locked. Lets a
+  // doctor re-upload a bad scan before approval; frozen once verified.
+  const VERIFY_DOCS = ['licenseCert', 'idFront', 'idBack'];
+  // Identity fields lock as soon as they're set. Verification docs lock only once
+  // set AND admin-verified. Impersonation (admin view-as) overrides all locks.
+  const isLocked = (field) => {
+    if (impersonating) return false;
+    if (!lockedFields[field]) return false;
+    if (VERIFY_DOCS.includes(field)) return pmdcVerified; // docs: also need verification
+    return true; // identity fields: locked once set
+  };
 
   const [formData, setFormData] = useState({
     mobileNumber: '',
@@ -141,7 +151,9 @@ export default function DoctorProfileScreen({ navigation }) {
       if (res.data?.success && res.data.data.profile) {
         const p = res.data.data.profile;
         const u = res.data.data.user;
-        // Lock each identity field that already has a saved value.
+        // Admin-verified? Verification docs freeze once this is true.
+        setPmdcVerified(!!p.pmdcVerified);
+        // Lock each identity/verification field that already has a saved value.
         setLockedFields({
           fullName: !!(p.fullName && p.fullName.trim()),
           gender: !!(p.gender && p.gender.trim()),
@@ -149,6 +161,9 @@ export default function DoctorProfileScreen({ navigation }) {
           pmdcNumber: !!(p.pmdcNumber && p.pmdcNumber.trim()),
           emailAddress: !!(u?.email && u.email.trim()),
           avatar: !!(p.photo && p.photo.trim()),
+          licenseCert: !!(p.licenseCert && p.licenseCert.trim()),
+          idFront: !!(p.idFront && p.idFront.trim()),
+          idBack: !!(p.idBack && p.idBack.trim()),
         });
         setFormData({
           fullName: p.fullName || '',
@@ -456,9 +471,9 @@ export default function DoctorProfileScreen({ navigation }) {
           <FieldRow icon="id-card-outline" label="PMDC No." placeholder="PMDC Number" value={formData.pmdcNumber} onChangeText={t => setField('pmdcNumber', t)} editable={!isLocked('pmdcNumber')} locked={isLocked('pmdcNumber')} />
 
           <UploadRow icon="person-circle-outline" label="Profile Picture" subLabel={isLocked('avatar') ? 'Locked — contact admin to change' : 'Clear face photo · square, 512×512px'} onPress={() => { if (!isLocked('avatar')) pickDocument('avatar', 'Profile Picture'); }} imageUrl={formData.avatar} locked={isLocked('avatar')} />
-          <UploadRow icon="document-text-outline" label="License / Registration" subLabel="Clear scan · portrait, ~1200×1600px" onPress={() => pickDocument('licenseCert', 'License / Registration')} imageUrl={formData.licenseCert} />
-          <UploadRow icon="id-card-outline" label="ID Card Front" subLabel="Clear photo · ~1000×640px" onPress={() => pickDocument('idFront', 'ID Card Front')} imageUrl={formData.idFront} />
-          <UploadRow icon="id-card-outline" label="ID Card Back" subLabel="Clear photo · ~1000×640px" onPress={() => pickDocument('idBack', 'ID Card Back')} imageUrl={formData.idBack} />
+          <UploadRow icon="document-text-outline" label="License / Registration" subLabel={isLocked('licenseCert') ? 'Locked — contact admin to change' : 'Clear scan · portrait, ~1200×1600px'} onPress={() => { if (!isLocked('licenseCert')) pickDocument('licenseCert', 'License / Registration'); }} imageUrl={formData.licenseCert} locked={isLocked('licenseCert')} />
+          <UploadRow icon="id-card-outline" label="ID Card Front" subLabel={isLocked('idFront') ? 'Locked — contact admin to change' : 'Clear photo · ~1000×640px'} onPress={() => { if (!isLocked('idFront')) pickDocument('idFront', 'ID Card Front'); }} imageUrl={formData.idFront} locked={isLocked('idFront')} />
+          <UploadRow icon="id-card-outline" label="ID Card Back" subLabel={isLocked('idBack') ? 'Locked — contact admin to change' : 'Clear photo · ~1000×640px'} onPress={() => { if (!isLocked('idBack')) pickDocument('idBack', 'ID Card Back'); }} imageUrl={formData.idBack} locked={isLocked('idBack')} />
         </View>
 
         {/* Professional Information */}

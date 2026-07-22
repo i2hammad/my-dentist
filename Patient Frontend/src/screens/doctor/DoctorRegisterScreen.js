@@ -252,7 +252,7 @@ export default function DoctorRegisterScreen({ navigation }) {
     }
   };
 
-  const handleSaveProfile = async (skip = false) => {
+  const handleSaveProfile = async () => {
     // Only the full name is truly required — every other field (and the
     // verification documents) is optional and can be completed later from the
     // Profile screen. A doctor can enter whatever they have and continue; partial
@@ -642,7 +642,7 @@ export default function DoctorRegisterScreen({ navigation }) {
         {/* ====== Register Button ====== */}
         <TouchableOpacity
           style={styles.registerButton}
-          onPress={() => handleSaveProfile(false)}
+          onPress={() => handleSaveProfile()}
           disabled={submitting}
           activeOpacity={0.85}
         >
@@ -654,16 +654,6 @@ export default function DoctorRegisterScreen({ navigation }) {
               <Text style={styles.registerButtonText}>Save Profile & Continue</Text>
             </View>
           )}
-        </TouchableOpacity>
-
-        {/* Skip — finish details/documents later */}
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={() => handleSaveProfile(true)}
-          disabled={submitting}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.skipButtonText}>Skip for now — complete later</Text>
         </TouchableOpacity>
 
         {/* Security Note */}
@@ -966,21 +956,6 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: 'bold',
   },
-  skipButton: {
-    marginTop: 12,
-    paddingVertical: 13,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  skipButtonText: {
-    color: '#475569',
-    fontSize: 14.5,
-    fontWeight: '600',
-  },
-
   // Security Note
   securityNote: {
     flexDirection: 'row',

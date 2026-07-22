@@ -270,7 +270,7 @@ export default function LoginScreen({ route, navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <Image
-            source={require('../../assets/logo-mark.png')}
+            source={require('../../assets/logo-mark-sm.png')}
             style={styles.logo}
             resizeMode="contain"
           />

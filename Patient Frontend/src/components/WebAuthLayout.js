@@ -28,7 +28,7 @@ export default function WebAuthLayout({ children, title, subtitle, onBack }) {
         <View style={styles.blobB} />
         <View style={styles.brandInner}>
           <View style={styles.logoRow}>
-            <Image source={require('../../assets/logo-mark.png')} style={styles.logo} resizeMode="contain" />
+            <Image source={require('../../assets/logo-mark-sm.png')} style={styles.logo} resizeMode="contain" />
             <Text style={styles.brandText}>My Dentist</Text>
           </View>
           <Text style={styles.heroTitle}>{title || 'Trusted dental care,\nbooked in seconds.'}</Text>

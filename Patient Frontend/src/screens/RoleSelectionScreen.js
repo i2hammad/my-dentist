@@ -118,7 +118,7 @@ export default function RoleSelectionScreen({ navigation }) {
         {/* Logo + App Name */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/logo-mark.png')}
+            source={require('../../assets/logo-mark-sm.png')}
             style={styles.logo}
             resizeMode="contain"
           />

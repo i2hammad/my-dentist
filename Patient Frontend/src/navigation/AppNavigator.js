@@ -94,6 +94,32 @@ function useTabBarOptions() {
 // Main Tabs (after login)
 function MainTabNavigator() {
   const tabBarOptions = useTabBarOptions();
+  // Guests (no token) may browse Home + the treatment pages, but the account tabs
+  // (Rewards / Reviews / Appointments / Bills) require login. We track guest state
+  // and intercept those tab presses → redirect to Login instead of entering the
+  // protected screen (so back-press can't leak it).
+  const [isGuest, setIsGuest] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try { const t = await storage.getItem('userToken'); if (alive) setIsGuest(!t); }
+      catch { if (alive) setIsGuest(true); }
+    })();
+    return () => { alive = false; };
+  }, []);
+  // Tab-press guard: for guests, block the protected tab and go to Login.
+  const guestGuard = (nav) => ({
+    tabPress: (e) => {
+      if (isGuest) {
+        e.preventDefault();
+        nav.navigate('Login', { role: 'patient' });
+      }
+    },
+  });
+  // Hide the account tabs' bottom-bar buttons entirely while a guest.
+  const hideForGuest = isGuest
+    ? { tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }
+    : {};
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -114,10 +140,12 @@ function MainTabNavigator() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Rewards" component={PatientRewardsScreen} />
-      <Tab.Screen name="MyReviews" component={MyReviewsScreen} options={{ tabBarLabel: 'Reviews' }} />
-      <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Appointments' }} />
-      <Tab.Screen name="BillsHistory" component={BillsHistoryScreen} options={{ tabBarLabel: 'Bills' }} />
+      {/* Account tabs are HIDDEN for guests (no bottom-bar button) and guarded on
+          press as a belt-and-braces backstop. Logged-in users see them normally. */}
+      <Tab.Screen name="Rewards" component={PatientRewardsScreen} options={hideForGuest} listeners={({ navigation }) => guestGuard(navigation)} />
+      <Tab.Screen name="MyReviews" component={MyReviewsScreen} options={{ tabBarLabel: 'Reviews', ...hideForGuest }} listeners={({ navigation }) => guestGuard(navigation)} />
+      <Tab.Screen name="Campaigns" component={AppointmentsScreen} options={{ tabBarLabel: 'Appointments', ...hideForGuest }} listeners={({ navigation }) => guestGuard(navigation)} />
+      <Tab.Screen name="BillsHistory" component={BillsHistoryScreen} options={{ tabBarLabel: 'Bills', ...hideForGuest }} listeners={({ navigation }) => guestGuard(navigation)} />
       {/* Profile, Cosmetic, Implants, Orthodontics are reachable from the top nav /
           search / treatment links, but hidden from the bottom bar. Profile sits in
           the top bar so it doesn't need a bottom tab. */}

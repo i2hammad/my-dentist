@@ -63,7 +63,7 @@ export default function PatientHeader({ greeting, name, subtitle, showName }) {
       <View style={styles.headerRow1}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={styles.headerLogoBadge}>
-            <Image source={require('../../assets/logo-mark.png')} style={styles.headerLogo} resizeMode="contain" />
+            <Image source={require('../../assets/logo-mark-sm.png')} style={styles.headerLogo} resizeMode="contain" />
           </View>
           <Text style={styles.headerTitle}>My <Text style={{ color: '#BFD7FF' }}>Dentist</Text></Text>
         </View>

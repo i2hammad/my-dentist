@@ -39,7 +39,7 @@ import axios from 'axios';
 import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
-import { SkeletonList } from '../components/Skeleton';
+import { SkeletonList, SkeletonCard } from '../components/Skeleton';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
@@ -97,7 +97,7 @@ function StatusBadge({ status }) {
 // ─── Single Doctor Card ──────────────────────────────────────────────
 function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patientCoords }) {
   const photoUri = doc.photo
-    ? imgUrl(doc.photo)
+    ? imgUrl(doc.photo, { w: 160 }) // small card avatar — request a resized thumb
     : null;
 
   const status = doc.isOnline === true
@@ -450,7 +450,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerRow1}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.headerLogoBadge}>
-              <Image source={require('../../assets/logo-mark.png')} style={styles.headerLogo} resizeMode="contain" />
+              <Image source={require('../../assets/logo-mark-sm.png')} style={styles.headerLogo} resizeMode="contain" />
             </View>
             <Text style={styles.headerTitle}>My <Text style={{ color: '#BFD7FF' }}>Dentist</Text></Text>
           </View>
@@ -701,7 +701,18 @@ export default function HomeScreen({ navigation }) {
 
         {/* ── DOCTOR LIST ── */}
         {loading ? (
-          <SkeletonList count={4} />
+          // Match the loaded layout: grid on wide screens, list on phones.
+          isWide ? (
+            <View style={styles.doctorGrid}>
+              {Array.from({ length: columns * 2 }).map((_, i) => (
+                <View key={i} style={[styles.doctorGridCell, { width: `${100 / columns}%` }]}>
+                  <SkeletonCard />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <SkeletonList count={4} />
+          )
         ) : filteredDoctors.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="sad-outline" size={48} color="#CBD5E1" />

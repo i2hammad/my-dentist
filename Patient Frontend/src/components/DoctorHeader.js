@@ -65,7 +65,7 @@ export default function DoctorHeader({ title, subtitle, right }) {
           {/* Brand */}
           <View style={styles.brandRow}>
             <View style={styles.logoBox}>
-              <Image source={require('../../assets/logo-mark.png')} style={styles.logoImg} resizeMode="contain" />
+              <Image source={require('../../assets/logo-mark-sm.png')} style={styles.logoImg} resizeMode="contain" />
             </View>
             <Text style={styles.brandName}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text></Text>
           </View>

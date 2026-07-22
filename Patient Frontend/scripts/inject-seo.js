@@ -33,13 +33,25 @@ let html = fs.readFileSync(INDEX, 'utf8');
 const bundleMatch = html.match(/src="(\/_expo\/static\/js\/web\/index-[^"]+\.js)"/);
 const bundleHref = bundleMatch ? bundleMatch[1] : null;
 
+// Find the hashed Ionicons font in dist so we can preload it. Icons are used all
+// over the UI (search bar, filter chips, nav); preloading the font means it's
+// ready before first paint, so glyphs don't pop in later and shift layout (CLS).
+let ioniconsHref = null;
+try {
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+    const p = path.join(d, e.name);
+    return e.isDirectory() ? walk(p) : [p];
+  });
+  const hit = walk(DIST).find((p) => /Ionicons[^/]*\.ttf$/i.test(p));
+  if (hit) ioniconsHref = '/' + path.relative(DIST, hit).split(path.sep).join('/');
+} catch { /* ignore */ }
+
 // ── 2. SEO <head> block ─────────────────────────────────────────────────────
 const SEO_HEAD = `
     <meta name="description" content="Find and book the best dentists in Lahore, Karachi, Islamabad, Rawalpindi, Faisalabad, Multan, Peshawar & Quetta. Search verified PMDC dental specialists, compare clinics, read reviews, and book appointments online in seconds." />
     <meta name="keywords" content="best dentist in Pakistan, best dentist in Lahore, best dentist in Karachi, best dentist in Islamabad, dental clinic near me, book dentist online Pakistan, orthodontist, dental implants, cosmetic dentist, root canal, teeth whitening, braces, PMDC verified dentist, dentist appointment" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0052FF" />${GSC_TOKEN ? `\n    <meta name="google-site-verification" content="${GSC_TOKEN}" />` : ''}
-    <link rel="preconnect" href="https://api.mydentistpk.com" crossorigin />
     <link rel="dns-prefetch" href="https://api.mydentistpk.com" />
     <!-- Icon fonts (@expo/vector-icons) default to font-display:block, which blocks
          text paint until the font loads (~2s per PageSpeed). Pre-declaring them with
@@ -54,9 +66,10 @@ const SEO_HEAD = `
       @font-face{font-family:Entypo;font-display:swap;src:local('Entypo')}
     </style>
     <link rel="canonical" href="${SITE_URL}/" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-title" content="My Dentist" />
@@ -91,11 +104,17 @@ const SEO_HEAD = `
       "@type": "MedicalOrganization",
       "name": "My Dentist",
       "url": "${SITE_URL}/",
-      "logo": "${SITE_URL}/favicon.ico",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "${SITE_URL}/icons/icon-512.png",
+        "width": 512,
+        "height": 512
+      },
+      "image": "${SITE_URL}/og-image.png",
       "areaServed": "Pakistan",
       "description": "Online platform to find and book verified PMDC dentists across Pakistan."
     }
-    </script>${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}
+    </script>${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}${ioniconsHref ? `\n    <link rel="preload" as="font" type="font/ttf" href="${ioniconsHref}" crossorigin />` : ''}
 `;
 
 // Remove Expo's default favicon link so it doesn't conflict with (or override)
@@ -116,8 +135,61 @@ html = html.replace(
   `<title>Best Dentists in Pakistan — Find & Book Verified Dentists | My Dentist</title>${SEO_HEAD}`
 );
 
+// ── Instant-paint homepage hero ─────────────────────────────────────────────
+// The Expo app ships an empty <div id="root">, so on mobile the browser paints
+// NOTHING until ~630KB of JS downloads+parses (LCP ~7s). We inject a real,
+// styled hero straight into #root that paints immediately (0 JS) — giving a fast
+// FCP/LCP. When React mounts it replaces #root's children, so this disappears
+// seamlessly. It's also real crawlable content for the homepage.
+// A shimmering skeleton block (gradient sweeps across via CSS animation).
+const sk = (w, h, r) => `<div class="pp-sk" style="width:${w};height:${h};border-radius:${r || '6px'};"></div>`;
+const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow:auto;background:linear-gradient(160deg,#EFF4FF 0%,#FFFFFF 60%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;opacity:1;transition:opacity .3s ease;">
+  <style>
+    @keyframes ppShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+    .pp-sk{background:#EEF2F7;background-image:linear-gradient(90deg,#EEF2F7 0px,#F8FAFC 160px,#EEF2F7 320px);background-size:600px 100%;animation:ppShimmer 1.3s linear infinite;}
+    /* single-column list on phones (matches the app); grid on wide screens */
+    .pp-cards{display:flex;flex-direction:column;gap:14px;}
+    @media(min-width:900px){.pp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}}
+  </style>
+  <div style="max-width:1080px;margin:0 auto;padding:20px 20px 40px;">
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0 28px;">
+      <img src="/icons/hero-logo.webp" width="34" height="34" alt="My Dentist logo" style="border-radius:8px;display:block;"/>
+      <span style="font-size:20px;font-weight:800;color:#0A1551;">My <span style="color:#0052FF;">Dentist</span></span>
+    </div>
+    <h1 style="font-size:30px;line-height:1.25;color:#0A1551;margin:8px 0 10px;font-weight:800;">Find &amp; book the best dentists in Pakistan</h1>
+    <p style="font-size:16px;color:#475569;margin:0 0 22px;line-height:1.6;">Search verified PMDC dentists in Lahore, Karachi, Islamabad, Rawalpindi &amp; more. Compare clinics, read reviews, and book appointments online in seconds.</p>
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;box-shadow:0 4px 16px rgba(2,6,23,.05);max-width:560px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <span style="color:#94A3B8;font-size:15px;">Search dentist, clinic or treatment…</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;">
+      ${['Cosmetic','Orthodontics','Implants','Root Canal','Teeth Whitening','Braces'].map((t) => `<span style="background:#EFF4FF;color:#0052FF;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;">${t}</span>`).join('')}
+    </div>
+    <div style="margin-top:28px;font-weight:800;color:#0A1551;font-size:18px;">Nearby Dentists</div>
+    <div class="pp-cards" style="margin-top:14px;">
+      ${[0,1,2,3].map(() => `<div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #EEF2F7;border-radius:16px;padding:14px;">${sk('64px','64px','14px')}<div style="flex:1;min-width:0;">${sk('55%','14px')}<div style="height:9px"></div>${sk('38%','11px')}<div style="height:9px"></div>${sk('72%','10px')}</div></div>`).join('')}
+    </div>
+    <p style="margin-top:24px;color:#94A3B8;font-size:13px;text-align:center;">Loading dentists near you…</p>
+  </div>
+</div>`;
+// The hero is a FIXED OVERLAY sibling of #root (not a child), so:
+//  • #root stays empty → React mounts the real app underneath, laid out correctly
+//  • the hero covers it while loading (fast paint), then fades out
+//  • removing a fixed overlay causes ZERO layout shift → keeps CLS low
+const HERO_FADE = `<script>(function(){
+  var root=document.getElementById('root'),hero=document.getElementById('pp-hero');
+  if(!root||!hero)return;
+  function done(){hero.style.opacity='0';setTimeout(function(){hero&&hero.remove();},350);}
+  // Fade once React has rendered real content into #root.
+  var obs=new MutationObserver(function(){ if(root.childElementCount>0){obs.disconnect();done();} });
+  obs.observe(root,{childList:true});
+  // Safety net: never let the hero linger.
+  setTimeout(done,8000);
+})();</script>`;
+html = html.replace('<div id="root"></div>', `<div id="root"></div>${HERO}${HERO_FADE}`);
+
 fs.writeFileSync(INDEX, html, 'utf8');
-console.log('[inject-seo] SEO head injected into dist/index.html' + (bundleHref ? ` (preload ${bundleHref})` : ''));
+console.log('[inject-seo] SEO head + instant hero injected into dist/index.html' + (bundleHref ? ` (preload ${bundleHref})` : ''));
 
 // ── 3. robots.txt (explicitly welcomes AI-search crawlers) ──────────────────
 // AI crawlers don't run JS, so they rely on the static pre-rendered pages

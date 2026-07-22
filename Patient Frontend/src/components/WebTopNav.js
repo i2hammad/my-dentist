@@ -112,7 +112,7 @@ export default function WebTopNav({ navRef, navInfo }) {
       <View style={styles.inner}>
         {/* LEFT: Brand */}
         <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
-          <Image source={require('../../assets/logo-mark.png')} style={styles.logo} resizeMode="contain" />
+          <Image source={require('../../assets/logo-mark-sm.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.brandText}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={styles.brandAccent}>Dentist</Text></Text>
         </Pressable>
 

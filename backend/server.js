@@ -16,8 +16,14 @@ app.use(express.urlencoded({ extended: true }));
 // Enable CORS
 app.use(cors());
 
-// Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files. The resize middleware handles `?w=` thumbnail requests
+// (resized WebP, cached); everything else falls through to express.static.
+// NOTE: on CloudLinux/LiteSpeed, real /uploads/*.png files are served statically
+// before Node, so the ?w= middleware there is bypassed — use /api/img instead.
+const imageResize = require('./middleware/imageResize');
+app.use('/uploads', imageResize, express.static(path.join(__dirname, 'uploads')));
+// Reliable resize endpoint (always routed to Node): /api/img?src=/uploads/x&w=160
+app.get('/api/img', imageResize.route);
 
 // ─── API Routes ────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth.routes'));

@@ -1502,7 +1502,7 @@ export default function BillsTab({ profile, appointments, onAppointmentsChanged,
                         {profile?.photo ? (
                           <Image source={{ uri: imgUrl(profile.photo) }} style={styles.receiptLogo} resizeMode="cover" />
                         ) : (
-                          <Image source={require('../../../../assets/logo-mark.png')} style={styles.receiptLogo} resizeMode="contain" />
+                          <Image source={require('../../../../assets/logo-mark-sm.png')} style={styles.receiptLogo} resizeMode="contain" />
                         )}
                       </View>
                       <Text style={styles.receiptClinic}>{profile?.clinicName?.toUpperCase() || 'MY DENTIST CLINIC'}</Text>

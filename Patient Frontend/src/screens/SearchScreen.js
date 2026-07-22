@@ -164,7 +164,7 @@ export default function SearchScreen({ navigation, route }) {
       <View style={styles.cardTop}>
         <View style={styles.doctorImageContainer}>
           <Image 
-            source={{ uri: item.photo ? imgUrl(item.photo) : item.photoUrl || 'https://via.placeholder.com/150' }} 
+            source={{ uri: item.photo ? imgUrl(item.photo, { w: 160 }) : item.photoUrl || 'https://via.placeholder.com/150' }}
             style={styles.doctorImage} 
           />
         </View>

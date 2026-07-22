@@ -18,7 +18,8 @@ import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { setStatusBarStyle } from 'expo-status-bar';
 import PromoCard from '../components/PromoCard';
 import { AnimatedHeader, PressableScale } from '../components/Animated';
-import { SkeletonTreatmentList } from '../components/Skeleton';
+import { SkeletonTreatmentList, SkeletonCard } from '../components/Skeleton';
+import useResponsive from '../hooks/useResponsive';
 import webContent, { isWeb } from '../config/webLayout';
 
 function StatusBadge({ status }) {
@@ -140,6 +141,7 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite }) {
 }
 
 export default function ImplantsScreen({ navigation }) {
+  const { isWide, columns } = useResponsive();
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState({});
@@ -224,7 +226,15 @@ export default function ImplantsScreen({ navigation }) {
         </View>
 
         {loading ? (
-          <SkeletonTreatmentList count={5} />
+          isWide ? (
+            <View style={styles.doctorGrid}>
+              {Array.from({ length: columns * 2 }).map((_, i) => (
+                <View key={i} style={[styles.doctorGridCell, { width: `${100 / columns}%` }]}><SkeletonCard /></View>
+              ))}
+            </View>
+          ) : (
+            <SkeletonTreatmentList count={5} />
+          )
         ) : doctors.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="sad-outline" size={48} color="#CBD5E1" />
@@ -234,15 +244,18 @@ export default function ImplantsScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         ) : (
-          doctors.map(doc => (
-            <DoctorCard
-              key={doc._id}
-              doc={doc}
-              isFavorite={!!favorites[doc._id]}
-              onToggleFavorite={toggleFavorite}
-              onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
-            />
-          ))
+          <View style={isWide ? styles.doctorGrid : null}>
+            {doctors.map(doc => (
+              <View key={doc._id} style={isWide ? [styles.doctorGridCell, { width: `${100 / columns}%` }] : null}>
+                <DoctorCard
+                  doc={doc}
+                  isFavorite={!!favorites[doc._id]}
+                  onToggleFavorite={toggleFavorite}
+                  onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
+                />
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -250,6 +263,8 @@ export default function ImplantsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  doctorGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8 },
+  doctorGridCell: {},
   safeArea: {
     flex: 1,
     backgroundColor: '#0052FF',

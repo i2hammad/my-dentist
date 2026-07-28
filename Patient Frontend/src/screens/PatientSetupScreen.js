@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput, ActivityIndicator, ScrollView, Image, KeyboardAvoidingView, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,13 +10,50 @@ import storage from '../config/storage';
 import API_BASE_URL from '../config/api';
 import { detectCoords } from '../utils/geo';
 import { sanitizePhone } from '../utils/phone';
-import { webForm, webFieldGrid, webHalf, webFull } from '../config/webLayout';
+import { webForm, fieldGridFor, halfFor, fullFor } from '../config/webLayout';
 import CityPicker from '../components/CityPicker';
+
+const GENDER_PLACEHOLDER = 'Select your gender';
+
+// Only Name, Mobile and City are needed to finish signup — everything else can
+// be added later from Edit Profile. Keeping this list short is the single
+// biggest lever on completion rate.
+const validateForm = ({ fullName, mobileNumber, city }) => {
+  const errors = {};
+  const name = fullName.trim();
+  if (!name) errors.fullName = 'Please enter your full name';
+  else if (name.length < 2) errors.fullName = 'Name must be at least 2 characters';
+
+  const phone = mobileNumber.trim();
+  if (!phone) errors.mobileNumber = 'Please enter your mobile number';
+  // Pakistani mobile format, e.g. 03001234567.
+  else if (!/^03\d{9}$/.test(phone)) errors.mobileNumber = 'Enter an 11-digit number starting with 03';
+
+  if (!city.trim()) errors.city = 'Please select your city';
+  return errors;
+};
+
+// The API returns { success, message, errors: [{ field, message }] }. Surface the
+// per-field messages instead of the generic "Validation failed" the user saw before.
+const serverErrorsToFields = (data) => {
+  const out = {};
+  if (Array.isArray(data?.errors)) {
+    for (const e of data.errors) {
+      if (e?.field && e?.message && !out[e.field]) out[e.field] = e.message;
+    }
+  }
+  return out;
+};
 
 export default function PatientSetupScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const isFocused = useIsFocused();
+  // Drives the one/two-column switch so the form re-flows on resize + rotate.
+  const { width } = useWindowDimensions();
+  const gridStyle = fieldGridFor(width);
+  const halfStyle = halfFor(width);
+  const fullStyle = fullFor(width);
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -24,14 +61,25 @@ export default function PatientSetupScreen({ navigation }) {
   const [city, setCity] = useState('');
   const [location, setLocation] = useState('');
   const [detectingLoc, setDetectingLoc] = useState(false);
-  const [gender, setGender] = useState('Select your gender');
+  const [gender, setGender] = useState(GENDER_PLACEHOLDER);
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [profileExists, setProfileExists] = useState(false);
-  
+
+  // Per-field messages. `touched` keeps errors from flashing on a field the user
+  // hasn't reached yet — they appear on blur, or on a failed save attempt.
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const markTouched = (field) => setTouched((t) => ({ ...t, [field]: true }));
+  // Clear a field's error as soon as the user edits it — re-validating on every
+  // keystroke would scold them mid-type.
+  const clearError = (field) => setErrors((e) => (e[field] ? { ...e, [field]: undefined } : e));
+  const showError = (field) => (touched[field] ? errors[field] : undefined);
 
   useEffect(() => {
     if (isFocused) {
@@ -126,29 +174,31 @@ export default function PatientSetupScreen({ navigation }) {
   };
 
   const handleSaveChanges = async () => {
-    if (!fullName.trim() || !mobileNumber.trim() || !city.trim()) {
-      return alert('Please fill all required fields');
+    const found = validateForm({ fullName, mobileNumber, city });
+    if (Object.keys(found).length) {
+      // Reveal every message at once so the user sees the whole list, not one at a time.
+      setErrors(found);
+      setTouched({ fullName: true, mobileNumber: true, city: true });
+      return;
     }
+    setErrors({});
 
     try {
       setSaving(true);
       const token = await storage.getItem('userToken');
-      
-      let genderVal = 'male';
-      if (gender.toLowerCase() === 'female') genderVal = 'female';
-      else if (gender.toLowerCase() === 'other') genderVal = 'other';
 
       const payload = {
         fullName: fullName.trim(),
         mobileNumber: mobileNumber.trim(),
         city: city.trim(),
         address: location.trim(),
-        gender: genderVal,
       };
 
-      if (dateOfBirth) {
-         payload.dateOfBirth = new Date(dateOfBirth).toISOString();
-      }
+      // Only send gender/DOB when actually chosen. Previously an untouched gender
+      // dropdown silently posted 'male', writing wrong data for everyone who
+      // skipped it; both fields are optional server-side now.
+      if (gender !== GENDER_PLACEHOLDER) payload.gender = gender.toLowerCase();
+      if (dateOfBirth) payload.dateOfBirth = new Date(dateOfBirth).toISOString();
 
       // Check if image is local and needs upload
       const isLocalImage = profileImage && (profileImage.startsWith('file://') || profileImage.startsWith('content://') || profileImage.startsWith('ph://'));
@@ -160,25 +210,42 @@ export default function PatientSetupScreen({ navigation }) {
 
       if (res.data?.success) {
         setProfileExists(true);
-        
+
         if (isLocalImage) {
           try {
             await uploadAvatar(profileImage, token);
           } catch (uploadErr) {
             console.log('Error uploading avatar:', uploadErr);
-            alert('Profile saved, but avatar upload failed. Please try another image.');
+            // Non-blocking: the profile saved, so let onboarding finish rather
+            // than stranding the user on this screen over an optional photo.
+            alert('Profile saved. Your photo didn’t upload — you can add it later from Edit Profile.');
           }
         }
-        
-        alert('Profile saved successfully!');
-        // Navigate to Home as part of onboarding completion
+
+        // Navigate straight to Home. The old success alert added a mandatory tap
+        // to the end of onboarding for no information gain.
         navigation.replace('MainTabs', { screen: 'Home' });
       } else {
         alert(res.data?.message || 'Failed to save profile');
       }
     } catch (error) {
-      console.log('Error saving profile:', error.response?.data || error.message);
-      alert(error.response?.data?.message || 'Failed to save profile. Please try again.');
+      const data = error.response?.data;
+      console.log('Error saving profile:', data || error.message);
+
+      // Map server-side field errors onto the inputs so the user can see exactly
+      // what to fix, instead of a bare "Validation failed".
+      const fieldErrors = serverErrorsToFields(data);
+      if (Object.keys(fieldErrors).length) {
+        setErrors(fieldErrors);
+        setTouched((t) => ({ ...t, ...Object.fromEntries(Object.keys(fieldErrors).map((k) => [k, true])) }));
+        return;
+      }
+
+      if (!error.response) {
+        alert('Could not reach the server. Check your internet connection and try again.');
+      } else {
+        alert(data?.message || 'Failed to save profile. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -274,7 +341,9 @@ export default function PatientSetupScreen({ navigation }) {
               {profileExists && fullName.trim() ? fullName.trim() : 'Create Patient Profile'}
             </Text>
             <Text style={styles.pageSubtitle}>
-              {profileExists ? 'Review and update your profile details' : "Let's create your profile to get started"}
+              {profileExists
+                ? 'Review and update your profile details'
+                : 'Just three quick details and you’re in — you can add the rest later.'}
             </Text>
 
             <View style={styles.formCard}>
@@ -292,40 +361,51 @@ export default function PatientSetupScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Form Fields — two columns on web, single column on mobile */}
-              <View style={[styles.fieldGrid, webFieldGrid]}>
-              <View style={[styles.fieldItem, webHalf]}>
-              <Text style={styles.label}>Full Name</Text>
-              <View style={styles.inputContainer}>
+              {/* Form Fields — two columns only on wide screens; phones (incl.
+                  mobile browsers) stay single-column so inputs are usable. */}
+              <View style={[styles.fieldGrid, gridStyle]}>
+              <View style={[styles.fieldItem, halfStyle]}>
+              <Text style={styles.label}>Full Name <Text style={styles.req}>*</Text></Text>
+              <View style={[styles.inputContainer, showError('fullName') && styles.inputContainerError]}>
                 <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={fullName}
-                  onChangeText={setFullName}
+                  onChangeText={(t) => { setFullName(t); clearError('fullName'); }}
+                  onBlur={() => { markTouched('fullName'); setErrors((e) => ({ ...e, ...validateForm({ fullName, mobileNumber, city }) })); }}
                   placeholder="Enter your full name"
                   placeholderTextColor="#94A3B8"
+                  autoCapitalize="words"
+                  textContentType="name"
+                  autoComplete="name"
+                  returnKeyType="next"
                 />
               </View>
+              {!!showError('fullName') && <Text style={styles.errorText}>{showError('fullName')}</Text>}
               </View>
 
-              <View style={[styles.fieldItem, webHalf]}>
-              <Text style={styles.label}>Mobile Number</Text>
-              <View style={styles.inputContainer}>
+              <View style={[styles.fieldItem, halfStyle]}>
+              <Text style={styles.label}>Mobile Number <Text style={styles.req}>*</Text></Text>
+              <View style={[styles.inputContainer, showError('mobileNumber') && styles.inputContainerError]}>
                 <Ionicons name="call-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   value={mobileNumber}
-                  onChangeText={(t) => setMobileNumber(sanitizePhone(t))}
+                  onChangeText={(t) => { setMobileNumber(sanitizePhone(t)); clearError('mobileNumber'); }}
+                  onBlur={() => { markTouched('mobileNumber'); setErrors((e) => ({ ...e, ...validateForm({ fullName, mobileNumber, city }) })); }}
                   keyboardType="phone-pad"
                   maxLength={11}
                   placeholder="03XXXXXXXXX"
                   placeholderTextColor="#94A3B8"
+                  textContentType="telephoneNumber"
+                  autoComplete="tel"
                 />
               </View>
+              {!!showError('mobileNumber') && <Text style={styles.errorText}>{showError('mobileNumber')}</Text>}
               </View>
 
-              <View style={[styles.fieldItem, webHalf]}>
-              <Text style={styles.label}>Date of Birth</Text>
+              <View style={[styles.fieldItem, halfStyle]}>
+              <Text style={styles.label}>Date of Birth <Text style={styles.optional}>(optional)</Text></Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="calendar-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 {Platform.OS === 'web' ? (
@@ -367,15 +447,15 @@ export default function PatientSetupScreen({ navigation }) {
               )}
               </View>
 
-              <View style={[styles.fieldItem, webHalf, showGenderDropdown && styles.fieldItemOpen]}>
-              <Text style={styles.label}>Gender</Text>
+              <View style={[styles.fieldItem, halfStyle, showGenderDropdown && styles.fieldItemOpen]}>
+              <Text style={styles.label}>Gender <Text style={styles.optional}>(optional)</Text></Text>
               <TouchableOpacity
                 style={styles.inputContainer}
                 onPress={() => { setShowGenderDropdown(!showGenderDropdown); }}
                 activeOpacity={0.8}
               >
                 <Ionicons name="people-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                <Text style={[styles.input, { color: gender === 'Select your gender' ? '#94A3B8' : '#0F172A', paddingTop: Platform.OS==='ios'?14:0 }]}>
+                <Text style={[styles.input, { color: gender === GENDER_PLACEHOLDER ? '#94A3B8' : '#0F172A', paddingTop: Platform.OS==='ios'?14:0 }]}>
                   {gender}
                 </Text>
                 <Ionicons name={showGenderDropdown ? 'chevron-up' : 'chevron-down'} size={20} color="#94A3B8" />
@@ -396,13 +476,18 @@ export default function PatientSetupScreen({ navigation }) {
               )}
               </View>
 
-              <View style={[styles.fieldItem, webHalf]}>
-              <Text style={styles.label}>City</Text>
-              <CityPicker value={city} onSelect={setCity} placeholder="Enter your city" />
+              <View style={[styles.fieldItem, halfStyle]}>
+              <Text style={styles.label}>City <Text style={styles.req}>*</Text></Text>
+              <CityPicker
+                value={city}
+                onSelect={(c) => { setCity(c); markTouched('city'); clearError('city'); }}
+                placeholder="Select your city"
+              />
+              {!!showError('city') && <Text style={styles.errorText}>{showError('city')}</Text>}
               </View>
 
-              <View style={[styles.fieldItem, webFull]}>
-              <Text style={styles.label}>Location / Address</Text>
+              <View style={[styles.fieldItem, fullStyle]}>
+              <Text style={styles.label}>Location / Address <Text style={styles.optional}>(optional)</Text></Text>
               <View style={[styles.inputContainer, { paddingRight: 6 }]}>
                 <Ionicons name="location-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
@@ -577,6 +662,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 16,
   },
+  req: {
+    color: '#DC2626',
+    fontWeight: 'bold',
+  },
+  optional: {
+    color: '#94A3B8',
+    fontWeight: 'normal',
+    fontSize: 12,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -586,6 +680,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 48,
+  },
+  inputContainerError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 12,
+    marginTop: 6,
   },
   inputIcon: {
     marginRight: 10,

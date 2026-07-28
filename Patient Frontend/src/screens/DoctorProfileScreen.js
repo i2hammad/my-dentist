@@ -719,7 +719,10 @@ export default function DoctorProfileScreen({ route, navigation }) {
             )}
           </View>
         )}
-        <TouchableOpacity style={styles.webBookBtn} onPress={() => navigation.navigate('Booking', { doctor })}>
+        <TouchableOpacity style={styles.webBookBtn} onPress={async () => {
+          if (!(await ensureAuth(navigation))) return; // guests → login, never reach Booking
+          navigation.navigate('Booking', { doctor });
+        }}>
           <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.bookBtnTxt}>Book Appointment</Text>
         </TouchableOpacity>
@@ -894,7 +897,10 @@ export default function DoctorProfileScreen({ route, navigation }) {
             {/* Book Appointment — primary CTA */}
             <TouchableOpacity
               style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 13, gap: 6 }}
-              onPress={() => navigation.navigate('Booking', { doctor })}
+              onPress={async () => {
+                if (!(await ensureAuth(navigation))) return; // guests → login, never reach Booking
+                navigation.navigate('Booking', { doctor });
+              }}
             >
               <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
               <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>Book Appointment</Text>
@@ -2326,7 +2332,10 @@ export default function DoctorProfileScreen({ route, navigation }) {
         <View style={[styles.bottomFixed, { bottom: Math.max(insets.bottom, 12) }]}>
           <TouchableOpacity
             style={styles.bookBtn}
-            onPress={() => navigation.navigate('Booking', { doctor })}
+            onPress={async () => {
+              if (!(await ensureAuth(navigation))) return; // guests → login, never reach Booking
+              navigation.navigate('Booking', { doctor });
+            }}
           >
             <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
             <Text style={styles.bookBtnTxt}>Book Appointment</Text>

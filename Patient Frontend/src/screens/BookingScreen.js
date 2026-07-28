@@ -96,6 +96,11 @@ const isTooCloseToBooked = (time, booked) => {
   });
 };
 
+// Offered when a doctor hasn't listed any treatments, so their profile is still
+// bookable. The API accepts treatmentType as free text, so this needs no
+// server-side counterpart.
+const FALLBACK_TREATMENT = 'General Consultation';
+
 const normalizeDayList = (days, fallback) => {
   const valid = Array.isArray(days) ? days.filter((day) => DAY_SHORT.includes(day)) : [];
   return valid.length ? valid : fallback;
@@ -464,7 +469,32 @@ export default function BookingScreen({ route, navigation }) {
               <Text style={styles.sectionHint}>(choose one or more)</Text>
             </View>
             {doctorTreatments.length === 0 ? (
-              <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No treatments listed by this doctor yet.</Text>
+              // A doctor who hasn't listed any treatments used to be unbookable:
+              // the confirm button requires one selection, but there was nothing
+              // to select. Offer a general consultation so the appointment can
+              // still be made (the API takes treatmentType as free text).
+              <>
+                <Text style={{ color: '#94A3B8', fontSize: 13, paddingBottom: 10 }}>
+                  This dentist hasn’t listed individual treatments yet. You can still book a
+                  general consultation and discuss what you need at the visit.
+                </Text>
+                <View style={styles.treatmentGrid}>
+                  {(() => {
+                    const sel = selectedTreatments.includes(FALLBACK_TREATMENT);
+                    return (
+                      <TouchableOpacity
+                        style={[styles.treatmentChip, sel && styles.treatmentChipSelected]}
+                        onPress={() => toggleTreatment(FALLBACK_TREATMENT)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="medkit-outline" size={15} color={sel ? '#FFF' : '#7C3AED'} />
+                        <Text style={[styles.treatmentChipText, sel && styles.treatmentChipTextSel]}>{FALLBACK_TREATMENT}</Text>
+                        {sel && <Ionicons name="checkmark-circle" size={14} color="rgba(255,255,255,0.8)" />}
+                      </TouchableOpacity>
+                    );
+                  })()}
+                </View>
+              </>
             ) : (
               <View style={styles.treatmentGrid}>
                 {doctorTreatments.map((t) => {

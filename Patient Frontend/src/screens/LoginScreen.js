@@ -8,6 +8,7 @@ import API_BASE_URL from '../config/api';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
 import { webForm } from '../config/webLayout';
+import { REQUEST_TIMEOUT, NETWORK_MSG } from '../config/net';
 
 export default function LoginScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -48,18 +49,27 @@ export default function LoginScreen({ route, navigation }) {
 
     try {
       setLoading(true);
-      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { 
-        email: email.trim().toLowerCase(), 
-        password 
-      });
-      const token = res.data.data.accessToken;
+      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+        email: email.trim().toLowerCase(),
+        password
+      }, { timeout: REQUEST_TIMEOUT });
+
+      // Read defensively. A flaky connection (captive portal, carrier proxy,
+      // an HTML error page from the host) can return 200 with a body that is
+      // not our envelope; `res.data.data.accessToken` then threw a TypeError
+      // and the catch block reported "Cannot read property 'accessToken' of
+      // undefined" instead of the real problem.
+      const token = res.data?.data?.accessToken;
+      if (!token) throw new Error(NETWORK_MSG);
+
       await storage.setItem('userToken', token);
       // Role is whatever the account actually is — no role selection on login.
-      const userRole = res.data.data.user.role || 'patient';
+      const userRole = res.data?.data?.user?.role || 'patient';
 
       // Fetch profile to check if it's new
       const profileRes = await axios.get(`${API_BASE_URL}/api/users/me`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: REQUEST_TIMEOUT,
       });
       const profileData = profileRes.data?.data?.profile || {};
       const isNewUser = profileData.fullName === 'New Doctor' || profileData.fullName === 'New Patient';
@@ -82,7 +92,11 @@ export default function LoginScreen({ route, navigation }) {
     } catch (error) {
       const errData = error.response?.data;
       const fieldErrors = errData?.errors?.map(e => `${e.field}: ${e.message}`).join('\n') || '';
-      const msg = fieldErrors || errData?.message || error.message || 'Login failed';
+      // No error.response means the request never reached the server (DNS,
+      // timeout, captive portal, dropped Wi-Fi). Axios surfaces that as the bare
+      // string "Network Error", which tells the user nothing about what to do.
+      const isNetwork = !error.response;
+      const msg = fieldErrors || errData?.message || (isNetwork ? NETWORK_MSG : error.message) || 'Login failed';
       alert(msg);
     } finally {
       setLoading(false);

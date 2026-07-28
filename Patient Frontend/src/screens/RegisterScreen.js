@@ -8,6 +8,7 @@ import storage from '../config/storage';
 import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
 import { webForm } from '../config/webLayout';
+import { REQUEST_TIMEOUT, NETWORK_MSG } from '../config/net';
 
 export default function RegisterScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -66,15 +67,19 @@ export default function RegisterScreen({ route, navigation }) {
 
     try {
       setLoading(true);
-      const res = await axios.post(`${API_BASE_URL}/api/auth/register`, { 
-        email: email.trim().toLowerCase(), 
-        password, 
-        role 
-      });
-      
+      const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+        email: email.trim().toLowerCase(),
+        password,
+        role
+      }, { timeout: REQUEST_TIMEOUT });
+
+      // Only claim success once the response actually says so — this alert used
+      // to fire before the body was inspected, so a 200 with an unexpected shape
+      // told the user "Registration Successful!" and then dropped them on Login.
+      if (!res.data?.success) throw new Error(res.data?.message || NETWORK_MSG);
       alert('Registration Successful!');
-      
-      if (res.data?.success && res.data.data?.accessToken) {
+
+      if (res.data.data?.accessToken) {
         const token = res.data.data.accessToken;
         await storage.setItem('userToken', token);
         
@@ -89,7 +94,10 @@ export default function RegisterScreen({ route, navigation }) {
     } catch (error) {
       const errData = error.response?.data;
       const fieldErrors = errData?.errors?.map(e => `${e.field}: ${e.message}`).join('\n') || '';
-      const msg = fieldErrors || errData?.message || 'Registration failed';
+      // No error.response → the request never reached the server; say so plainly
+      // instead of surfacing axios's bare "Network Error".
+      const msg = fieldErrors || errData?.message
+        || (!error.response ? NETWORK_MSG : error.message) || 'Registration failed';
       alert(msg);
     } finally {
       setLoading(false);

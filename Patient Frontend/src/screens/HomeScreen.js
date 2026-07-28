@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
 import { useSeo, H1 } from '../components/SeoHead';
+import { REQUEST_TIMEOUT, NETWORK_MSG } from '../config/net';
 
 const PK_CITIES = [
   'Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar',
@@ -241,6 +242,10 @@ export default function HomeScreen({ navigation }) {
   const [profile, setProfile]         = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
   const [selectedCity, setSelectedCity]   = useState('Islamabad');
+  // Set when the doctor fetch fails, so the UI can say "couldn't load" and offer
+  // a retry instead of the misleading "No doctors found for this filter".
+  const [doctorsError, setDoctorsError]   = useState(null);
+  const [doctorsReloadKey, setDoctorsReloadKey] = useState(0);
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [doctors, setDoctors]         = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -298,15 +303,10 @@ export default function HomeScreen({ navigation }) {
 
       }
 
-      // Fetch doctors (city filtering handled by separate effect)
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=50`);
-        if (res.data?.success) {
-          setDoctors(res.data.data || []);
-        }
-      } catch (e) {
-        console.log('Doctors fetch error:', e?.message);
-      }
+      // Doctors are fetched by the city effect below, which runs on mount too
+      // (selectedCity has an initial value). Fetching here as well raced it:
+      // two in-flight requests both called setDoctors, so whichever landed last
+      // won — and if that was a failure, the list was silently wiped.
 
       // Fetch patient campaign banner
       try {
@@ -339,17 +339,32 @@ export default function HomeScreen({ navigation }) {
     if (isFocused) fetchData();
   }, [isFocused]);
 
-  // Re-fetch doctors whenever selected city changes
+  // Re-fetch doctors whenever the selected city changes (also runs on mount).
   useEffect(() => {
+    let active = true;
     const fetchByCity = async () => {
+      setDoctorsError(null);
       try {
         const cityParam = selectedCity ? `&city=${encodeURIComponent(selectedCity)}` : '';
-        const res = await axios.get(`${API_BASE_URL}/api/doctors?limit=50${cityParam}`);
+        const res = await axios.get(
+          `${API_BASE_URL}/api/doctors?limit=50${cityParam}`,
+          { timeout: REQUEST_TIMEOUT },
+        );
+        if (!active) return; // city changed again while this was in flight
         if (res.data?.success) setDoctors(res.data.data || []);
-      } catch {}
+        else setDoctorsError(res.data?.message || NETWORK_MSG);
+      } catch (e) {
+        if (!active) return;
+        // Previously this swallowed every failure, leaving `doctors` empty — so
+        // a dropped request rendered "No doctors found for this filter", which
+        // blames the filter for what is actually a connection problem.
+        console.log('Doctors fetch error:', e?.message);
+        setDoctorsError(e?.response?.data?.message || NETWORK_MSG);
+      }
     };
     fetchByCity();
-  }, [selectedCity]);
+    return () => { active = false; };
+  }, [selectedCity, doctorsReloadKey]);
 
 
   useFocusEffect(
@@ -733,6 +748,19 @@ export default function HomeScreen({ navigation }) {
           ) : (
             <SkeletonList count={4} />
           )
+        ) : doctorsError ? (
+          // A failed request must not masquerade as an empty result set.
+          <View style={styles.emptyContainer}>
+            <Ionicons name="cloud-offline-outline" size={48} color="#CBD5E1" />
+            <Text style={styles.emptyText}>{doctorsError}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => setDoctorsReloadKey(k => k + 1)}
+            >
+              <Ionicons name="refresh" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.retryBtnTxt}>Try again</Text>
+            </TouchableOpacity>
+          </View>
         ) : filteredDoctors.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="sad-outline" size={48} color="#CBD5E1" />
@@ -1305,5 +1333,19 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 14,
     textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0052FF',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  retryBtnTxt: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

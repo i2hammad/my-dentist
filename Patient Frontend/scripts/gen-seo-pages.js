@@ -245,9 +245,12 @@ function cityPage(city, docs) {
     name: `Dentists in ${city}`,
     numberOfItems: docs.length,
     itemListElement: docs.map((d, i) => ({
-      '@type': 'ListItem', position: i + 1, url: doctorUrl(d),
-      // Full business node instead of just a name + URL.
-      item: doctorNode(d),
+      // `url` and `item` are mutually exclusive on a ListItem: a summary list
+      // uses `url`, a full-detail list uses `item`. Emitting both made Google
+      // reject the whole carousel with "Two or more mutually exclusive
+      // properties used in a single structured data item". The nested node
+      // carries its own `url`, so the outer one was redundant anyway.
+      '@type': 'ListItem', position: i + 1, item: doctorNode(d),
     })),
   }, {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
@@ -296,7 +299,12 @@ function specPage(spec, docs) {
     name: `${spec}s in Pakistan`,
     numberOfItems: docs.length,
     itemListElement: docs.map((d, i) => ({
-      '@type': 'ListItem', position: i + 1, url: doctorUrl(d), item: doctorNode(d),
+      // `url` and `item` are mutually exclusive on a ListItem: a summary list
+      // uses `url`, a full-detail list uses `item`. Emitting both made Google
+      // reject the whole carousel with "Two or more mutually exclusive
+      // properties used in a single structured data item". The nested node
+      // carries its own `url`, so the outer one was redundant anyway.
+      '@type': 'ListItem', position: i + 1, item: doctorNode(d),
     })),
   }, {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',

@@ -89,7 +89,10 @@ footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:v
 </style></head><body>
 <header><span class="brand">My <span>Dentist</span></span></header>`;
 }
-const foot = `<footer>My Dentist — Pakistan's platform to find & book verified PMDC dentists. <a href="${APP}">Open the app</a></footer></body></html>`;
+// "Open the app" / CTA links point at SPA routes that render the generic app
+// shell (same title + canonical as the homepage). Marking them nofollow keeps
+// crawl budget on the static pages instead of homepage duplicates.
+const foot = `<footer>My Dentist — Pakistan's platform to find & book verified PMDC dentists. <a rel="nofollow" href="${APP}">Open the app</a></footer></body></html>`;
 
 function ratingBlock(avg, total) {
   if (!avg || !total) return '';
@@ -144,7 +147,7 @@ function doctorPage(d) {
 <p class="sub">${esc(spec)}${clinic ? ` · ${esc(clinic)}` : ''} · ${esc(city)}</p>
 ${ratingBlock(d.avgRating, d.totalReviews)}
 <div class="meta">${chips}</div>
-<a class="cta" href="${APP}/doctor/${esc(d._id || d.id)}">View full profile & Book appointment →</a>
+<a class="cta" rel="nofollow" href="${APP}/doctor/${esc(d._id || d.id)}">View full profile & Book appointment →</a>
 <div class="card">
 <h2>About ${esc(name)}</h2>
 <p>${esc((d.about || `${name} is a ${spec}${clinic ? ` practising at ${clinic}` : ''} in ${city}${d.experience ? ` with ${d.experience}+ years of experience` : ''}. Book a verified appointment through My Dentist.`))}</p>
@@ -152,7 +155,7 @@ ${d.address ? `<h2>Clinic Location</h2><p>${esc(d.address)}, ${esc(city)}</p>` :
 ${d.clinicTiming?.days ? `<h2>Timings</h2><p>${esc(d.clinicTiming.days)}${d.clinicTiming.startTime ? ` · ${esc(d.clinicTiming.startTime)}–${esc(d.clinicTiming.endTime || '')}` : ''}</p>` : ''}
 ${d.consultationFee ? `<h2>Consultation</h2><p>Consultation fee: PKR ${Number(d.consultationFee).toLocaleString()}</p>` : ''}
 </div>
-<a class="cta" href="${APP}/doctor/${esc(d._id || d.id)}">Book ${esc(name)} on My Dentist →</a>
+<a class="cta" rel="nofollow" href="${APP}/doctor/${esc(d._id || d.id)}">Book ${esc(name)} on My Dentist →</a>
 </div>`;
 
   return { path: `dentist/${s}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
@@ -182,7 +185,7 @@ function cityPage(city, docs) {
 <h1>Best Dentists in ${esc(city)}</h1>
 <p class="sub">${docs.length} verified PMDC dentist${docs.length === 1 ? '' : 's'} in ${esc(city)}. Compare and book online.</p>
 <div class="grid">${cards}</div>
-<a class="cta" href="${APP}">Open My Dentist to book →</a>
+<a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a>
 </div>`;
   return { path: `dentists/${slug(city)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
 }
@@ -198,7 +201,7 @@ function specPage(spec, docs) {
   }).join('');
   const body = `<div class="wrap"><nav class="bc"><a href="${SITE}/">Home</a> › ${esc(spec)}</nav>
 <h1>${esc(spec)}s in Pakistan</h1><p class="sub">${docs.length} verified specialist${docs.length === 1 ? '' : 's'}. Book online.</p>
-<div class="grid">${cards}</div><a class="cta" href="${APP}">Open My Dentist to book →</a></div>`;
+<div class="grid">${cards}</div><a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a></div>`;
   return { path: `specialists/${slug(spec)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
 }
 
@@ -246,11 +249,77 @@ function specPage(spec, docs) {
   Object.entries(bySpec).forEach(([s, ds]) => write(specPage(s, ds)));
 
   // ── sitemap.xml (homepage + all generated pages) ──
+  // <lastmod> lets Google prioritise recrawls; without it every URL looks equally
+  // stale. Build date is the honest signal — the pages are rebuilt each deploy.
+  const lastmod = new Date().toISOString().slice(0, 10);
   const all = [`${SITE}/`, ...urls];
   const sm = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    all.map((u) => `  <url><loc>${u}</loc><changefreq>weekly</changefreq></url>`).join('\n') +
+    all.map((u) => `  <url><loc>${u}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq></url>`).join('\n') +
     `\n</urlset>\n`;
   fs.writeFileSync(path.join(DIST, 'sitemap.xml'), sm);
+
+  // ── Crawlable link hub on the homepage ──────────────────────────────────────
+  // The Expo shell renders navigation as onPress handlers, so dist/index.html
+  // contains ZERO <a href> — every generated page above was reachable only from
+  // sitemap.xml. A sitemap declares URLs but passes no link equity, which is why
+  // Search Console parked these as "Discovered – currently not indexed".
+  // Injecting a real anchor directory gives them an entrance in the crawl graph.
+  //
+  // It lives inside the #pp-hero overlay that inject-seo.js already injects, so
+  // it's in the initial HTML for crawlers but disappears with the hero once React
+  // mounts — no visual change to the live app, no layout shift.
+  try {
+    const INDEX = path.join(DIST, 'index.html');
+    let idx = fs.readFileSync(INDEX, 'utf8');
+
+    const linkList = (items) => items
+      .map(({ href, label }) => `<a href="${href}" style="color:#0052FF;text-decoration:none;">${esc(label)}</a>`)
+      .join('<span style="color:#CBD5E1;"> · </span>');
+
+    const cityLinks = Object.keys(byCity).sort().map((c) => ({
+      href: `${SITE}/dentists/${slug(c)}`, label: `Dentists in ${c}`,
+    }));
+    const specLinks = Object.keys(bySpec).sort().map((s) => ({
+      href: `${SITE}/specialists/${slug(s)}`, label: `${s}s`,
+    }));
+    // Every doctor, so no profile page is more than one hop from the homepage.
+    const docLinks = docs.map((d) => {
+      const name = String(d.fullName || 'Dentist').trim();
+      return {
+        href: `${SITE}/dentist/${slug(name)}-${String(d._id || d.id).slice(-6)}`,
+        label: name,
+      };
+    }).sort((a, b) => a.label.localeCompare(b.label));
+
+    const HUB = `<nav id="pp-seo-links" aria-label="Browse dentists" style="max-width:1080px;margin:0 auto;padding:28px 20px 40px;border-top:1px solid #E2E8F0;font-size:13px;line-height:2;">
+  <h2 style="font-size:15px;color:#0A1551;margin:0 0 8px;font-weight:700;">Browse dentists by city</h2>
+  <div>${linkList(cityLinks)}</div>
+  <h2 style="font-size:15px;color:#0A1551;margin:18px 0 8px;font-weight:700;">Browse by specialty</h2>
+  <div>${linkList(specLinks)}</div>
+  <h2 style="font-size:15px;color:#0A1551;margin:18px 0 8px;font-weight:700;">All verified dentists</h2>
+  <div>${linkList(docLinks)}</div>
+</nav>`;
+
+    // Idempotent: drop any hub from a previous run (plus surrounding whitespace)
+    // before injecting a fresh one, so re-running never stacks duplicates.
+    idx = idx.replace(/\s*<nav id="pp-seo-links"[\s\S]*?<\/nav>/, '');
+
+    // Inject at the very end of the #pp-hero overlay, immediately before the
+    // hero-fade <script> that inject-seo.js appends right after it. Anchoring on
+    // that script (rather than an exact whitespace-sensitive string) keeps this
+    // working whether or not a previous hub was just stripped out.
+    const anchor = idx.match(/<\/div>\s*<script>\(function\(\)\{\s*\n?\s*var root=document\.getElementById\('root'\)/);
+    if (anchor) {
+      idx = idx.replace(anchor[0], `${HUB}\n${anchor[0]}`);
+      fs.writeFileSync(INDEX, idx, 'utf8');
+      console.log(`[gen-seo] injected homepage link hub (${cityLinks.length} cities, ${specLinks.length} specialties, ${docLinks.length} doctors)`);
+    } else {
+      console.warn('[gen-seo] hero markup not found in index.html — link hub NOT injected. ' +
+        'Generated pages will stay orphaned; check inject-seo.js ran first.');
+    }
+  } catch (e) {
+    console.warn('[gen-seo] could not inject homepage link hub:', e.message);
+  }
 
   console.log(`[gen-seo] generated ${docs.length} doctor + ${Object.keys(byCity).length} city + ${Object.keys(bySpec).length} specialist pages; sitemap has ${all.length} URLs`);
 })();

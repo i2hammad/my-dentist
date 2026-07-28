@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ensureAuth } from "../utils/authGuard";
+import { ensureAuth, useIsGuest } from "../utils/authGuard";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Animated,
 } from 'react-native';
 import { StatusBar, setStatusBarStyle } from 'expo-status-bar';
+import { useSeo, H1 } from '../components/SeoHead';
 
 const PK_CITIES = [
   'Islamabad', 'Rawalpindi', 'Lahore', 'Karachi', 'Peshawar',
@@ -245,6 +246,9 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
   const [favorites, setFavorites]     = useState({});
+  const isGuest = useIsGuest();
+  // Favorites needs an account — hide that filter chip for guests.
+  const visibleFilterTabs = isGuest ? FILTER_TABS.filter(t => t.key !== 'Favorites') : FILTER_TABS;
   const [favoriteDoctors, setFavoriteDoctors] = useState([]);
   const [campaigns, setCampaigns]       = useState([]);
   const [tierThresholds, setTierThresholds] = useState(null); // admin-managed clinic tier ranges
@@ -257,6 +261,17 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   // Full-width campaign card (screen width minus the 16px side margins).
   const campaignCardW = Math.min(isWide ? 1100 : screenW, 1100) - 32;
+
+  // Restore the head after React mounts. The static hero (with its <h1> and the
+  // build-time <title>) is torn down on mount, so without this Google renders the
+  // page, finds no heading, and invents a title from on-page text — which is how
+  // the homepage ended up ranking as "Nearby Doctors".
+  useSeo({
+    title: 'Best Dentists in Pakistan — Find & Book Online | My Dentist',
+    description:
+      'Find and book verified PMDC dentists in Lahore, Karachi, Islamabad & Rawalpindi. Compare clinics, fees and reviews, then book your appointment online in seconds.',
+    canonical: 'https://mydentistpk.com/',
+  });
 
   const fetchData = useCallback(async () => {
     try {
@@ -430,6 +445,11 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
       {/* White status-bar icons so the bar blends with the blue header (edge-to-edge) */}
       {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
+
+      {/* The page's only <h1>. Must sit OUTSIDE the {!isWeb && …} header below —
+          that block is mobile-only, so an <h1> in there never reaches the web DOM,
+          which is exactly where crawlers need it. Renders null on native. */}
+      <H1>Find &amp; book the best dentists in Pakistan</H1>
 
       {/* ── BLUE HEADER ── */}
       {/* Static header — mobile only (web uses WebTopNav).
@@ -660,7 +680,7 @@ export default function HomeScreen({ navigation }) {
           contentContainerStyle={styles.filterTabsContainer}
           style={styles.filterTabsScroll}
         >
-          {FILTER_TABS.map(tab => {
+          {visibleFilterTabs.map(tab => {
             const active = filterTab === tab.key;
             return (
               <TouchableOpacity
@@ -1179,7 +1199,7 @@ const styles = StyleSheet.create({
   },
   doctorSpecialty: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#475569',
     marginBottom: 4,
   },
   popularBadge: {
@@ -1219,7 +1239,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#334155',
     flexShrink: 1,
   },
   heartButton: {

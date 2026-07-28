@@ -46,9 +46,21 @@ try {
   if (hit) ioniconsHref = '/' + path.relative(DIST, hit).split(path.sep).join('/');
 } catch { /* ignore */ }
 
+// Homepage title + description, shared by the <title> tag and the OG/Twitter
+// cards below so they can't drift apart.
+const HOME_TITLE = 'Best Dentists in Pakistan — Find & Book Online | My Dentist';
+const HOME_DESC = 'Find and book verified PMDC dentists in Lahore, Karachi, Islamabad & Rawalpindi. Compare clinics, fees and reviews, then book your appointment online in seconds.';
+
 // ── 2. SEO <head> block ─────────────────────────────────────────────────────
+// NOTE: the WebSite JSON-LD deliberately carries NO potentialAction/SearchAction.
+// It used to advertise a sitelinks-searchbox target of `/?q={search_term_string}`,
+// but no code reads `q` — SplashScreen.js parses only doctor/login/screen/signup/
+// impersonate, then strips the query string via history.replaceState. Google
+// crawled the advertised URL, saw it collapse to "/" (which is also the canonical),
+// and filed it under "Page with redirect". Only restore this block if ?q= is
+// actually implemented as a search entry point.
 const SEO_HEAD = `
-    <meta name="description" content="Find and book the best dentists in Lahore, Karachi, Islamabad, Rawalpindi, Faisalabad, Multan, Peshawar & Quetta. Search verified PMDC dental specialists, compare clinics, read reviews, and book appointments online in seconds." />
+    <meta name="description" content="${HOME_DESC}" />
     <meta name="keywords" content="best dentist in Pakistan, best dentist in Lahore, best dentist in Karachi, best dentist in Islamabad, dental clinic near me, book dentist online Pakistan, orthodontist, dental implants, cosmetic dentist, root canal, teeth whitening, braces, PMDC verified dentist, dentist appointment" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0052FF" />${GSC_TOKEN ? `\n    <meta name="google-site-verification" content="${GSC_TOKEN}" />` : ''}
@@ -75,8 +87,8 @@ const SEO_HEAD = `
     <meta name="apple-mobile-web-app-title" content="My Dentist" />
     <meta name="application-name" content="My Dentist" />
     <meta property="og:site_name" content="My Dentist" />
-    <meta property="og:title" content="Best Dentists in Pakistan — Find & Book Verified Dentists | My Dentist" />
-    <meta property="og:description" content="Search verified dental specialists across Lahore, Karachi, Islamabad & more. Compare clinics, read reviews, and book appointments online in seconds." />
+    <meta property="og:title" content="${HOME_TITLE}" />
+    <meta property="og:description" content="${HOME_DESC}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${SITE_URL}/" />
     <meta property="og:locale" content="en_PK" />
@@ -90,12 +102,7 @@ const SEO_HEAD = `
       "@context": "https://schema.org",
       "@type": "WebSite",
       "name": "My Dentist",
-      "url": "${SITE_URL}/",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "${SITE_URL}/?q={search_term_string}",
-        "query-input": "required name=search_term_string"
-      }
+      "url": "${SITE_URL}/"
     }
     </script>
     <script type="application/ld+json">
@@ -130,9 +137,13 @@ if (html.includes('google-site-verification') || html.includes('Best Dentists in
 }
 
 // Better <title>, then inject SEO right after it. Expo emits <title>My Dentist</title>.
+// Keep this under ~60 chars: Google truncates longer titles in results, and an
+// over-long title makes it likelier to rewrite the title from on-page text.
+// MUST stay in sync with the useSeo() title in HomeScreen.js, which re-applies
+// the head after React mounts and tears down this static shell.
 html = html.replace(
   /<title>[^<]*<\/title>/,
-  `<title>Best Dentists in Pakistan — Find & Book Verified Dentists | My Dentist</title>${SEO_HEAD}`
+  `<title>${HOME_TITLE}</title>${SEO_HEAD}`
 );
 
 // ── Instant-paint homepage hero ─────────────────────────────────────────────

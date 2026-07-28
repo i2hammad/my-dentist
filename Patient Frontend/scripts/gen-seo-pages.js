@@ -121,6 +121,8 @@ function doctorPage(d) {
     address: { '@type': 'PostalAddress', addressLocality: city, addressCountry: 'PK', streetAddress: d.address || undefined },
     ...(d.lat && d.lng ? { geo: { '@type': 'GeoCoordinates', latitude: d.lat, longitude: d.lng } } : {}),
     ...(clinic ? { worksFor: { '@type': 'Dentist', name: clinic } } : {}),
+    ...(d.consultationFee ? { priceRange: `PKR ${Number(d.consultationFee).toLocaleString('en-PK')}` } : {}),
+    ...(openingHours(d.clinicTiming) ? { openingHours: openingHours(d.clinicTiming) } : {}),
     ...(d.avgRating && d.totalReviews ? {
       aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(d.avgRating).toFixed(1), reviewCount: d.totalReviews, bestRating: 5 }
     } : {}),
@@ -166,6 +168,23 @@ ${d.consultationFee ? `<h2>Consultation</h2><p>Consultation fee: PKR ${Number(d.
 const doctorUrl = (d) =>
   `${SITE}/dentist/${slug(String(d.fullName || 'dentist').trim())}-${String(d._id || d.id).slice(-6)}`;
 
+// schema.org expects two-letter day prefixes (Mo, Tu, We…); the API stores
+// three-letter ones (Mon, Tue, Wed…).
+const SCHEMA_DAY = { Mon: 'Mo', Tue: 'Tu', Wed: 'We', Thu: 'Th', Fri: 'Fr', Sat: 'Sa', Sun: 'Su' };
+
+// "Mo,Tu,We 11:00-19:00" — Google's recommended openingHours shape. Returns
+// undefined when the doctor has no usable timing so the field is omitted
+// rather than emitted empty.
+function openingHours(timing) {
+  if (!timing) return undefined;
+  const days = (timing.availableDays || [])
+    .map((d) => SCHEMA_DAY[d])
+    .filter(Boolean);
+  const { startTime, endTime } = timing;
+  if (!days.length || !startTime || !endTime) return undefined;
+  return `${days.join(',')} ${startTime}-${endTime}`;
+}
+
 // A Dentist/LocalBusiness node for embedding in a list page's ItemList.
 //
 // The list pages previously carried only CollectionPage + a bare ItemList of
@@ -193,6 +212,12 @@ function doctorNode(d) {
       ? { geo: { '@type': 'GeoCoordinates', latitude: d.lat, longitude: d.lng } }
       : {}),
     ...(clinic ? { worksFor: { '@type': 'Dentist', name: clinic } } : {}),
+    // priceRange + openingHours are recommended fields for LocalBusiness; both
+    // come straight from data every doctor already has on file.
+    ...(d.consultationFee
+      ? { priceRange: `PKR ${Number(d.consultationFee).toLocaleString('en-PK')}` }
+      : {}),
+    ...(openingHours(d.clinicTiming) ? { openingHours: openingHours(d.clinicTiming) } : {}),
     ...(d.avgRating && d.totalReviews
       ? { aggregateRating: {
           '@type': 'AggregateRating',

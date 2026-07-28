@@ -161,6 +161,49 @@ ${d.consultationFee ? `<h2>Consultation</h2><p>Consultation fee: PKR ${Number(d.
   return { path: `dentist/${s}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
 }
 
+// Canonical URL for a doctor — the slug rule lives here so the page, the list
+// entries and the sitemap can't drift apart.
+const doctorUrl = (d) =>
+  `${SITE}/dentist/${slug(String(d.fullName || 'dentist').trim())}-${String(d._id || d.id).slice(-6)}`;
+
+// A Dentist/LocalBusiness node for embedding in a list page's ItemList.
+//
+// The list pages previously carried only CollectionPage + a bare ItemList of
+// names and URLs — no address, geo or phone anywhere. That left the pages most
+// likely to rank for "dentists in <city>" with no location signals at all,
+// while the individual doctor pages were fully marked up. Inlining the same
+// business data here lets the list page itself carry local meaning.
+function doctorNode(d) {
+  const city = d.city || 'Pakistan';
+  const clinic = (d.clinicName || '').trim();
+  return {
+    '@type': ['Dentist', 'LocalBusiness'],
+    name: String(d.fullName || '').trim(),
+    url: doctorUrl(d),
+    image: imgUrl(d.photo),
+    ...(d.specialization ? { medicalSpecialty: d.specialization } : {}),
+    ...(d.clinicContact || d.phone ? { telephone: d.clinicContact || d.phone } : {}),
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: city,
+      addressCountry: 'PK',
+      ...(d.address ? { streetAddress: d.address } : {}),
+    },
+    ...(d.lat && d.lng
+      ? { geo: { '@type': 'GeoCoordinates', latitude: d.lat, longitude: d.lng } }
+      : {}),
+    ...(clinic ? { worksFor: { '@type': 'Dentist', name: clinic } } : {}),
+    ...(d.avgRating && d.totalReviews
+      ? { aggregateRating: {
+          '@type': 'AggregateRating',
+          ratingValue: Number(d.avgRating).toFixed(1),
+          reviewCount: d.totalReviews,
+          bestRating: 5,
+        } }
+      : {}),
+  };
+}
+
 function cityPage(city, docs) {
   const canonical = `${SITE}/dentists/${slug(city)}`;
   const title = `Best Dentists in ${city} — Book Verified PMDC Dentists | My Dentist`;
@@ -169,22 +212,40 @@ function cityPage(city, docs) {
     '@context': 'https://schema.org', '@type': 'CollectionPage',
     name: title, url: canonical, description: desc,
     about: { '@type': 'Thing', name: `Dentists in ${city}` },
+    // Names the place this page is about, so the page reads as being *for*
+    // ${city} rather than merely mentioning it.
+    areaServed: { '@type': 'City', name: city, addressCountry: 'PK' },
   }, {
     '@context': 'https://schema.org', '@type': 'ItemList',
+    name: `Dentists in ${city}`,
+    numberOfItems: docs.length,
     itemListElement: docs.map((d, i) => ({
-      '@type': 'ListItem', position: i + 1, name: String(d.fullName || '').trim(),
-      url: `${SITE}/dentist/${slug(String(d.fullName || 'dentist').trim())}-${String(d._id || d.id).slice(-6)}`,
+      '@type': 'ListItem', position: i + 1, url: doctorUrl(d),
+      // Full business node instead of just a name + URL.
+      item: doctorNode(d),
     })),
+  }, {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
+      { '@type': 'ListItem', position: 2, name: `Dentists in ${city}`, item: canonical },
+    ],
   }];
   const cards = docs.map((d) => {
-    const s = slug(String(d.fullName || 'dentist').trim()) + '-' + String(d._id || d.id).slice(-6);
-    return `<a class="doclink" href="${SITE}/dentist/${s}"><div class="n">${esc(String(d.fullName || '').trim())}</div><div class="s">${esc(d.specialization || 'Dentist')}${d.clinicName ? ' · ' + esc(d.clinicName.trim()) : ''}</div>${d.avgRating && d.totalReviews ? `<div class="s stars">★ ${Number(d.avgRating).toFixed(1)} (${d.totalReviews})</div>` : ''}</a>`;
+    return `<a class="doclink" href="${doctorUrl(d)}"><div class="n">${esc(String(d.fullName || '').trim())}</div><div class="s">${esc(d.specialization || 'Dentist')}${d.clinicName ? ' · ' + esc(d.clinicName.trim()) : ''}</div><div class="s">${esc(d.address ? `${d.address}, ${city}` : city)}</div>${d.avgRating && d.totalReviews ? `<div class="s stars">★ ${Number(d.avgRating).toFixed(1)} (${d.totalReviews})</div>` : ''}</a>`;
   }).join('');
+  // Specialties represented in this city — links out to the specialist pages so
+  // the two page families reinforce each other instead of standing alone.
+  const specs = [...new Set(docs.map((d) => (d.specialization || '').trim()).filter(Boolean))].sort();
+  const specLinks = specs.length
+    ? `<h2>Dental specialists in ${esc(city)}</h2><p class="sub">${specs.map((s) => `<a href="${SITE}/specialists/${slug(s)}">${esc(s)}s</a>`).join(' · ')}</p>`
+    : '';
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › Dentists in ${esc(city)}</nav>
 <h1>Best Dentists in ${esc(city)}</h1>
-<p class="sub">${docs.length} verified PMDC dentist${docs.length === 1 ? '' : 's'} in ${esc(city)}. Compare and book online.</p>
+<p class="sub">${docs.length} verified PMDC dentist${docs.length === 1 ? '' : 's'} in ${esc(city)}. Compare clinics, fees, timings and reviews, then book online.</p>
 <div class="grid">${cards}</div>
+${specLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a>
 </div>`;
   return { path: `dentists/${slug(city)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
@@ -194,14 +255,44 @@ function specPage(spec, docs) {
   const canonical = `${SITE}/specialists/${slug(spec)}`;
   const title = `${spec}s in Pakistan — Book Verified ${spec} | My Dentist`;
   const desc = `Find and book a verified ${spec} in Pakistan. ${docs.length} PMDC-verified specialist${docs.length === 1 ? '' : 's'} — compare clinics, reviews & fees on My Dentist.`;
-  const jsonld = [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, url: canonical, description: desc }];
+  // Cities this specialty is actually available in — a real signal for
+  // "<specialty> in <city>" queries, which is where a directory can rank
+  // (unlike "near me", which the Maps pack owns).
+  const cities = [...new Set(docs.map((d) => (d.city || '').trim()).filter(Boolean))].sort();
+  const jsonld = [{
+    '@context': 'https://schema.org', '@type': 'CollectionPage',
+    name: title, url: canonical, description: desc,
+    about: { '@type': 'MedicalSpecialty', name: spec },
+    ...(cities.length
+      ? { areaServed: cities.map((c) => ({ '@type': 'City', name: c, addressCountry: 'PK' })) }
+      : {}),
+  }, {
+    '@context': 'https://schema.org', '@type': 'ItemList',
+    name: `${spec}s in Pakistan`,
+    numberOfItems: docs.length,
+    itemListElement: docs.map((d, i) => ({
+      '@type': 'ListItem', position: i + 1, url: doctorUrl(d), item: doctorNode(d),
+    })),
+  }, {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
+      { '@type': 'ListItem', position: 2, name: `${spec}s in Pakistan`, item: canonical },
+    ],
+  }];
   const cards = docs.map((d) => {
-    const s = slug(String(d.fullName || 'dentist').trim()) + '-' + String(d._id || d.id).slice(-6);
-    return `<a class="doclink" href="${SITE}/dentist/${s}"><div class="n">${esc(String(d.fullName || '').trim())}</div><div class="s">${esc(d.city || '')}${d.clinicName ? ' · ' + esc(d.clinicName.trim()) : ''}</div></a>`;
+    return `<a class="doclink" href="${doctorUrl(d)}"><div class="n">${esc(String(d.fullName || '').trim())}</div><div class="s">${esc(d.city || '')}${d.clinicName ? ' · ' + esc(d.clinicName.trim()) : ''}</div>${d.avgRating && d.totalReviews ? `<div class="s stars">★ ${Number(d.avgRating).toFixed(1)} (${d.totalReviews})</div>` : ''}</a>`;
   }).join('');
+  // "<specialty> in <city>" is the query shape a directory can realistically win,
+  // so surface those combinations as real links.
+  const cityLinks = cities.length
+    ? `<h2>${esc(spec)}s by city</h2><p class="sub">${cities.map((c) => `<a href="${SITE}/dentists/${slug(c)}">${esc(spec)}s in ${esc(c)}</a>`).join(' · ')}</p>`
+    : '';
   const body = `<div class="wrap"><nav class="bc"><a href="${SITE}/">Home</a> › ${esc(spec)}</nav>
-<h1>${esc(spec)}s in Pakistan</h1><p class="sub">${docs.length} verified specialist${docs.length === 1 ? '' : 's'}. Book online.</p>
-<div class="grid">${cards}</div><a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a></div>`;
+<h1>${esc(spec)}s in Pakistan</h1><p class="sub">${docs.length} verified PMDC ${esc(spec.toLowerCase())}${docs.length === 1 ? '' : 's'}${cities.length ? ` across ${esc(cities.join(', '))}` : ''}. Compare fees and reviews, then book online.</p>
+<div class="grid">${cards}</div>
+${cityLinks}
+<a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a></div>`;
   return { path: `specialists/${slug(spec)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
 }
 

@@ -109,15 +109,18 @@ router.post(
       .withMessage('Mobile number is required')
       .matches(/^\+?[\d\s-]{7,15}$/)
       .withMessage('Please provide a valid mobile number'),
+    // dateOfBirth + gender are OPTIONAL on signup: both columns are nullable in
+    // PatientProfile, and requiring them here only blocked onboarding (the form
+    // let them be blank, so the POST failed with a generic "Validation failed").
+    // Patients fill them in later from Edit Profile. `.optional({ values: 'falsy' })`
+    // lets '' / null through as "not provided" — patientData() maps that to null.
     body('dateOfBirth')
-      .notEmpty()
-      .withMessage('Date of birth is required')
+      .optional({ values: 'falsy' })
       .isISO8601()
       .withMessage('Date of birth must be a valid date (YYYY-MM-DD)')
       .toDate(),
     body('gender')
-      .notEmpty()
-      .withMessage('Gender is required')
+      .optional({ values: 'falsy' })
       .isIn(['male', 'female', 'other'])
       .withMessage('Gender must be male, female, or other'),
     body('city')
@@ -157,13 +160,15 @@ router.put(
       .trim()
       .matches(/^\+?[\d\s-]{7,15}$/)
       .withMessage('Please provide a valid mobile number'),
+    // Match POST: treat '' / null as "clear this field" rather than a validation
+    // error, so Edit Profile can blank out a previously-set DOB or gender.
     body('dateOfBirth')
-      .optional()
+      .optional({ values: 'falsy' })
       .isISO8601()
       .withMessage('Date of birth must be a valid date (YYYY-MM-DD)')
       .toDate(),
     body('gender')
-      .optional()
+      .optional({ values: 'falsy' })
       .isIn(['male', 'female', 'other'])
       .withMessage('Gender must be male, female, or other'),
     body('city')

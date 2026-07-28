@@ -3,19 +3,25 @@
 Target domain: **mydentistpk.com**. No code or schema changes are required — your
 hosting has PostgreSQL, so the backend runs unchanged.
 
-## Architecture (recommended: subdomains)
+## Architecture (current: app at the apex)
 
 | Piece                         | URL                        | What it is                         |
 |-------------------------------|----------------------------|------------------------------------|
-| Marketing / landing page      | `mydentistpk.com`          | public static site in `public_html`|
-| Patient + doctor web app      | `app.mydentistpk.com`      | Expo web export, static in subdomain docroot |
+| Patient + doctor web app      | `mydentistpk.com`          | Expo web export (SEO-prerendered), static in `public_html` |
 | Admin Panel (Vite build)      | `admin.mydentistpk.com`    | static files in a subdomain docroot|
 | Backend API (Express/Prisma)  | `api.mydentistpk.com`      | cPanel "Setup Node.js App"         |
 | Patient mobile               | —                          | release APK, points at the API     |
 
-The **root domain is reserved for marketing** (branding + SEO); the app lives on
-`app.` This is the recommended split. You can also collapse everything under one domain
-with paths, but subdomains keep CORS/SSL/routing simplest.
+> **History:** an earlier layout kept a marketing site at the apex and served the app from
+> `app.mydentistpk.com`. That marketing split has since been **removed** — the web app now
+> lives directly at the apex (`mydentistpk.com`) and is served from `public_html`, with
+> per-doctor / per-city / per-specialist pages pre-rendered for SEO (see the SEO section
+> and `Patient Frontend/scripts/`). `app.mydentistpk.com` may still resolve for
+> compatibility, but the apex is canonical; anything below that still says `app.` refers to
+> that older layout.
+
+You can collapse everything under one domain with paths instead, but subdomains keep
+CORS/SSL/routing simplest.
 
 ---
 
@@ -85,6 +91,67 @@ Verify: open `https://api.mydentistpk.com/` → you should see the
 
 ---
 
+## 2b) Redeploy the backend after a code change (day-to-day, over SSH)
+
+Once §2 is set up, you don't rebuild anything for a normal code change — you copy the
+changed file(s) to the app root and restart the Node process. This is the fast path used
+for edits like validator/controller fixes.
+
+**Server access.** The key is passphrase-protected — load it into ssh-agent once per
+terminal session (you type the passphrase; it is never stored):
+```bash
+ssh-add ~/.ssh/mydentist            # prompts for the passphrase, then caches it in the agent
+ssh-add -l                          # confirm it's loaded
+```
+SSH/scp use a **non-standard port `21098`**:
+```bash
+ssh  -i ~/.ssh/mydentist -p 21098 mydepmtj@mydentistpk.com          # shell
+scp  -i ~/.ssh/mydentist -P 21098  <local> mydepmtj@mydentistpk.com:<remote>   # copy (note capital -P)
+```
+The backend lives on the server at **`~/api.mydentistpk.com`** (the app root registered in
+Setup Node.js App).
+
+**Single-file (or few-file) update:**
+```bash
+# from the repo root, example: the signup-validator fix
+scp -i ~/.ssh/mydentist -P 21098 \
+    backend/routes/user.routes.js \
+    mydepmtj@mydentistpk.com:~/api.mydentistpk.com/routes/user.routes.js
+```
+
+**Restart the Node app.** On this host (**LiteSpeed `lsnode`**, not Passenger),
+`touch tmp/restart.txt` does **NOT** reliably restart — kill the process so it respawns on
+the next request:
+```bash
+ssh -i ~/.ssh/mydentist -p 21098 mydepmtj@mydentistpk.com \
+    'pkill -u $(whoami) -f lsnode; sleep 1; curl -s -o /dev/null -w "respawn: %{http_code}\n" https://api.mydentistpk.com/'
+```
+
+**Only** when the change touches dependencies or the Prisma schema do you need more:
+```bash
+# after editing prisma/schema.prisma — apply migrations, regenerate, then restart
+ssh -i ~/.ssh/mydentist -p 21098 mydepmtj@mydentistpk.com
+source ~/nodevenv/api.mydentistpk.com/<ver>/bin/activate && cd ~/api.mydentistpk.com
+npx prisma migrate deploy && npx prisma generate
+pkill -u $(whoami) -f lsnode
+```
+
+**Verify the change is live**, e.g. for the DOB/gender-optional signup fix, a registration
+payload *without* `dateOfBirth`/`gender` should no longer 400 with "Validation failed":
+```bash
+curl -s -X POST https://api.mydentistpk.com/api/users/register \
+  -H 'Content-Type: application/json' \
+  -d '{"fullName":"Test","email":"probe+deploy@example.com","password":"secret12","mobile":"+923001234567"}' \
+  | head -c 300; echo
+```
+(Use a throwaway email; a `success:true` or a duplicate-email error both prove the
+validator no longer rejects the missing fields. Clean up any test user afterwards.)
+
+> **Never** `scp` your local `.env` or `node_modules` to the server, and never run
+> `npm run seed` in production (it WIPES the DB).
+
+---
+
 ## 3) Deploy the Admin Panel (static)
 
 Locally, in `Admin Panel/`:
@@ -121,24 +188,40 @@ EXPO_PUBLIC_API_URL=https://api.mydentistpk.com
 Then build the APK (EAS or local gradle) and distribute. `EXPO_PUBLIC_*` is baked at
 build time, so you must rebuild after changing it.
 
-### Web — served at `https://app.mydentistpk.com`
+### Web — served at `https://mydentistpk.com` (the apex)
 
 The same codebase runs on the web (role-routed patient + doctor). It's a **static
-export**, deployed exactly like the Admin Panel.
+export**, but unlike the Admin Panel it goes through an **SEO post-processing pipeline**
+(pre-rendered per-doctor / per-city / per-specialist HTML + schema, sitemap, robots,
+favicons, instant-hero, `.htaccess`) before deploy. Do **not** ship a bare `expo export` —
+crawlers would get only the empty SPA shell.
 
 1. In `Patient Frontend/.env` set the production API (baked in at export time):
    ```
    EXPO_PUBLIC_API_URL=https://api.mydentistpk.com
    ```
-2. Build the static web bundle:
+2. Build the web bundle **and** run the SEO pipeline:
    ```bash
    cd "Patient Frontend"
-   npx expo export -p web        # → outputs dist/
+   npm run build:web        # expo export → inject-seo.js → gen-seo-pages.js, all into dist/
    ```
-3. **Domains → Create subdomain** `app.mydentistpk.com`, then upload **the contents of
-   `dist/`** into its document root and add the same SPA `.htaccess` shown in §3.
+   `gen-seo-pages.js` fetches live doctors from `https://api.mydentistpk.com` to generate
+   the pre-rendered pages + `sitemap.xml`; `inject-seo.js` injects the head/robots/favicons/
+   `.htaccess`. (GSC verification token is baked in via `GSC_TOKEN`, default hardcoded.)
+3. Deploy **the contents of `dist/`** into `public_html` (the apex docroot). Over SSH,
+   the safe sequence is: zip `dist/` → `scp` up → on the server remove the old files
+   **but preserve `.well-known/` and `cgi-bin/`** → unzip. The exported `dist/.htaccess`
+   already contains the SEO + SPA-fallback rules (pre-rendered `*.html` served at clean
+   URLs before the `index.html` fallback) — keep it.
 4. **HTTPS is required** (see §5) — browser geolocation (`expo-location`) and the
    camera / file picker (`expo-image-picker`) only work over HTTPS on the web.
+
+> **Image resizing on this host:** LiteSpeed serves real files under `/uploads/*` statically
+> **before** Node, so `?w=` query params on `/uploads` are bypassed. Thumbnails therefore go
+> through the **`/api/img?src=…&w=…`** route (always routed to Node) — see
+> `backend/middleware/imageResize.js`. That route needs **`sharp` 0.32.6** (the server's
+> glibc 2.28 can't run 0.35+), and any **global** sharp install under `~/nodevenv/.../
+> node_modules/sharp` must be removed so the app-local copy resolves.
 
 **Web caveats** (both degrade gracefully — the app already branches on `Platform.OS`):
 - **Map screen:** no native map on web; `MapScreen` uses its web/webview fallback. Give
@@ -148,21 +231,16 @@ export**, deployed exactly like the Admin Panel.
 
 ---
 
-## 5) Marketing / landing page (root `mydentistpk.com`)
+## 5) Root `mydentistpk.com` — the web app itself (no separate marketing site)
 
-The root domain is your **public front door** — the marketing/landing site people see
-before signing in. It is **not** part of this repo; it's separate content you provide.
+**There is no longer a separate marketing/landing site.** The earlier layout put a static
+marketing page in `public_html` and the app on `app.`; that has been removed. The apex now
+serves the **web app export directly** (see §4), with SEO pre-rendered pages acting as the
+public front door for search/crawlers. So there is nothing extra to build for the root —
+deploying §4 to `public_html` *is* deploying the root.
 
-1. Build or obtain the landing site (any static HTML/CSS, or a builder export). This repo
-   doesn't contain one — it's a marketing asset, kept separate from the app code.
-2. Upload it to `public_html` (the `mydentistpk.com` root).
-3. Link its "Login / Open App" / "Book now" buttons to **`https://app.mydentistpk.com`**
-   (the web app), and the app-store / APK download for mobile.
-
-Nothing to build from this codebase for the root — just make sure its call-to-action
-points at `app.mydentistpk.com`. If you don't have a landing page yet, a simple
-placeholder (logo + tagline + "Open the app" button → `app.mydentistpk.com`) is enough to
-launch, and you can flesh it out later.
+If you ever want an app-shell-free static landing page again, it would live in front of the
+app (its own route), but that is not the current setup.
 
 ---
 

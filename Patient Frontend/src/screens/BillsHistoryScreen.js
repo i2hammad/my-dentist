@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { useRequireLogin } from "../utils/authGuard";
+import { useIsGuest } from "../utils/authGuard";
+import GuestGate from '../components/GuestGate';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput,
 } from 'react-native';
@@ -125,7 +126,7 @@ function BillCard({ bill, onPress, onPay, onDownload, paying }) {
 }
 
 export default function BillsHistoryScreen({ navigation }) {
-  useRequireLogin();
+  const isGuest = useIsGuest();
   const [bills, setBills] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -257,6 +258,15 @@ export default function BillsHistoryScreen({ navigation }) {
       setVisibleCount((c) => c + PAGE_SIZE);
     }
   };
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
+        <PatientHeader greeting="Bills & Payments" subtitle="Your treatment invoices and history" />
+        <GuestGate icon="receipt-outline" title="Your Bills" message="Log in to view your treatment invoices and payment history." navigation={navigation} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>

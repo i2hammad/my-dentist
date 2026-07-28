@@ -869,11 +869,11 @@ export default function DoctorProfileScreen({ route, navigation }) {
                 </View>
               )}
               {(doctor.address || doctor.city) && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
                   <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }}>
                     <Ionicons name="location-outline" size={14} color="#16A34A" />
                   </View>
-                  <Text style={{ fontSize: 13, color: '#475569', flex: 1 }} numberOfLines={1}>
+                  <Text style={{ fontSize: 13, color: '#334155', flex: 1, lineHeight: 19 }}>
                     {[doctor.address, doctor.city].filter(Boolean).join(', ')}
                   </Text>
                   {distanceLabel && (
@@ -1213,7 +1213,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
                 {(doctor.address || doctor.city) ? (
                   <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
                     <Ionicons name="location-outline" size={16} color="#64748B" style={{ marginTop: 1 }} />
-                    <Text style={{ flex: 1, fontSize: 12.5, color: '#475569', fontWeight: '500', lineHeight: 18 }}>
+                    <Text style={{ flex: 1, fontSize: 12.5, color: '#334155', fontWeight: '500', lineHeight: 18 }}>
                       {[doctor.address, doctor.city].filter(Boolean).join(', ')}
                     </Text>
                   </View>
@@ -2801,7 +2801,7 @@ const styles = StyleSheet.create({
   clinicTag:       { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 10 },
   clinicText:      { color: '#0052FF', fontSize: 12, fontWeight: '600' },
   locationRow:     { flexDirection: 'row', alignItems: 'center', marginTop: 8, flexWrap: 'wrap', gap: 6 },
-  distanceText:    { fontSize: 12, color: '#64748B', marginLeft: 4 },
+  distanceText:    { fontSize: 12.5, color: '#334155', fontWeight: '500', marginLeft: 4, flex: 1 },
   distanceChip:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, gap: 2 },
   distanceChipText:{ fontSize: 11, color: '#2563EB', fontWeight: '700' },
 

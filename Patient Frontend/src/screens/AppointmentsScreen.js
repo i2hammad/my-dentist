@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useRequireLogin } from "../utils/authGuard";
+import { useIsGuest } from "../utils/authGuard";
+import GuestGate from '../components/GuestGate';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +52,7 @@ function formatTime(t) {
 }
 
 export default function AppointmentsScreen({ navigation }) {
-  useRequireLogin();
+  const isGuest = useIsGuest();
   const { isWide, isWeb } = useResponsive();
   const [upcoming, setUpcoming] = useState([]);
   const [past, setPast]         = useState([]);
@@ -163,6 +164,15 @@ export default function AppointmentsScreen({ navigation }) {
   };
 
   const activeData = activeTab === 'upcoming' ? upcoming : past;
+
+  if (isGuest) {
+    return (
+      <SafeAreaView edges={isWeb ? ['top'] : []} style={styles.safe}>
+        <PatientHeader greeting="My Appointments" subtitle="Your dental appointments" />
+        <GuestGate icon="calendar-outline" title="Your Appointments" message="Log in to view and manage your dental appointments." navigation={navigation} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={isWeb ? ['top'] : []} style={[styles.safe, !isWeb && { backgroundColor: '#0052FF' }]}>

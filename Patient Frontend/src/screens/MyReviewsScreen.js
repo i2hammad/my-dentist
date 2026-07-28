@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { useRequireLogin } from "../utils/authGuard";
+import { useIsGuest } from "../utils/authGuard";
+import GuestGate from '../components/GuestGate';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image,
 } from 'react-native';
@@ -86,7 +87,7 @@ function ReviewCard({ review, onPressDoctor }) {
 }
 
 export default function MyReviewsScreen({ navigation }) {
-  useRequireLogin();
+  const isGuest = useIsGuest();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -113,6 +114,15 @@ export default function MyReviewsScreen({ navigation }) {
   const goToDoctor = (doc) => {
     if (doc?._id) navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc });
   };
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
+        <PatientHeader greeting="Your Reviews" subtitle="Ratings you've shared with doctors" />
+        <GuestGate icon="star-outline" title="Your Reviews" message="Log in to see the reviews and ratings you've shared with dentists." navigation={navigation} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>

@@ -266,7 +266,7 @@ export default function OrthodonticsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   doctorGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8 },
-  doctorGridCell: {},
+  doctorGridCell: { paddingHorizontal: 8, marginBottom: 4 },
   safeArea: {
     flex: 1,
     backgroundColor: '#0052FF',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   },
   doctorSpecialty: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#475569',
     marginBottom: 4,
   },
   ratingRow: {
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#334155',
     flexShrink: 1,
   },
   heartButton: {

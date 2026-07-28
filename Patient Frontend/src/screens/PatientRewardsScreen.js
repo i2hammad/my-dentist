@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { useRequireLogin } from "../utils/authGuard";
+import { useIsGuest } from "../utils/authGuard";
+import GuestGate from '../components/GuestGate';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   Alert, Share,
@@ -21,8 +22,8 @@ const earnRules = [
   { icon: 'star', tint: '#FEF3C7', border: '#FDE68A', color: '#D97706', title: 'Write a Review', sub: 'After submitting a verified review', pts: '+50 pts' },
 ];
 
-export default function PatientRewardsScreen() {
-  useRequireLogin();
+export default function PatientRewardsScreen({ navigation }) {
+  const isGuest = useIsGuest();
   const [loading, setLoading] = useState(true);
   const [rewards, setRewards] = useState({ totalPoints: 0, equivalentPKR: 0, recentHistory: [] });
   const [showHistory, setShowHistory] = useState(false);
@@ -98,6 +99,14 @@ export default function PatientRewardsScreen() {
     if (!redeemCode) return;
     Share.share({ message: 'My Dentist Discount Code: ' + redeemCode });
   };
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>
+        <GuestGate icon="gift-outline" title="Your Rewards" message="Log in to view your reward points and redeem them for discounts on treatments." navigation={navigation} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={isWeb ? ['top'] : []}>

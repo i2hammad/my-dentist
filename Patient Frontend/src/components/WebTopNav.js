@@ -74,7 +74,10 @@ export default function WebTopNav({ navRef, navInfo }) {
       } catch { setUserPhoto(null); }
     };
     loadUser();
-  }, [rootRoute]);
+    // Also keyed on the focused tab so the bar re-reads the token on any
+    // in-app navigation — otherwise signing in and landing back on the same
+    // root route left the guest navbar in place.
+  }, [rootRoute, navInfo?.tab]);
 
   if (!rootRoute || HIDDEN_ON.has(rootRoute)) return null;
   const navigate = (...args) => { try { navRef?.navigate?.(...args); } catch {} };
@@ -102,6 +105,13 @@ export default function WebTopNav({ navRef, navInfo }) {
 
   const handleLogout = async () => {
     try { await storage.removeItem('userToken'); } catch {}
+    // Flip to the guest navbar immediately. The loader effect below keys off
+    // rootRoute, and logging out from Home resets straight back to Home — so
+    // rootRoute never changes, the effect never re-runs, and the bar kept
+    // showing Profile/Logout and the logged-in tabs until a manual refresh.
+    setUserPhoto(null);
+    setUserRole(null);
+    setIsGuest(true);
     try { navRef?.reset?.({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }] }); } catch {}
   };
 

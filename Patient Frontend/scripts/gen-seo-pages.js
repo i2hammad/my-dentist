@@ -194,9 +194,28 @@ nav.bc a{color:var(--blue);text-decoration:none;font-weight:600}
   .prof{flex-direction:column;gap:14px;padding:18px}
   .prof .profph{width:96px;height:96px;flex:0 0 96px}
 }
-footer{background:#fff;border-top:1px solid #F1F5F9;margin-top:48px}
-footer .fin{max-width:1080px;margin:0 auto;padding:24px 20px;color:var(--muted);font-size:13px}
+/* Header nav — hidden on narrow screens where the CTAs need the room. */
+header.nav .navlinks{display:none;gap:2px;flex-grow:1;justify-content:center;margin:0 16px}
+header.nav .navlinks a{font-size:14px;font-weight:650;color:#475569;text-decoration:none;padding:9px 13px;border-radius:10px}
+header.nav .navlinks a:hover{background:#F1F5F9;color:var(--ink)}
+@media(min-width:1024px){header.nav .navlinks{display:flex}}
+/* Footer: four link columns over a baseline. Present on every generated page,
+   so a crawler landing anywhere can reach the rest of the site. */
+footer{background:#fff;border-top:1px solid #EEF2F7;margin-top:56px}
+footer .fin{max-width:1080px;margin:0 auto;padding:36px 20px 24px;color:var(--muted);font-size:13px}
+.fcols{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:28px}
+.fcol{display:flex;flex-direction:column;gap:9px;min-width:0}
+.fcol h3{margin:0 0 3px;font-size:13px;font-weight:750;color:var(--ink);letter-spacing:.02em}
+.fcol a{color:#475569;text-decoration:none;font-weight:500;font-size:13.5px}
+.fcol a:hover{color:var(--blue)}
+.fbrandtxt{font-size:17px;font-weight:900;color:var(--ink);letter-spacing:-.3px}
+.fbrandtxt span{color:var(--blue)}
+.fabout{margin:2px 0 0;font-size:13px;line-height:1.6;max-width:34ch;color:var(--muted)}
+.fbase{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  margin-top:28px;padding-top:18px;border-top:1px solid #F1F5F9;font-size:12.5px}
 footer a{color:var(--blue);text-decoration:none;font-weight:600}
+@media(max-width:760px){.fcols{grid-template-columns:1fr 1fr;gap:24px}.fbrand{grid-column:1 / -1}}
+@media(max-width:420px){.fcols{grid-template-columns:1fr}}
 @media(max-width:560px){
   h1{font-size:24px}
   .grid{grid-template-columns:1fr}
@@ -205,13 +224,54 @@ footer a{color:var(--blue);text-decoration:none;font-weight:600}
 </style></head><body>
 <header class="nav"><div class="navin">
   <a class="brand" href="${SITE}/"><img src="${SITE}/icons/hero-logo.webp" width="36" height="36" alt="My Dentist logo" loading="eager"/><span class="brandtxt">My <span>Dentist</span></span></a>
+  <nav class="navlinks" aria-label="Main">
+    <a href="${SITE}/dentists/islamabad">Islamabad</a>
+    <a href="${SITE}/dentists/rawalpindi">Rawalpindi</a>
+    <a href="${SITE}/treatments">Treatments</a>
+    <a href="${SITE}/about">About</a>
+  </nav>
   <span class="navcta"><a class="btn-ghost" rel="nofollow" href="${APP}">Log in</a><a class="btn-solid" rel="nofollow" href="${APP}">Sign up</a></span>
 </div></header>`;
 }
 // "Open the app" / CTA links point at SPA routes that render the generic app
 // shell (same title + canonical as the homepage). Marking them nofollow keeps
 // crawl budget on the static pages instead of homepage duplicates.
-const foot = `<footer><div class="fin">My Dentist — Pakistan's platform to find &amp; book verified PMDC dentists. <a rel="nofollow" href="${APP}">Open the app</a></div></footer></body></html>`;
+// Site footer. Every generated page carries it, so it doubles as internal
+// linking: each page links to the cities, treatments and policy pages, which is
+// how a crawler discovers the whole set from wherever it lands.
+const foot = `<footer><div class="fin">
+  <div class="fcols">
+    <div class="fcol fbrand">
+      <span class="fbrandtxt">My <span>Dentist</span></span>
+      <p class="fabout">Find and book verified PMDC dentists across Pakistan. Compare clinics, fees and timings, then book online.</p>
+    </div>
+    <div class="fcol">
+      <h3>Find a dentist</h3>
+      <a href="${SITE}/dentists/islamabad">Dentists in Islamabad</a>
+      <a href="${SITE}/dentists/rawalpindi">Dentists in Rawalpindi</a>
+      <a href="${SITE}/specialists/orthodontist">Orthodontists</a>
+      <a href="${SITE}/specialists/cosmetic-dentist">Cosmetic Dentists</a>
+    </div>
+    <div class="fcol">
+      <h3>Treatments</h3>
+      <a href="${SITE}/treatments/braces-orthodontics">Braces &amp; Orthodontics</a>
+      <a href="${SITE}/treatments/dental-implants">Dental Implants</a>
+      <a href="${SITE}/treatments/root-canal">Root Canal</a>
+      <a href="${SITE}/treatments">All treatments</a>
+    </div>
+    <div class="fcol">
+      <h3>Company</h3>
+      <a href="${SITE}/about">About us</a>
+      <a href="${SITE}/contact">Contact</a>
+      <a href="${SITE}/terms">Terms &amp; Conditions</a>
+      <a href="${SITE}/privacy">Privacy Policy</a>
+    </div>
+  </div>
+  <div class="fbase">
+    <span>© ${new Date().getFullYear()} My Dentist. All rights reserved.</span>
+    <a rel="nofollow" href="${APP}">Open the app →</a>
+  </div>
+</div></footer></body></html>`;
 
 // Shared doctor card for the city + specialist grids.
 //

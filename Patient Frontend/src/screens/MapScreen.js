@@ -143,7 +143,9 @@ const buildHtml = (points, center, patientCoords) => {
 export default function MapScreen({ navigation, route }) {
   const doctors = route.params?.doctors || [];
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  // Wide enough for a list beside the map rather than a bottom sheet over it.
+  const isWide = width >= 900;
   const iframeRef = useRef(null);
   const webviewRef = useRef(null);
   const listRef = useRef(null);
@@ -218,6 +220,12 @@ export default function MapScreen({ navigation, route }) {
     if (isWeb) iframeRef.current?.contentWindow?.postMessage(json, '*');
     else webviewRef.current?.postMessage(json);
   }, []);
+
+  // Doctor behind the currently selected pin, for the map preview card.
+  const selectedDoc = useMemo(
+    () => plotted.find((d) => String(d._id) === String(selId)) || null,
+    [plotted, selId],
+  );
 
   const onMapSelect = useCallback((id) => {
     setSelId(String(id));
@@ -336,6 +344,95 @@ export default function MapScreen({ navigation, route }) {
       />
     );
 
+  // ── Wide web: sidebar beside the map ──────────────────────────────────────
+  // A draggable bottom sheet is a touch pattern — on a desktop pointer it hides
+  // the list behind a gesture nobody makes and tells the user to "drag up".
+  // Side-by-side shows the map and the full list at once.
+  if (isWeb && isWide) {
+    return (
+      <View style={styles.rootWide}>
+        <View style={styles.wideList}>
+          <View style={styles.wideListHead}>
+            <TouchableOpacity style={styles.wideBack} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={20} color="#0F172A" />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.wideTitle}>Nearby Doctors</Text>
+              <Text style={styles.wideSub}>
+                {points.length} on the map{patientCoords ? ' · sorted by nearest' : ''}
+              </Text>
+            </View>
+          </View>
+          {points.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="map-outline" size={44} color="#CBD5E1" />
+              <Text style={styles.emptyText}>No doctor locations available to map.</Text>
+            </View>
+          ) : (
+            <ScrollView ref={listRef} contentContainerStyle={{ paddingBottom: 24 }}>
+              {plotted.map((doc, i) => renderRow(doc, i))}
+            </ScrollView>
+          )}
+        </View>
+        <View style={styles.wideMap}>
+          {mapEl}
+          {points.length > 0 && (
+            <TouchableOpacity style={styles.wideLocBtn} onPress={goToMyLocation} activeOpacity={0.85}>
+              <Ionicons name="locate" size={20} color="#0066FF" />
+            </TouchableOpacity>
+          )}
+          {/* Preview card for the pin the user just clicked — enough to decide
+              without leaving the map. */}
+          {!!selectedDoc && (
+            <View style={styles.preview}>
+              <TouchableOpacity
+                style={styles.previewClose}
+                onPress={() => setSelId(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={16} color="#64748B" />
+              </TouchableOpacity>
+              <View style={styles.previewTop}>
+                {selectedDoc.photo ? (
+                  <Image source={{ uri: imgUrl(selectedDoc.photo, { w: 160 }) }} style={styles.previewPh} />
+                ) : (
+                  <View style={[styles.previewPh, styles.previewPhFallback]}>
+                    <Ionicons name="person" size={26} color="#94A3B8" />
+                  </View>
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.previewName} numberOfLines={1}>{selectedDoc.fullName}</Text>
+                  <Text style={styles.previewSpec} numberOfLines={1}>
+                    {selectedDoc.specialization || 'Dentist'}
+                  </Text>
+                  {!!selectedDoc.clinicName && (
+                    <Text style={styles.previewClinic} numberOfLines={1}>{selectedDoc.clinicName}</Text>
+                  )}
+                  <View style={styles.previewFacts}>
+                    {!!selectedDoc.experience && (
+                      <Text style={styles.previewFact}>{selectedDoc.experience}+ yrs</Text>
+                    )}
+                    {!!selectedDoc.consultationFee && (
+                      <Text style={styles.previewFact}>
+                        PKR {Number(selectedDoc.consultationFee).toLocaleString('en-PK')}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.previewBtn}
+                onPress={() => navigation.navigate('DoctorProfile', { doctorId: selectedDoc._id })}
+              >
+                <Text style={styles.previewBtnTxt}>View profile</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <View style={StyleSheet.absoluteFill}>{mapEl}</View>
@@ -348,7 +445,9 @@ export default function MapScreen({ navigation, route }) {
           </TouchableOpacity>
           <View style={styles.countPill}>
             <Ionicons name="navigate" size={13} color="#0066FF" />
-            <Text style={styles.countPillTxt}>{points.length} doctor{points.length === 1 ? '' : 's'} nearby</Text>
+            {/* "on the map", not "nearby": only doctors with coordinates get a
+                pin, so this count is smaller than the list that opened it. */}
+            <Text style={styles.countPillTxt}>{points.length} on the map</Text>
           </View>
           <View style={{ width: 42 }} />
         </View>
@@ -390,6 +489,102 @@ export default function MapScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#E8EEF6' },
+
+  // Wide-web split view: fixed list column, map fills the rest.
+  rootWide: { flex: 1, flexDirection: 'row', backgroundColor: '#F8FAFC' },
+  wideList: {
+    width: 380,
+    backgroundColor: '#FFFFFF',
+    borderRightWidth: 1,
+    borderRightColor: '#EEF2F7',
+  },
+  wideListHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  wideBack: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  wideTitle: { fontSize: 17, fontWeight: '800', color: '#0A1551', letterSpacing: -0.2 },
+  wideSub: { fontSize: 12.5, color: '#64748B', marginTop: 1 },
+  wideMap: { flex: 1, position: 'relative' },
+  preview: {
+    position: 'absolute',
+    left: 18,
+    bottom: 18,
+    width: 320,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  previewClose: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewTop: { flexDirection: 'row', gap: 12, paddingRight: 26 },
+  previewPh: { width: 64, height: 64, borderRadius: 12, backgroundColor: '#EFF6FF' },
+  previewPhFallback: { justifyContent: 'center', alignItems: 'center' },
+  previewName: { fontSize: 15, fontWeight: '750', color: '#0A1551' },
+  previewSpec: { fontSize: 12.5, fontWeight: '700', color: '#0052FF', marginTop: 2 },
+  previewClinic: { fontSize: 12.5, color: '#64748B', marginTop: 2 },
+  previewFacts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  previewFact: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  previewBtn: {
+    marginTop: 12,
+    backgroundColor: '#0052FF',
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  previewBtnTxt: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  wideLocBtn: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
 
   floatTop: { position: 'absolute', top: 0, left: 0, right: 0 },
   floatBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },

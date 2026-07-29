@@ -195,14 +195,14 @@ const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow
       <span style="width:3px;height:3px;border-radius:2px;background:#CBD5E1;"></span>
       <span style="display:flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#F59E0B"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8L12 2z"/></svg>Real patient reviews</span>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E7EDF5;border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.04);max-width:620px;">
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E7EDF5;border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.04);">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
       <span style="color:#94A3B8;font-size:15px;">Search Dentist / Clinic / Treatment</span>
     </div>
     <!-- City selector. The app defaults to Islamabad (HomeScreen's initial
          selectedCity), so the hero shows the same value — otherwise the row
          appears out of nowhere when React mounts. Inert until then. -->
-    <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin-top:12px;max-width:620px;">
+    <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin-top:12px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="#0052FF"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
       <span style="font-size:14px;font-weight:700;color:#0F172A;">Islamabad, Pakistan</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.5" style="margin-left:auto;"><path d="M6 9l6 6 6-6"/></svg>

@@ -1020,7 +1020,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginHorizontal: 2,
   },
-  locationRowWide: { maxWidth: 620 },
+  locationRowWide: { maxWidth: 1100, alignSelf: 'center', width: '100%' },
   locationRowBody: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1218,9 +1218,13 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   searchBarWide: {
+    // Match the doctor grid's column (1100) — a narrower cap left the field
+    // looking stranded above full-width content.
     borderRadius: 14,
     paddingVertical: 14,
-    maxWidth: 620,
+    maxWidth: 1100,
+    alignSelf: 'center',
+    width: '100%',
     marginTop: 4,
   },
   searchPlaceholder: {

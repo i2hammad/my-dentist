@@ -99,7 +99,16 @@ h2{font-size:19px;color:var(--ink);margin:30px 0 10px;font-weight:800}
 .stat{display:flex;flex-direction:column;gap:1px;padding:12px 20px;font-size:12px;color:var(--muted);border-right:1px solid #F1F5F9;flex:1;min-width:120px}
 .stat:last-child{border-right:0}
 .stat b{font-size:17px;color:var(--ink);font-weight:800;letter-spacing:-.3px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-top:20px}
+/* Specialty jump bar — 19 cards in one flat wall is hard to scan, and specialty
+   is the axis a patient actually narrows on. */
+.jump{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
+.jumplbl{font-size:12.5px;color:#94A3B8;font-weight:650;margin-right:2px}
+.jump a{font-size:13px;font-weight:650;color:#475569;background:#fff;border:1px solid #E7EDF5;padding:7px 13px;border-radius:999px;text-decoration:none}
+.jump a:hover{border-color:var(--blue);color:var(--blue)}
+.specsec{scroll-margin-top:80px}
+.sech{display:flex;align-items:center;gap:9px;font-size:17px;margin:26px 0 0}
+.sccount{font-size:12px;font-weight:750;color:#475569;background:#F1F5F9;padding:2px 9px;border-radius:999px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-top:14px}
 /* Doctor card. A 3-row grid keeps every card the same shape regardless of how
    long the clinic name or address is: identity row, location row, fee row. */
 .doc{display:grid;grid-template-columns:72px 1fr;grid-template-areas:"ph bd" "loc loc" "fee fee";gap:0 14px;
@@ -209,7 +218,7 @@ const foot = `<footer><div class="fin">My Dentist — Pakistan's platform to fin
 // leads with. The clinic address is real but low-value for the decision, so it
 // sits last as a single truncated line instead of the three-line block that
 // previously dominated every card and left them ragged and uneven.
-function doctorCard(d, locLine) {
+function doctorCard(d, locLine, opts = {}) {
   const name = String(d.fullName || '').trim();
   const photo = d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`;
   const spec = (d.specialization || 'Dentist').trim();
@@ -231,7 +240,10 @@ function doctorCard(d, locLine) {
     ${facts ? `<span class="doc-facts">${facts}</span>` : ''}
   </span>
   ${locLine ? `<span class="doc-loc">${locLine}</span>` : ''}
-  ${d.consultationFee ? `<span class="doc-fee">PKR ${Number(d.consultationFee).toLocaleString('en-PK')}<i>consultation</i></span>` : ''}
+  ${/* Only show the fee when it actually distinguishes this doctor. When every
+        listing carries the same number it is noise in the most prominent slot
+        on the card, repeated once per doctor. */''}
+  ${opts.showFee && d.consultationFee ? `<span class="doc-fee">PKR ${Number(d.consultationFee).toLocaleString('en-PK')}<i>consultation</i></span>` : ''}
 </a>`;
 }
 
@@ -473,7 +485,10 @@ function cityPage(city, docs) {
       { '@type': 'ListItem', position: 2, name: `Dentists in ${city}`, item: canonical },
     ],
   }];
-  const cards = docs.map((d) => doctorCard(d, esc(fullAddress(d.address, city)))).join('');
+  // Fees only earn a slot on the card when they differ between doctors.
+  const feeSet = new Set(docs.map((d) => Number(d.consultationFee)).filter((n) => n > 0));
+  const showFee = feeSet.size > 1;
+  const cards = docs.map((d) => doctorCard(d, esc(fullAddress(d.address, city)), { showFee })).join('');
   // Specialties represented in this city — links out to the specialist pages so
   // the two page families reinforce each other instead of standing alone.
   const specs = [...new Set(docs.map((d) => (d.specialization || '').trim()).filter(Boolean))].sort();
@@ -493,15 +508,25 @@ function cityPage(city, docs) {
     `<span class="stat"><b>${docs.length}</b>dentist${docs.length === 1 ? '' : 's'}</span>`,
     verified ? `<span class="stat"><b>${verified}</b>PMDC verified</span>` : '',
     specs.length ? `<span class="stat"><b>${specs.length}</b>specialt${specs.length === 1 ? 'y' : 'ies'}</span>` : '',
-    feeLabel ? `<span class="stat"><b>${feeLabel}</b>consultation</span>` : '',
+    // One flat rate across the listing reads better as "from" than as a range.
+    feeLabel ? `<span class="stat"><b>${feeLabel}</b>${feeSet.size > 1 ? 'consultation fees' : 'consultation fee'}</span>` : '',
   ].filter(Boolean).join('');
 
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › Dentists in ${esc(city)}</nav>
 <h1>Best dentists in ${esc(city)}</h1>
-<p class="sub">Compare verified PMDC dentists in ${esc(city)} by experience, clinic and consultation fee, then book online.</p>
+<p class="sub">Compare verified PMDC dentists in ${esc(city)} by specialty, experience and clinic, then book online.</p>
 <div class="stats">${stats}</div>
-<div class="grid">${cards}</div>
+${specs.length > 1 ? `<nav class="jump" aria-label="Jump to a specialty"><span class="jumplbl">Jump to</span>${specs.map((s) => `<a href="#${slug(s)}">${esc(specPlural(s))}</a>`).join('')}</nav>` : ''}
+${specs.length > 1
+  ? specs.map((s) => {
+      const group = docs.filter((d) => (d.specialization || '').trim() === s);
+      return `<section class="specsec" id="${slug(s)}">
+<h2 class="sech">${esc(specPlural(s))} in ${esc(city)}<span class="sccount">${group.length}</span></h2>
+<div class="grid">${group.map((d) => doctorCard(d, esc(fullAddress(d.address, city)), { showFee })).join('')}</div>
+</section>`;
+    }).join('')
+  : `<div class="grid">${cards}</div>`}
 ${specLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a>
 </div>`;
@@ -542,7 +567,10 @@ function specPage(spec, docs) {
       { '@type': 'ListItem', position: 2, name: `${specPlural(spec)} in Pakistan`, item: canonical },
     ],
   }];
-  const cards = docs.map((d) => doctorCard(d, esc(fullAddress(d.address, d.city)))).join('');
+  // Fees only earn a slot on the card when they differ between doctors.
+  const feeSet = new Set(docs.map((d) => Number(d.consultationFee)).filter((n) => n > 0));
+  const showFee = feeSet.size > 1;
+  const cards = docs.map((d) => doctorCard(d, esc(fullAddress(d.address, d.city)), { showFee })).join('');
   // "<specialty> in <city>" is the query shape a directory can realistically win,
   // so surface those combinations as real links.
   const cityLinks = cities.length
@@ -559,12 +587,13 @@ function specPage(spec, docs) {
     `<span class="stat"><b>${docs.length}</b>${esc((docs.length===1?specSingular(spec):specPlural(spec)).toLowerCase())}</span>`,
     verified ? `<span class="stat"><b>${verified}</b>PMDC verified</span>` : '',
     cities.length ? `<span class="stat"><b>${cities.length}</b>cit${cities.length === 1 ? 'y' : 'ies'}</span>` : '',
-    feeLabel ? `<span class="stat"><b>${feeLabel}</b>consultation</span>` : '',
+    // One flat rate across the listing reads better as "from" than as a range.
+    feeLabel ? `<span class="stat"><b>${feeLabel}</b>${feeSet.size > 1 ? 'consultation fees' : 'consultation fee'}</span>` : '',
   ].filter(Boolean).join('');
 
   const body = `<div class="wrap"><nav class="bc"><a href="${SITE}/">Home</a> › ${esc(spec)}</nav>
 <h1>${esc(specPlural(spec))} in Pakistan</h1>
-<p class="sub">Compare verified PMDC ${esc(specPlural(spec).toLowerCase())}${cities.length ? ` in ${esc(cities.join(' and '))}` : ''} by experience, clinic and consultation fee, then book online.</p>
+<p class="sub">Compare verified PMDC ${esc(specPlural(spec).toLowerCase())}${cities.length ? ` in ${esc(cities.join(' and '))}` : ''} by experience and clinic, then book online.</p>
 <div class="stats">${stats}</div>
 <div class="grid">${cards}</div>
 ${cityLinks}

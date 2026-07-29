@@ -20,6 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const content = require('./content-pages');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const SITE = 'https://mydentistpk.com';
@@ -133,6 +134,7 @@ h2{font-size:19px;color:var(--ink);margin:30px 0 10px;font-weight:800}
 .doc-fee i{font-style:normal;font-weight:600;color:#94A3B8;font-size:12px;margin-left:6px}
 .stars{color:#F59E0B;font-weight:700;font-size:13px}
 @media(max-width:400px){.doc{grid-template-columns:56px 1fr}.doc-ph{width:56px;height:56px}}
+${content.CONTENT_CSS}
 nav.bc{font-size:13px;color:var(--muted);margin-bottom:10px}
 nav.bc a{color:var(--blue);text-decoration:none;font-weight:600}
 .linkrow a{color:var(--blue);text-decoration:none;font-weight:600}
@@ -644,6 +646,17 @@ ${cityLinks}
   docs.forEach((d) => { const s = (d.specialization || '').trim(); if (s) (bySpec[s] = bySpec[s] || []).push(d); });
   Object.entries(bySpec).forEach(([s, ds]) => write(specPage(s, ds)));
 
+  // ── Content pages: treatments, about, contact, legal ──────────────────────
+  // Ordinary web results a directory can win, unlike "near me" which the Maps
+  // pack owns. Written before the sitemap so they are included in it.
+  const helpers = { SITE, esc, slug, head, foot, doctorCard, fullAddress, specPlural };
+  write(content.treatmentsIndex(docs, helpers));
+  content.TREATMENTS.forEach((t) => write(content.treatmentPage(t, docs, helpers)));
+  write(content.aboutPage(docs, helpers));
+  write(content.contactPage(helpers));
+  write(content.legalPage('terms', helpers));
+  write(content.legalPage('privacy', helpers));
+
   // ── sitemap.xml (homepage + all generated pages) ──
   // <lastmod> lets Google prioritise recrawls; without it every URL looks equally
   // stale. Build date is the honest signal — the pages are rebuilt each deploy.
@@ -678,6 +691,19 @@ ${cityLinks}
     const specLinks = Object.keys(bySpec).sort().map((s) => ({
       href: `${SITE}/specialists/${slug(s)}`, label: specPlural(s),
     }));
+    // Content pages need an entrance too — the same orphan problem the doctor
+    // pages had when they were reachable only from sitemap.xml.
+    const treatmentLinks = [
+      { href: `${SITE}/treatments`, label: 'All treatments' },
+      ...content.TREATMENTS.map((t) => ({ href: `${SITE}/treatments/${t.slug}`, label: t.name })),
+    ];
+    const sitePageLinks = [
+      { href: `${SITE}/about`, label: 'About My Dentist' },
+      { href: `${SITE}/contact`, label: 'Contact' },
+      { href: `${SITE}/terms`, label: 'Terms & Conditions' },
+      { href: `${SITE}/privacy`, label: 'Privacy Policy' },
+    ];
+
     // Every doctor, so no profile page is more than one hop from the homepage.
     const docLinks = docs.map((d) => {
       const name = String(d.fullName || 'Dentist').trim();
@@ -692,6 +718,10 @@ ${cityLinks}
   <div>${linkList(cityLinks)}</div>
   <h2 style="font-size:15px;color:#0A1551;margin:18px 0 8px;font-weight:700;">Browse by specialty</h2>
   <div>${linkList(specLinks)}</div>
+  <h2 style="font-size:15px;color:#0A1551;margin:18px 0 8px;font-weight:700;">Treatments</h2>
+  <div>${linkList(treatmentLinks)}</div>
+  <h2 style="font-size:15px;color:#0A1551;margin:18px 0 8px;font-weight:700;">About</h2>
+  <div>${linkList(sitePageLinks)}</div>
   <h2 style="font-size:15px;color:#0A1551;margin:18px 0 8px;font-weight:700;">All verified dentists</h2>
   <div>${linkList(docLinks)}</div>
 </nav>`;

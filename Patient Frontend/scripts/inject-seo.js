@@ -154,7 +154,7 @@ html = html.replace(
 // seamlessly. It's also real crawlable content for the homepage.
 // A shimmering skeleton block (gradient sweeps across via CSS animation).
 const sk = (w, h, r) => `<div class="pp-sk" style="width:${w};height:${h};border-radius:${r || '6px'};"></div>`;
-const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow:auto;background:linear-gradient(160deg,#EFF4FF 0%,#FFFFFF 60%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;opacity:1;transition:opacity .3s ease;">
+const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow:auto;background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;opacity:1;transition:opacity .3s ease;">
   <style>
     @keyframes ppShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
     .pp-sk{background:#EEF2F7;background-image:linear-gradient(90deg,#EEF2F7 0px,#F8FAFC 160px,#EEF2F7 320px);background-size:600px 100%;animation:ppShimmer 1.3s linear infinite;}
@@ -162,21 +162,33 @@ const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow
     .pp-cards{display:flex;flex-direction:column;gap:14px;}
     @media(min-width:900px){.pp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}}
   </style>
-  <div style="max-width:1080px;margin:0 auto;padding:20px 20px 40px;">
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0 28px;">
-      <img src="/icons/hero-logo.webp" width="34" height="34" alt="My Dentist logo" style="border-radius:8px;display:block;"/>
-      <span style="font-size:20px;font-weight:800;color:#0A1551;">My <span style="color:#0052FF;">Dentist</span></span>
+  <!-- Mirrors the real HomeScreen: same top nav, the same search placeholder,
+       the same filter chips and the same "Nearby Doctors / Top dentists near
+       you" heading. The hero is what a visitor sees for the first second, so
+       any wording that differs from the app reads as a flash of the wrong page
+       when React swaps in. -->
+  <div style="background:#fff;border-bottom:1px solid #F1F5F9;">
+    <div style="max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px;">
+      <img src="/icons/hero-logo.webp" width="36" height="36" alt="My Dentist logo" style="border-radius:8px;display:block;"/>
+      <span style="font-size:19px;font-weight:900;color:#0A1551;letter-spacing:-.3px;">My <span style="color:#0052FF;">Dentist</span></span>
+      <span class="pp-nav" style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <span style="font-size:14px;font-weight:700;color:#0052FF;background:#EFF4FF;padding:9px 16px;border-radius:12px;">Log in</span>
+        <span style="font-size:14px;font-weight:700;color:#fff;background:#0052FF;padding:9px 16px;border-radius:12px;">Sign up</span>
+      </span>
     </div>
+  </div>
+  <div style="max-width:1080px;margin:0 auto;padding:20px 20px 40px;">
     <h1 style="font-size:30px;line-height:1.25;color:#0A1551;margin:8px 0 10px;font-weight:800;">Find &amp; book the best dentists in Pakistan</h1>
     <p style="font-size:16px;color:#475569;margin:0 0 22px;line-height:1.6;">Search verified PMDC dentists in Lahore, Karachi, Islamabad, Rawalpindi &amp; more. Compare clinics, read reviews, and book appointments online in seconds.</p>
-    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;box-shadow:0 4px 16px rgba(2,6,23,.05);max-width:560px;">
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;box-shadow:0 4px 16px rgba(2,6,23,.05);">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-      <span style="color:#94A3B8;font-size:15px;">Search dentist, clinic or treatment…</span>
+      <span style="color:#94A3B8;font-size:15px;">Search Dentist / Clinic / Treatment</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;">
-      ${['Cosmetic','Orthodontics','Implants','Root Canal','Teeth Whitening','Braces'].map((t) => `<span style="background:#EFF4FF;color:#0052FF;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;">${t}</span>`).join('')}
+      ${['Nearby', 'Elite Clinic', 'Modern Clinic', 'Standard Clinic'].map((t, i) => `<span style="background:${i === 0 ? '#0052FF' : '#fff'};color:${i === 0 ? '#fff' : '#475569'};border:1px solid ${i === 0 ? '#0052FF' : '#E7EDF5'};font-size:13px;font-weight:650;padding:8px 16px;border-radius:999px;">${t}</span>`).join('')}
     </div>
-    <div style="margin-top:28px;font-weight:800;color:#0A1551;font-size:18px;">Nearby Dentists</div>
+    <div style="margin-top:28px;font-weight:800;color:#0A1551;font-size:18px;">Nearby Doctors</div>
+    <div style="color:#64748B;font-size:13px;margin-top:2px;">Top dentists near you</div>
     <div class="pp-cards" style="margin-top:14px;">
       ${[0,1,2,3].map(() => `<div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #EEF2F7;border-radius:16px;padding:14px;">${sk('64px','64px','14px')}<div style="flex:1;min-width:0;">${sk('55%','14px')}<div style="height:9px"></div>${sk('38%','11px')}<div style="height:9px"></div>${sk('72%','10px')}</div></div>`).join('')}
     </div>

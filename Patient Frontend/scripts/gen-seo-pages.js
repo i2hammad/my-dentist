@@ -136,9 +136,12 @@ nav.bc a{color:var(--blue);text-decoration:none;font-weight:600}
 .book{background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:18px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
 .bookfee{display:flex;flex-direction:column;margin-bottom:14px}
 .bookfee b{font-size:26px;color:var(--ink);font-weight:800;letter-spacing:-.6px;line-height:1.1}
+.bookfee b.nofee{font-size:19px}
 .bookfee span{font-size:12.5px;color:var(--muted);margin-top:2px}
 .cta.full{display:flex;justify-content:center;width:100%;margin-top:0}
 .booknote{margin:10px 0 0;font-size:12px;color:#94A3B8;text-align:center}
+.bookhrs{margin:12px 0 0;padding-top:12px;border-top:1px solid #F1F5F9;font-size:12.5px;color:#047857;font-weight:650;display:flex;align-items:center;gap:7px}
+.bookhrs .dot{width:7px;height:7px;border-radius:50%;background:#10B981;flex:0 0 7px}
 .sidelinks h2{margin:0 0 8px;font-size:15px}
 .sidelinks .sub{font-size:14px;margin:0 0 6px}
 .sidelinks .sub a{color:var(--blue);text-decoration:none;font-weight:600}
@@ -149,19 +152,33 @@ nav.bc a{color:var(--blue);text-decoration:none;font-weight:600}
 /* Definition list of clinic facts — scannable rows instead of a stack of
    one-line <h2> sections, which made short answers look like article headings. */
 .facts{margin:0;display:grid;gap:0}
-.facts>div{display:grid;grid-template-columns:180px 1fr;gap:16px;padding:13px 0;border-top:1px solid #F1F5F9}
-.facts>div:first-child{border-top:0;padding-top:4px}
-.facts dt{color:var(--muted);font-size:13.5px;font-weight:600}
-.facts dd{margin:0;color:#0F172A;font-size:14.5px;font-weight:600}
-.facts dd .hrs{display:inline-block;margin-left:8px;background:#F1F5F9;color:#475569;font-size:12.5px;font-weight:700;padding:2px 8px;border-radius:6px}
+.facts>div{display:grid;grid-template-columns:26px 132px 1fr;gap:0 12px;align-items:start;padding:14px 0;border-top:1px solid #F1F5F9}
+.facts>div:first-child{border-top:0;padding-top:2px}
+.facts .ic{width:26px;height:26px;border-radius:8px;background:#F8FAFC;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;margin-top:-1px}
+.facts dt{color:var(--muted);font-size:13.5px;font-weight:600;padding-top:3px}
+.facts dd{margin:0;color:#0F172A;font-size:14.5px;font-weight:600;line-height:1.5;padding-top:2px}
+.facts dd .hrs{display:inline-block;margin-left:8px;background:#ECFDF5;color:#047857;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap}
 .about{color:#334155;font-size:15px;margin:0;max-width:68ch}
-@media(max-width:560px){.facts>div{grid-template-columns:1fr;gap:2px}}
+@media(max-width:620px){
+  .facts>div{grid-template-columns:26px 1fr;gap:0 10px}
+  .facts dt{grid-column:2;padding-top:0;font-size:12.5px}
+  .facts dd{grid-column:2;padding-top:1px}
+}
 /* Doctor profile hero — photo beside the name/specialty, like the app's header. */
 .prof{display:flex;gap:20px;align-items:center;background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:20px;margin-top:4px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
 .prof .profph{width:104px;height:104px;border-radius:16px;object-fit:cover;flex:0 0 104px;background:#EFF6FF}
 .prof .profbd{min-width:0;flex:1}
 .prof h1{margin:0 0 4px;font-size:27px}
-.prof .meta{margin:12px 0 0}
+.prof .meta{margin:12px 0 0;gap:7px}
+.prof .chip{background:#F1F5F9;color:#475569;font-size:12.5px;font-weight:650;padding:5px 11px}
+/* Specialty leads the chip row — it is the one attribute a patient filters on. */
+.prof .chip.key{background:#EFF4FF;color:var(--blue);font-weight:700}
+.prof .chip.ver{background:#ECFDF5;color:#047857}
+@media(max-width:560px){
+  .prof{flex-direction:column;align-items:flex-start;gap:14px}
+  .prof .profph{width:88px;height:88px;flex:0 0 88px}
+  .prof h1{font-size:23px}
+}
 @media(max-width:560px){
   .prof{flex-direction:column;gap:14px;padding:18px}
   .prof .profph{width:96px;height:96px;flex:0 0 96px}
@@ -273,10 +290,12 @@ function doctorPage(d) {
       + `Book a verified appointment through My Dentist.`;
   })();
 
+  // Weighted, not uniform: specialty is what a patient filters on, PMDC is the
+  // trust signal. The rest are supporting detail and stay neutral.
   const chips = [
-    spec && `<span class="chip">${esc(spec)}</span>`,
+    spec && `<span class="chip key">${esc(specSingular(spec))}</span>`,
+    d.pmdcVerified && `<span class="chip ver">✓ PMDC verified</span>`,
     d.experience && `<span class="chip">${d.experience}+ yrs experience</span>`,
-    d.pmdcVerified && `<span class="chip">PMDC Verified</span>`,
     d.clinicTier && `<span class="chip">${esc(d.clinicTier)} clinic</span>`,
     (d.languages || []).length && `<span class="chip">${esc((d.languages || []).join(', '))}</span>`,
   ].filter(Boolean).join(' ');
@@ -298,19 +317,22 @@ function doctorPage(d) {
     <div class="card">
       <h2>Clinic &amp; appointment details</h2>
       <dl class="facts">
-        ${clinic ? `<div><dt>Clinic</dt><dd>${esc(clinic)}</dd></div>` : ''}
-        ${d.address ? `<div><dt>Address</dt><dd>${esc(d.address)}, ${esc(city)}</dd></div>` : ''}
-        ${d.clinicTiming?.days ? `<div><dt>Open</dt><dd>${esc(d.clinicTiming.days)}${d.clinicTiming.startTime ? `<span class="hrs">${esc(d.clinicTiming.startTime)}–${esc(d.clinicTiming.endTime || '')}</span>` : ''}</dd></div>` : ''}
-        ${d.experience ? `<div><dt>Experience</dt><dd>${Number(d.experience)}+ years</dd></div>` : ''}
-        ${(d.languages || []).length ? `<div><dt>Languages</dt><dd>${esc((d.languages || []).join(', '))}</dd></div>` : ''}
+        ${clinic ? `<div><span class="ic">🏥</span><dt>Clinic</dt><dd>${esc(clinic)}</dd></div>` : ''}
+        ${d.address ? `<div><span class="ic">📍</span><dt>Address</dt><dd>${esc(fullAddress(d.address, city))}</dd></div>` : ''}
+        ${d.clinicTiming?.days ? `<div><span class="ic">🕒</span><dt>Open</dt><dd>${esc(d.clinicTiming.days)}${d.clinicTiming.startTime ? `<span class="hrs">${esc(d.clinicTiming.startTime)}–${esc(d.clinicTiming.endTime || '')}</span>` : ''}</dd></div>` : ''}
+        ${d.experience ? `<div><span class="ic">🎓</span><dt>Experience</dt><dd>${Number(d.experience)}+ years</dd></div>` : ''}
+        ${(d.languages || []).length ? `<div><span class="ic">💬</span><dt>Languages</dt><dd>${esc((d.languages || []).join(', '))}</dd></div>` : ''}
       </dl>
     </div>
   </div>
   <aside class="col-side">
     <div class="book">
-      ${d.consultationFee ? `<div class="bookfee"><b>PKR ${Number(d.consultationFee).toLocaleString('en-PK')}</b><span>consultation fee</span></div>` : ''}
+      ${d.consultationFee
+        ? `<div class="bookfee"><b>PKR ${Number(d.consultationFee).toLocaleString('en-PK')}</b><span>consultation fee</span></div>`
+        : `<div class="bookfee"><b class="nofee">Book a visit</b><span>with ${esc(name)}</span></div>`}
       <a class="cta full" rel="nofollow" href="${APP}/doctor/${esc(d._id || d.id)}">Book appointment →</a>
       <p class="booknote">Free to book · Confirmed by the clinic</p>
+      ${d.clinicTiming?.startTime ? `<p class="bookhrs"><span class="dot"></span>Open ${esc(d.clinicTiming.startTime)}–${esc(d.clinicTiming.endTime || '')}</p>` : ''}
     </div>
     <div class="card sidelinks">
       <h2>Nearby</h2>
@@ -334,6 +356,26 @@ const SPEC_PLURAL = {
 const specPlural = (s) => SPEC_PLURAL[s] || `${s}s`;
 const SPEC_SINGULAR = { General: 'General Dentist' };
 const specSingular = (s) => SPEC_SINGULAR[s] || s;
+
+// "<address>, <city>" without repeating the city when the address already ends
+// with it — 7 of 29 do, which produced "…Sector F 8/3, Islamabad, Islamabad".
+const fullAddress = (addr, city) => {
+  let a = String(addr || '').trim();
+  const c = String(city || '').trim();
+  if (!a) return c;
+  // Drop trailing country/postcode noise some clinics paste in ("…, 44000,
+  // Pakistan"), then the city if it is already there anywhere in the tail.
+  a = a
+    .replace(/[,\s]*\bPakistan\b[.,\s]*$/i, '')
+    .replace(/[,\s]*\b\d{5}\b[.,\s]*$/, '')
+    .replace(/[,\s]+$/, '');
+  if (!c) return a;
+  const esc = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Already names the city (at the end, or before the noise we just stripped)?
+  if (new RegExp(`\\b${esc}\\b[\\s,]*$`, 'i').test(a)) return a;
+  if (new RegExp(`\\b${esc}\\b`, 'i').test(a)) return a;
+  return `${a}, ${c}`;
+};
 
 // Canonical URL for a doctor — the slug rule lives here so the page, the list
 // entries and the sitemap can't drift apart.
@@ -431,7 +473,7 @@ function cityPage(city, docs) {
       { '@type': 'ListItem', position: 2, name: `Dentists in ${city}`, item: canonical },
     ],
   }];
-  const cards = docs.map((d) => doctorCard(d, esc(d.address ? `${d.address}, ${city}` : city))).join('');
+  const cards = docs.map((d) => doctorCard(d, esc(fullAddress(d.address, city)))).join('');
   // Specialties represented in this city — links out to the specialist pages so
   // the two page families reinforce each other instead of standing alone.
   const specs = [...new Set(docs.map((d) => (d.specialization || '').trim()).filter(Boolean))].sort();
@@ -500,7 +542,7 @@ function specPage(spec, docs) {
       { '@type': 'ListItem', position: 2, name: `${specPlural(spec)} in Pakistan`, item: canonical },
     ],
   }];
-  const cards = docs.map((d) => doctorCard(d, esc([d.address, d.city].filter(Boolean).join(', ')))).join('');
+  const cards = docs.map((d) => doctorCard(d, esc(fullAddress(d.address, d.city)))).join('');
   // "<specialty> in <city>" is the query shape a directory can realistically win,
   // so surface those combinations as real links.
   const cityLinks = cities.length

@@ -462,9 +462,11 @@ export default function HomeScreen({ navigation }) {
       {!isWeb && <StatusBar style="light" translucent backgroundColor="transparent" />}
 
       {/* The page's only <h1>. Must sit OUTSIDE the {!isWeb && …} header below —
-          that block is mobile-only, so an <h1> in there never reaches the web DOM,
-          which is exactly where crawlers need it. Renders null on native. */}
-      <H1>Find &amp; book the best dentists in Pakistan</H1>
+          that block is mobile-only, so an <h1> in there never reaches the web
+          DOM, which is exactly where crawlers need it. Renders null on native.
+          On wide web the same wording is shown visibly above the search bar, so
+          this stays screen-reader-only there to avoid announcing it twice. */}
+      {!(isWeb && isWide) && <H1>Find &amp; book the best dentists in Pakistan</H1>}
 
       {/* ── BLUE HEADER ── */}
       {/* Static header — mobile only (web uses WebTopNav).
@@ -633,6 +635,36 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
+
+        {/* ── PAGE HEADLINE (wide web only) ──
+            The static hero paints this headline before React mounts; without it
+            here the text vanished the moment the app took over, which read as
+            landing on a different page. Mobile keeps the personalised greeting
+            in the blue header instead, so this would only duplicate it. */}
+        {isWeb && isWide && (
+          <View style={styles.webHeadline}>
+            {/* Rendered as a real <h1>, so this IS the page heading here — the
+                screen-reader-only one above is suppressed at this width. */}
+            <H1 visible style={{
+              // The raw <h1> is outside react-native-web's styling, so it falls
+              // back to the browser default (a serif) unless the family is set
+              // explicitly. Mirrors the static hero's stack exactly.
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
+              fontSize: '30px',
+              lineHeight: '38px',
+              fontWeight: 800,
+              color: '#0A1551',
+              letterSpacing: '-0.4px',
+              margin: 0,
+            }}>
+              Find &amp; book the best dentists in Pakistan
+            </H1>
+            <Text style={styles.webHeadlineSub}>
+              Search verified PMDC dentists in Lahore, Karachi, Islamabad, Rawalpindi &amp; more.
+              Compare clinics, read reviews, and book appointments online in seconds.
+            </Text>
+          </View>
+        )}
 
         {/* ── SEARCH BAR ── */}
         <TouchableOpacity
@@ -1046,6 +1078,20 @@ const styles = StyleSheet.create({
   },
 
   // Search bar
+  // Wide-web page headline. Values mirror the static hero in inject-seo.js so
+  // the text does not shift or restyle when React replaces the hero.
+  webHeadline: {
+    marginTop: 24,
+    marginBottom: 4,
+    paddingHorizontal: 16,
+  },
+  webHeadlineSub: {
+    fontSize: 16,
+    lineHeight: 26,
+    color: '#475569',
+    marginTop: 10,
+    maxWidth: 660,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',

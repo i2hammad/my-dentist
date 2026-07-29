@@ -185,16 +185,24 @@ const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow
     </div>
   </div>
   <div style="max-width:1080px;margin:0 auto;padding:20px 20px 40px;">
-    <h1 style="font-size:30px;line-height:1.25;color:#0A1551;margin:8px 0 10px;font-weight:800;">Find &amp; book the best dentists in Pakistan</h1>
-    <p style="font-size:16px;color:#475569;margin:0 0 22px;line-height:1.6;">Search verified PMDC dentists in Lahore, Karachi, Islamabad, Rawalpindi &amp; more. Compare clinics, read reviews, and book appointments online in seconds.</p>
-    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;box-shadow:0 4px 16px rgba(2,6,23,.05);">
+    <h1 style="font-size:34px;line-height:42px;color:#0A1551;margin:12px 0 0;font-weight:800;letter-spacing:-.8px;max-width:19ch;">Find &amp; book the best dentists in Pakistan</h1>
+    <p style="font-size:16.5px;color:#475569;margin:12px 0 0;line-height:27px;max-width:620px;">Compare verified PMDC dentists by specialty, experience and clinic — then book online in seconds.</p>
+    <!-- Trust line: the reason to believe the directory before any card loads. -->
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:16px 0 20px;font-size:13.5px;font-weight:650;color:#334155;">
+      <span style="display:flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#16A34A"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 14.6-4.2-4.2 1.4-1.4 2.8 2.8 6-6 1.4 1.4-7.4 7.4z"/></svg>PMDC verified</span>
+      <span style="width:3px;height:3px;border-radius:2px;background:#CBD5E1;"></span>
+      <span style="display:flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0052FF" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>Free to book</span>
+      <span style="width:3px;height:3px;border-radius:2px;background:#CBD5E1;"></span>
+      <span style="display:flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="#F59E0B"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8L12 2z"/></svg>Real patient reviews</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E7EDF5;border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.04);max-width:620px;">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
       <span style="color:#94A3B8;font-size:15px;">Search Dentist / Clinic / Treatment</span>
     </div>
     <!-- City selector. The app defaults to Islamabad (HomeScreen's initial
          selectedCity), so the hero shows the same value — otherwise the row
          appears out of nowhere when React mounts. Inert until then. -->
-    <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin-top:12px;">
+    <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin-top:12px;max-width:620px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="#0052FF"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
       <span style="font-size:14px;font-weight:700;color:#0F172A;">Islamabad, Pakistan</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.5" style="margin-left:auto;"><path d="M6 9l6 6 6-6"/></svg>

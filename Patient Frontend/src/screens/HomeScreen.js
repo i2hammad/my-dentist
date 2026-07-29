@@ -650,25 +650,55 @@ export default function HomeScreen({ navigation }) {
               // back to the browser default (a serif) unless the family is set
               // explicitly. Mirrors the static hero's stack exactly.
               fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif",
-              fontSize: '30px',
-              lineHeight: '38px',
+              fontSize: '34px',
+              lineHeight: '42px',
               fontWeight: 800,
               color: '#0A1551',
-              letterSpacing: '-0.4px',
+              letterSpacing: '-0.8px',
               margin: 0,
+              maxWidth: '19ch',
             }}>
               Find &amp; book the best dentists in Pakistan
             </H1>
             <Text style={styles.webHeadlineSub}>
-              Search verified PMDC dentists in Lahore, Karachi, Islamabad, Rawalpindi &amp; more.
-              Compare clinics, read reviews, and book appointments online in seconds.
+              Compare verified PMDC dentists by specialty, experience and clinic — then book online in seconds.
             </Text>
+            {/* Real counts from the listing, not decoration: the reason to trust
+                the directory before any card has loaded. */}
+            <View style={styles.trustRow}>
+              <View style={styles.trustItem}>
+                {/* A filled dot rather than an icon font glyph. Both
+                    shield-checkmark and checkmark-circle rendered blank here on
+                    web even though the same names work elsewhere in the app, so
+                    this avoids depending on the icon font loading at all. */}
+                <View style={styles.trustTick}>
+                  <Text style={styles.trustTickMark}>✓</Text>
+                </View>
+                <Text style={styles.trustText}>PMDC verified</Text>
+              </View>
+              <View style={styles.trustDot} />
+              <View style={styles.trustItem}>
+                <Ionicons name="calendar-outline" size={15} color="#0052FF" />
+                <Text style={styles.trustText}>Free to book</Text>
+              </View>
+              <View style={styles.trustDot} />
+              <View style={styles.trustItem}>
+                <Ionicons name="star" size={15} color="#F59E0B" />
+                {/* Deliberately not a city list: `doctors` is fetched filtered by
+                    the selected city, so it can only ever name that one city and
+                    would misrepresent the directory's actual coverage. */}
+                <Text style={styles.trustText}>Real patient reviews</Text>
+              </View>
+            </View>
           </View>
         )}
 
         {/* ── SEARCH BAR ── */}
         <TouchableOpacity
-          style={styles.searchBar}
+          // On wide web a 50px pill stretched the full column width reads as a
+          // giant lozenge; a squarer field with a capped width looks like a
+          // search input. Mobile keeps the pill.
+          style={[styles.searchBar, isWeb && isWide && styles.searchBarWide]}
           activeOpacity={0.8}
           onPress={() => navigation.navigate('Search')}
         >
@@ -687,7 +717,7 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* LOCATION ROW — tap to toggle city picker */}
-        <TouchableOpacity style={styles.locationRowBody} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
+        <TouchableOpacity style={[styles.locationRowBody, isWeb && isWide && styles.locationRowWide]} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
           <Ionicons name="location" size={16} color="#0052FF" />
           <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
           <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
@@ -761,8 +791,8 @@ export default function HomeScreen({ navigation }) {
             activeOpacity={0.7}
             onPress={() => navigation.navigate('Map', { doctors, patientCoords })}
           >
+            <Ionicons name="map-outline" size={14} color="#2563EB" />
             <Text style={styles.seeMapText}>See Map</Text>
-            <Ionicons name="map-outline" size={14} color="#2563EB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         </View>
 
@@ -794,9 +824,45 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         ) : filteredDoctors.length === 0 ? (
+          // An empty screen is an invitation to act. Two different causes need
+          // two different answers: no dentists in this CITY at all (the filter
+          // is irrelevant — offer cities that do have some), versus a clinic-type
+          // filter that excluded them (offer to clear it).
           <View style={styles.emptyContainer}>
-            <Ionicons name="sad-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No doctors found for this filter.</Text>
+            <Ionicons name="location-outline" size={40} color="#CBD5E1" />
+            {filterTab === 'Favorites' ? (
+              <>
+                <Text style={styles.emptyTitle}>No saved dentists yet</Text>
+                <Text style={styles.emptyText}>Tap the heart on any dentist to save them here.</Text>
+              </>
+            ) : doctors.length === 0 ? (
+              <>
+                <Text style={styles.emptyTitle}>No dentists in {selectedCity} yet</Text>
+                <Text style={styles.emptyText}>
+                  We're adding clinics city by city. Try one of these instead:
+                </Text>
+                <View style={styles.emptyCities}>
+                  {['Islamabad', 'Rawalpindi'].filter(c => c !== selectedCity).map(c => (
+                    <TouchableOpacity key={c} style={styles.emptyCityBtn} onPress={() => setSelectedCity(c)}>
+                      <Ionicons name="location" size={14} color="#0052FF" />
+                      <Text style={styles.emptyCityTxt}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>
+                  No {filterTab.toLowerCase()} clinics in {selectedCity}
+                </Text>
+                <Text style={styles.emptyText}>
+                  {doctors.length} other dentist{doctors.length === 1 ? '' : 's'} available here.
+                </Text>
+                <TouchableOpacity style={styles.emptyBtn} onPress={() => setFilterTab('Nearby')}>
+                  <Text style={styles.emptyBtnTxt}>Show all dentists</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         ) : (
           <View style={isWide ? styles.doctorGrid : null}>
@@ -954,6 +1020,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginHorizontal: 2,
   },
+  locationRowWide: { maxWidth: 620 },
   locationRowBody: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1081,16 +1148,53 @@ const styles = StyleSheet.create({
   // Wide-web page headline. Values mirror the static hero in inject-seo.js so
   // the text does not shift or restyle when React replaces the hero.
   webHeadline: {
-    marginTop: 24,
-    marginBottom: 4,
+    marginTop: 28,
+    marginBottom: 6,
     paddingHorizontal: 16,
   },
   webHeadlineSub: {
-    fontSize: 16,
-    lineHeight: 26,
+    fontSize: 16.5,
+    lineHeight: 27,
     color: '#475569',
-    marginTop: 10,
-    maxWidth: 660,
+    marginTop: 12,
+    maxWidth: 620,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 16,
+  },
+  trustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trustText: {
+    fontSize: 13.5,
+    fontWeight: '650',
+    color: '#334155',
+  },
+  trustTick: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustTickMark: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 12,
+  },
+  trustDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
   },
   searchBar: {
     flexDirection: 'row',
@@ -1102,11 +1206,22 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    // Was a heavy drop shadow (0.1 / 12px) that read as a grey haze around the
+    // bar. A hairline border plus a whisper of shadow lifts it off the page
+    // without the smudge.
+    borderWidth: 1,
+    borderColor: '#E7EDF5',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchBarWide: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    maxWidth: 620,
+    marginTop: 4,
   },
   searchPlaceholder: {
     flex: 1,
@@ -1178,10 +1293,17 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 2,
   },
+  // Reads as a button rather than stray blue text — it opens a whole screen.
   seeMapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 4,
+    gap: 6,
+    backgroundColor: '#EFF4FF',
+    borderWidth: 1,
+    borderColor: '#DBE7FF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
   },
   seeMapText: {
     color: '#2563EB',
@@ -1375,10 +1497,53 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     gap: 12,
   },
+  emptyTitle: {
+    color: '#0A1551',
+    fontSize: 16,
+    fontWeight: '750',
+    textAlign: 'center',
+    marginTop: 12,
+  },
   emptyText: {
     color: '#94A3B8',
     fontSize: 14,
     textAlign: 'center',
+    marginTop: 4,
+  },
+  emptyBtn: {
+    marginTop: 16,
+    backgroundColor: '#0052FF',
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  emptyBtnTxt: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyCities: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+  },
+  emptyCityBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF4FF',
+    borderWidth: 1,
+    borderColor: '#DBE7FF',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+  },
+  emptyCityTxt: {
+    color: '#0052FF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   retryBtn: {
     marginTop: 14,

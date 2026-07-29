@@ -257,8 +257,11 @@ export default function SearchScreen({ navigation, route }) {
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View style={styles.blueHeader}>
+    <SafeAreaView edges={['top']} style={[styles.safeArea, isWeb && styles.safeAreaWeb]}>
+      {/* On web the blue band sat directly under the white WebTopNav as a
+          full-bleed slab of colour. The bar belongs to the mobile header; on
+          web it becomes a plain white strip so the page reads as one surface. */}
+      <View style={[styles.blueHeader, isWeb && styles.headerWeb]}>
         {/* Toolbar — native only; on web the root WebTopNav already provides it. */}
         {!isWeb && (
         <AnimatedHeader style={styles.headerTop}>
@@ -308,10 +311,11 @@ export default function SearchScreen({ navigation, route }) {
               style={styles.webBackBtn}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+              {/* Ink, not white — the web header is white now. */}
+              <Ionicons name="arrow-back" size={22} color="#0A1551" />
             </TouchableOpacity>
           )}
-          <View style={[styles.searchBar, { flex: 1 }]}>
+          <View style={[styles.searchBar, { flex: 1 }, isWeb && styles.searchBarWeb]}>
             <Ionicons name="search" size={20} color="#94A3B8" />
             <TextInput
               style={styles.searchInput}
@@ -392,11 +396,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0052FF',
   },
+  safeAreaWeb: {
+    backgroundColor: '#F8FAFC',
+  },
   blueHeader: {
     backgroundColor: '#0052FF',
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 10,
+  },
+  headerWeb: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   headerTop: {
     flexDirection: 'row',
@@ -473,7 +487,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    // Was rgba(255,255,255,.18) for the blue header — invisible now the web
+    // header is white.
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -485,6 +501,18 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     height: 48,
     paddingHorizontal: 16,
+  },
+  // On the white web header a white input has no edge, so give it one.
+  searchBarWeb: {
+    borderWidth: 1,
+    borderColor: '#E7EDF5',
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+  },
+  searchRowWeb: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center',
   },
   searchInput: {
     flex: 1,

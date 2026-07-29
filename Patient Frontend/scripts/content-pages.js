@@ -30,6 +30,7 @@ const LEGAL_UPDATED = 'June 16, 2026';
 const TREATMENTS = [
   {
     slug: 'braces-orthodontics',
+    icon: '🦷',
     name: 'Braces & Orthodontics',
     short: 'braces and orthodontic treatment',
     specialties: ['Orthodontist'],
@@ -51,6 +52,7 @@ const TREATMENTS = [
   },
   {
     slug: 'dental-implants',
+    icon: '⚙️',
     name: 'Dental Implants',
     short: 'dental implants',
     specialties: ['Implant Specialist', 'Prosthodontist'],
@@ -72,6 +74,7 @@ const TREATMENTS = [
   },
   {
     slug: 'root-canal',
+    icon: '🩺',
     name: 'Root Canal Treatment',
     short: 'root canal treatment (RCT)',
     specialties: ['Endodontist'],
@@ -93,6 +96,7 @@ const TREATMENTS = [
   },
   {
     slug: 'teeth-whitening',
+    icon: '✨',
     name: 'Teeth Whitening',
     short: 'teeth whitening',
     specialties: ['Cosmetic Dentist'],
@@ -114,6 +118,7 @@ const TREATMENTS = [
   },
   {
     slug: 'cosmetic-dentistry',
+    icon: '💎',
     name: 'Cosmetic Dentistry',
     short: 'cosmetic dental treatment',
     specialties: ['Cosmetic Dentist', 'Prosthodontist'],
@@ -135,6 +140,7 @@ const TREATMENTS = [
   },
   {
     slug: 'scaling-cleaning',
+    icon: '🪥',
     name: 'Scaling & Teeth Cleaning',
     short: 'scaling and professional cleaning',
     specialties: ['General'],
@@ -243,15 +249,30 @@ function treatmentsIndex(docs, { SITE, esc, head, foot }) {
     ],
   }];
 
+  // Card content is ordered by what helps someone choose: what it is, then how
+  // many dentists here actually do it. A row of identical text blocks gave the
+  // eye nothing to land on.
+  const count = (t) => docs.filter((d) => t.specialties.includes((d.specialization || '').trim())).length;
+
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › Treatments</nav>
 <h1>Dental treatments</h1>
 <p class="sub">What each treatment involves, how long it takes, and what to ask before you start.</p>
-<div class="grid">
-${TREATMENTS.map((t) => `<a class="tcard" href="${SITE}/treatments/${t.slug}">
-  <span class="tname">${esc(t.name)}</span>
-  <span class="tsum">${esc(t.summary)}</span>
-</a>`).join('')}
+<div class="tgrid">
+${TREATMENTS.map((t) => {
+  const n = count(t);
+  return `<a class="tcard" href="${SITE}/treatments/${t.slug}">
+  <span class="tico">${t.icon}</span>
+  <span class="tbody">
+    <span class="tname">${esc(t.name)}</span>
+    <span class="tsum">${esc(t.summary)}</span>
+  </span>
+  <span class="tfoot">
+    ${n ? `<span class="tcount">${n} dentist${n === 1 ? '' : 's'}</span>` : ''}
+    <span class="tgo">Read guide →</span>
+  </span>
+</a>`;
+}).join('')}
 </div>
 <a class="cta" rel="nofollow" href="${SITE}">Find a dentist →</a>
 </div>`;
@@ -279,39 +300,58 @@ function aboutPage(docs, { SITE, esc, head, foot }) {
     },
   }];
 
+  const verified = docs.filter((d) => d.pmdcVerified).length;
+  const specialties = [...new Set(docs.map((d) => (d.specialization || '').trim()).filter(Boolean))];
+
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › About</nav>
 <h1>About My Dentist</h1>
-<p class="sub">A directory for finding and booking dental care in Pakistan, without phoning round to compare clinics.</p>
+<p class="sub lead">Finding a dentist in Pakistan usually means phoning clinics one by one to ask who does what, when they're open, and what they charge. My Dentist puts that in one place.</p>
 
-<div class="card">
-  <h2>What we do</h2>
-  <p class="about">My Dentist lists dentists across Pakistan with the details that actually decide a booking: specialty, years of practice, clinic, timings and consultation fee. You compare them in one place and book online instead of calling each clinic to ask.</p>
+<div class="stats">
+  <span class="stat"><b>${docs.length}</b>dentists listed</span>
+  ${verified ? `<span class="stat"><b>${verified}</b>PMDC verified</span>` : ''}
+  ${specialties.length ? `<span class="stat"><b>${specialties.length}</b>specialties</span>` : ''}
+  ${cities.length ? `<span class="stat"><b>${cities.length}</b>cit${cities.length === 1 ? 'y' : 'ies'}</span>` : ''}
 </div>
 
-<div class="card">
-  <h2>What "PMDC verified" means</h2>
-  <p class="about">Dentists on the platform submit their Pakistan Medical &amp; Dental Council registration for checking before their profile goes live. Verification confirms the dentist is registered to practise. It is not an assessment of clinical skill, and it is not an endorsement — judging the care itself is between you and the dentist.</p>
-</div>
+<div class="cols">
+  <div class="col-main">
+    <div class="card">
+      <h2>What we do</h2>
+      <p class="about">We list dentists with the details that actually decide a booking — specialty, years of practice, clinic, timings and consultation fee — so you can compare them side by side and book online.</p>
+    </div>
 
-<div class="card">
-  <h2>How booking works</h2>
-  <p class="about">You pick a dentist, choose a time, and the clinic confirms the appointment. Booking through My Dentist is free for patients. The appointment itself is an agreement between you and the clinic — fees, cancellations and refunds are set by the clinic, not by us.</p>
-</div>
+    <div class="card">
+      <h2>What “PMDC verified” means</h2>
+      <p class="about">Dentists submit their Pakistan Medical &amp; Dental Council registration for checking before their profile goes live. Verification confirms the dentist is registered to practise.</p>
+      <p class="about">It is <strong>not</strong> an assessment of clinical skill and not an endorsement. Judging the care itself is between you and the dentist.</p>
+    </div>
 
-<div class="card">
-  <h2>How we make money</h2>
-  <p class="about">Clinics pay us a commission on bills settled through the platform, and some pay for a promoted listing. Promoted placement is exactly that — paid position, not a quality ranking. We say so on the listings themselves rather than leaving you to guess.</p>
-</div>
+    <div class="card">
+      <h2>How booking works</h2>
+      <p class="about">You pick a dentist, choose a time, and the clinic confirms. Booking is free for patients. The appointment is an agreement between you and the clinic — fees, cancellations and refunds are set by the clinic, not by us.</p>
+    </div>
 
-<div class="card">
-  <h2>Where we operate</h2>
-  <p class="about">${cities.length ? `Currently ${esc(cities.join(' and '))}, with more cities being added as clinics join.` : 'We are adding clinics city by city across Pakistan.'}</p>
-</div>
+    <div class="card">
+      <h2>How we make money</h2>
+      <p class="about">Clinics pay a commission on bills settled through the platform, and some pay for a promoted listing. Promoted placement is paid position, not a quality ranking — we label it rather than leaving you to guess.</p>
+    </div>
+  </div>
 
-<div class="card">
-  <h2>Contact</h2>
-  <p class="about">Email <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> or WhatsApp <a href="https://wa.me/${SUPPORT_WHATSAPP}">${esc(SUPPORT_PHONE)}</a>.</p>
+  <aside class="col-side">
+    <div class="card sidelinks">
+      <h2>Where we operate</h2>
+      <p class="sub">${cities.length ? `${esc(cities.join(' and '))}, with more added as clinics join.` : 'Adding clinics city by city across Pakistan.'}</p>
+      ${cities.map((c) => `<p class="sub"><a href="${SITE}/dentists/${c.toLowerCase().replace(/[^a-z0-9]+/g, '-')}">Dentists in ${esc(c)} →</a></p>`).join('')}
+    </div>
+    <div class="card sidelinks">
+      <h2>Get in touch</h2>
+      <p class="sub"><a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a></p>
+      <p class="sub"><a href="https://wa.me/${SUPPORT_WHATSAPP}">WhatsApp ${esc(SUPPORT_PHONE)}</a></p>
+      <p class="sub"><a href="${SITE}/contact">Contact page →</a></p>
+    </div>
+  </aside>
 </div>
 
 <a class="cta" rel="nofollow" href="${SITE}">Find a dentist →</a>
@@ -435,14 +475,28 @@ const CONTENT_CSS = `
 .faq:first-of-type{border-top:0;padding-top:0}
 .faq-q{margin:0;font-weight:700;color:var(--ink);font-size:15px}
 .faq-a{margin:6px 0 0;color:#475569;font-size:14.5px;max-width:68ch}
-.tcard{display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid #EEF2F7;border-radius:16px;padding:18px;text-decoration:none;box-shadow:0 1px 2px rgba(2,6,23,.04);transition:border-color .15s,box-shadow .15s,transform .15s}
+/* Equal-height treatment cards: icon, body that absorbs the slack, then a
+   footer pinned to the bottom so every card lines up regardless of summary
+   length. */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-top:22px}
+.tcard{display:flex;flex-direction:column;background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:20px;text-decoration:none;box-shadow:0 1px 2px rgba(2,6,23,.04);transition:border-color .15s,box-shadow .15s,transform .15s}
 .tcard:hover{border-color:#BFD7FF;box-shadow:0 10px 24px rgba(2,6,23,.09);transform:translateY(-2px)}
-.tname{font-weight:750;color:var(--ink);font-size:16px}
-.tsum{color:var(--muted);font-size:13.5px;line-height:1.55}
+.tcard:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.tico{width:44px;height:44px;border-radius:12px;background:#EFF4FF;display:flex;align-items:center;justify-content:center;font-size:21px;line-height:1;margin-bottom:14px}
+.tbody{display:block;flex:1}
+.tname{display:block;font-weight:750;color:var(--ink);font-size:17px;letter-spacing:-.2px}
+.tsum{display:block;color:var(--muted);font-size:13.5px;line-height:1.6;margin-top:6px}
+.tfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #F1F5F9}
+.tcount{font-size:12px;font-weight:700;color:#475569;background:#F1F5F9;padding:4px 10px;border-radius:999px}
+.tgo{font-size:13px;font-weight:700;color:var(--blue);margin-left:auto}
 .legal h2{font-size:15.5px;margin:22px 0 6px}
 .legal h2:first-of-type{margin-top:18px}
 .legal .about{margin:0}
 .disclaimer{margin-top:22px;color:#94A3B8;font-size:13px;max-width:70ch}
+.lead{font-size:16.5px;line-height:1.65;max-width:62ch}
+/* Consecutive paragraphs in a card need separating — they ran together. */
+.about + .about{margin-top:10px}
+.about strong{color:var(--ink)}
 `;
 
 module.exports = { TREATMENTS, treatmentPage, treatmentsIndex, aboutPage, contactPage, legalPage, CONTENT_CSS };

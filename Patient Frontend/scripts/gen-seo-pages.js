@@ -68,31 +68,155 @@ function head({ title, description, canonical, jsonld }) {
 <meta name="twitter:card" content="summary_large_image">
 ${jsonld.map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join('\n')}
 <style>
-:root{--blue:#0052FF;--ink:#0A1551;--muted:#64748B;--line:#E2E8F0}
-*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0F172A;background:#F8FAFC;line-height:1.6}
-.wrap{max-width:900px;margin:0 auto;padding:24px 20px 64px}
-header{display:flex;align-items:center;gap:10px;padding:16px 20px;background:#fff;border-bottom:1px solid var(--line)}
-header .brand{font-weight:800;font-size:20px;color:var(--ink)}header .brand span{color:var(--blue)}
-a.cta{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:12px;margin-top:8px}
-h1{font-size:28px;color:var(--ink);margin:18px 0 4px}h2{font-size:20px;color:var(--ink);margin:28px 0 10px}
-.sub{color:var(--muted);font-size:15px}
-.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:16px}
-.meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
-.chip{background:#EFF4FF;color:var(--blue);font-size:13px;font-weight:600;padding:5px 12px;border-radius:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:16px}
-.doclink{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-decoration:none;color:inherit}
-.doclink:hover{border-color:var(--blue)}
-.doclink .n{font-weight:700;color:var(--ink)}.doclink .s{color:var(--muted);font-size:13px}
-.stars{color:#F59E0B;font-weight:700}
-nav.bc{font-size:13px;color:var(--muted);margin-bottom:8px}nav.bc a{color:var(--blue);text-decoration:none}
-footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+/* Values mirror the app's own styles so a visitor arriving from search
+   recognises the brand: #0052FF primary + #0A1551 ink from WebTopNav, the
+   16px-radius / soft-shadow card and 80px doctor photo from HomeScreen. */
+:root{--blue:#0052FF;--ink:#0A1551;--muted:#64748B;--line:#E2E8F0;--bg:#F8FAFC}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;color:#0F172A;background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 20px 64px}
+/* Top bar — same white bar, logo mark and wordmark as the app's web nav. */
+header.nav{background:#fff;border-bottom:1px solid #F1F5F9;position:sticky;top:0;z-index:10}
+header.nav .navin{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px}
+header.nav .brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+header.nav .brand img{width:36px;height:36px;border-radius:8px;display:block}
+header.nav .brandtxt{font-size:19px;font-weight:900;color:var(--ink);letter-spacing:-.3px}
+header.nav .brandtxt span{color:var(--blue)}
+header.nav .navcta{margin-left:auto;display:flex;gap:8px;align-items:center}
+header.nav .navcta a{font-size:14px;font-weight:700;text-decoration:none;padding:9px 16px;border-radius:12px}
+.btn-ghost{color:var(--blue);background:#EFF4FF}
+.btn-solid{color:#fff;background:var(--blue)}
+a.cta{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#fff;text-decoration:none;font-weight:700;padding:13px 24px;border-radius:14px;margin-top:18px;box-shadow:0 4px 14px rgba(0,82,255,.25)}
+h1{font-size:30px;line-height:1.25;color:var(--ink);margin:14px 0 6px;font-weight:800;letter-spacing:-.4px}
+h2{font-size:19px;color:var(--ink);margin:30px 0 10px;font-weight:800}
+.sub{color:var(--muted);font-size:15px;margin:0}
+.card{background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:20px;margin:0;box-shadow:0 1px 2px rgba(2,6,23,.04)}
+.card h2{margin:0 0 14px;font-size:16px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.chip{background:#EFF4FF;color:var(--blue);font-size:13px;font-weight:600;padding:6px 13px;border-radius:20px}
+/* Summary of the listing below it: value on top, label under, hairline dividers. */
+.stats{display:flex;flex-wrap:wrap;gap:0;margin-top:18px;background:#fff;border:1px solid #EEF2F7;border-radius:14px;overflow:hidden}
+.stat{display:flex;flex-direction:column;gap:1px;padding:12px 20px;font-size:12px;color:var(--muted);border-right:1px solid #F1F5F9;flex:1;min-width:120px}
+.stat:last-child{border-right:0}
+.stat b{font-size:17px;color:var(--ink);font-weight:800;letter-spacing:-.3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-top:20px}
+/* Doctor card. A 3-row grid keeps every card the same shape regardless of how
+   long the clinic name or address is: identity row, location row, fee row. */
+.doc{display:grid;grid-template-columns:72px 1fr;grid-template-areas:"ph bd" "loc loc" "fee fee";gap:0 14px;
+  background:#fff;border:1px solid #EEF2F7;border-radius:16px;padding:16px;text-decoration:none;color:inherit;
+  box-shadow:0 1px 2px rgba(2,6,23,.04);transition:border-color .15s,box-shadow .15s,transform .15s}
+.doc:hover{border-color:#BFD7FF;box-shadow:0 10px 24px rgba(2,6,23,.09);transform:translateY(-2px)}
+.doc:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.doc-ph{grid-area:ph;width:72px;height:72px;border-radius:14px;object-fit:cover;background:#EFF6FF;display:block}
+.doc-bd{grid-area:bd;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.doc-n{font-weight:750;color:var(--ink);font-size:16px;line-height:1.3;letter-spacing:-.2px}
+.doc-sp{color:var(--blue);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+.doc-cl{color:var(--muted);font-size:13px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Credibility signals — the reason someone picks one dentist over another. */
+.doc-facts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.fact{font-size:11.5px;font-weight:700;color:#475569;background:#F1F5F9;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.fact.ok{color:#047857;background:#ECFDF5}
+.fact.star{color:#B45309;background:#FFFBEB}
+.fact i{font-style:normal;font-weight:600;opacity:.75}
+.doc-loc{grid-area:loc;color:#94A3B8;font-size:12.5px;margin-top:12px;padding-top:12px;border-top:1px solid #F1F5F9;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-fee{grid-area:fee;margin-top:8px;font-size:13px;font-weight:750;color:var(--ink)}
+.doc-fee i{font-style:normal;font-weight:600;color:#94A3B8;font-size:12px;margin-left:6px}
+.stars{color:#F59E0B;font-weight:700;font-size:13px}
+@media(max-width:400px){.doc{grid-template-columns:56px 1fr}.doc-ph{width:56px;height:56px}}
+nav.bc{font-size:13px;color:var(--muted);margin-bottom:10px}
+nav.bc a{color:var(--blue);text-decoration:none;font-weight:600}
+.linkrow a{color:var(--blue);text-decoration:none;font-weight:600}
+/* Two columns on desktop: detail on the left, a sticky booking panel on the
+   right. A single centred column left the page feeling empty and pushed the
+   only call to action far below the fold. */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start;margin-top:16px}
+.col-main{display:grid;gap:16px;min-width:0}
+.col-side{display:grid;gap:16px;position:sticky;top:84px}
+.book{background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:18px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
+.bookfee{display:flex;flex-direction:column;margin-bottom:14px}
+.bookfee b{font-size:26px;color:var(--ink);font-weight:800;letter-spacing:-.6px;line-height:1.1}
+.bookfee span{font-size:12.5px;color:var(--muted);margin-top:2px}
+.cta.full{display:flex;justify-content:center;width:100%;margin-top:0}
+.booknote{margin:10px 0 0;font-size:12px;color:#94A3B8;text-align:center}
+.sidelinks h2{margin:0 0 8px;font-size:15px}
+.sidelinks .sub{font-size:14px;margin:0 0 6px}
+.sidelinks .sub a{color:var(--blue);text-decoration:none;font-weight:600}
+@media(max-width:900px){
+  .cols{grid-template-columns:1fr}
+  .col-side{position:static}
+}
+/* Definition list of clinic facts — scannable rows instead of a stack of
+   one-line <h2> sections, which made short answers look like article headings. */
+.facts{margin:0;display:grid;gap:0}
+.facts>div{display:grid;grid-template-columns:180px 1fr;gap:16px;padding:13px 0;border-top:1px solid #F1F5F9}
+.facts>div:first-child{border-top:0;padding-top:4px}
+.facts dt{color:var(--muted);font-size:13.5px;font-weight:600}
+.facts dd{margin:0;color:#0F172A;font-size:14.5px;font-weight:600}
+.facts dd .hrs{display:inline-block;margin-left:8px;background:#F1F5F9;color:#475569;font-size:12.5px;font-weight:700;padding:2px 8px;border-radius:6px}
+.about{color:#334155;font-size:15px;margin:0;max-width:68ch}
+@media(max-width:560px){.facts>div{grid-template-columns:1fr;gap:2px}}
+/* Doctor profile hero — photo beside the name/specialty, like the app's header. */
+.prof{display:flex;gap:20px;align-items:center;background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:20px;margin-top:4px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
+.prof .profph{width:104px;height:104px;border-radius:16px;object-fit:cover;flex:0 0 104px;background:#EFF6FF}
+.prof .profbd{min-width:0;flex:1}
+.prof h1{margin:0 0 4px;font-size:27px}
+.prof .meta{margin:12px 0 0}
+@media(max-width:560px){
+  .prof{flex-direction:column;gap:14px;padding:18px}
+  .prof .profph{width:96px;height:96px;flex:0 0 96px}
+}
+footer{background:#fff;border-top:1px solid #F1F5F9;margin-top:48px}
+footer .fin{max-width:1080px;margin:0 auto;padding:24px 20px;color:var(--muted);font-size:13px}
+footer a{color:var(--blue);text-decoration:none;font-weight:600}
+@media(max-width:560px){
+  h1{font-size:24px}
+  .grid{grid-template-columns:1fr}
+  header.nav .navcta a{padding:8px 12px;font-size:13px}
+}
 </style></head><body>
-<header><span class="brand">My <span>Dentist</span></span></header>`;
+<header class="nav"><div class="navin">
+  <a class="brand" href="${SITE}/"><img src="${SITE}/icons/hero-logo.webp" width="36" height="36" alt="My Dentist logo" loading="eager"/><span class="brandtxt">My <span>Dentist</span></span></a>
+  <span class="navcta"><a class="btn-ghost" rel="nofollow" href="${APP}">Log in</a><a class="btn-solid" rel="nofollow" href="${APP}">Sign up</a></span>
+</div></header>`;
 }
 // "Open the app" / CTA links point at SPA routes that render the generic app
 // shell (same title + canonical as the homepage). Marking them nofollow keeps
 // crawl budget on the static pages instead of homepage duplicates.
-const foot = `<footer>My Dentist — Pakistan's platform to find & book verified PMDC dentists. <a rel="nofollow" href="${APP}">Open the app</a></footer></body></html>`;
+const foot = `<footer><div class="fin">My Dentist — Pakistan's platform to find &amp; book verified PMDC dentists. <a rel="nofollow" href="${APP}">Open the app</a></div></footer></body></html>`;
+
+// Shared doctor card for the city + specialist grids.
+//
+// Ordered by what actually helps someone choose a dentist: name, specialty,
+// then the credibility signals (experience, PMDC, rating) the app's own card
+// leads with. The clinic address is real but low-value for the decision, so it
+// sits last as a single truncated line instead of the three-line block that
+// previously dominated every card and left them ragged and uneven.
+function doctorCard(d, locLine) {
+  const name = String(d.fullName || '').trim();
+  const photo = d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`;
+  const spec = (d.specialization || 'Dentist').trim();
+  const clinic = (d.clinicName || '').trim();
+
+  const facts = [
+    d.experience ? `<span class="fact">${Number(d.experience)}+ yrs</span>` : '',
+    d.pmdcVerified ? `<span class="fact ok">PMDC verified</span>` : '',
+    d.avgRating && d.totalReviews
+      ? `<span class="fact star">★ ${Number(d.avgRating).toFixed(1)} <i>(${d.totalReviews})</i></span>` : '',
+  ].filter(Boolean).join('');
+
+  return `<a class="doc" href="${doctorUrl(d)}">
+  <img class="doc-ph" src="${esc(photo)}" width="72" height="72" alt="${esc(name)}" loading="lazy"/>
+  <span class="doc-bd">
+    <span class="doc-n">${esc(name)}</span>
+    <span class="doc-sp">${esc(spec)}</span>
+    ${clinic ? `<span class="doc-cl">${esc(clinic)}</span>` : ''}
+    ${facts ? `<span class="doc-facts">${facts}</span>` : ''}
+  </span>
+  ${locLine ? `<span class="doc-loc">${locLine}</span>` : ''}
+  ${d.consultationFee ? `<span class="doc-fee">PKR ${Number(d.consultationFee).toLocaleString('en-PK')}<i>consultation</i></span>` : ''}
+</a>`;
+}
 
 function ratingBlock(avg, total) {
   if (!avg || !total) return '';
@@ -135,6 +259,20 @@ function doctorPage(d) {
     ],
   }];
 
+  // Doctors sometimes paste social links into their bio. Raw URLs read as spam
+  // on a profile page and leak link equity, so strip them and fall back to a
+  // generated summary if that leaves nothing meaningful behind.
+  const aboutText = (() => {
+    const raw = String(d.about || '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (raw.length >= 40) return raw;
+    return `${name} is a ${spec}${clinic ? ` practising at ${clinic}` : ''} in ${city}`
+      + `${d.experience ? ` with ${d.experience}+ years of experience` : ''}. `
+      + `Book a verified appointment through My Dentist.`;
+  })();
+
   const chips = [
     spec && `<span class="chip">${esc(spec)}</span>`,
     d.experience && `<span class="chip">${d.experience}+ yrs experience</span>`,
@@ -145,23 +283,57 @@ function doctorPage(d) {
 
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › <a href="${SITE}/dentists/${slug(city)}">Dentists in ${esc(city)}</a> › ${esc(name)}</nav>
-<h1>${esc(name)}</h1>
-<p class="sub">${esc(spec)}${clinic ? ` · ${esc(clinic)}` : ''} · ${esc(city)}</p>
-${ratingBlock(d.avgRating, d.totalReviews)}
-<div class="meta">${chips}</div>
-<a class="cta" rel="nofollow" href="${APP}/doctor/${esc(d._id || d.id)}">View full profile & Book appointment →</a>
-<div class="card">
-<h2>About ${esc(name)}</h2>
-<p>${esc((d.about || `${name} is a ${spec}${clinic ? ` practising at ${clinic}` : ''} in ${city}${d.experience ? ` with ${d.experience}+ years of experience` : ''}. Book a verified appointment through My Dentist.`))}</p>
-${d.address ? `<h2>Clinic Location</h2><p>${esc(d.address)}, ${esc(city)}</p>` : ''}
-${d.clinicTiming?.days ? `<h2>Timings</h2><p>${esc(d.clinicTiming.days)}${d.clinicTiming.startTime ? ` · ${esc(d.clinicTiming.startTime)}–${esc(d.clinicTiming.endTime || '')}` : ''}</p>` : ''}
-${d.consultationFee ? `<h2>Consultation</h2><p>Consultation fee: PKR ${Number(d.consultationFee).toLocaleString()}</p>` : ''}
+<div class="prof">
+  <img class="profph" src="${esc(d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`)}" width="120" height="120" alt="${esc(name)}"/>
+  <div class="profbd">
+    <h1>${esc(name)}</h1>
+    <p class="sub">${esc(spec)}${clinic ? ` · ${esc(clinic)}` : ''} · ${esc(city)}</p>
+    ${ratingBlock(d.avgRating, d.totalReviews)}
+    <div class="meta">${chips}</div>
+  </div>
 </div>
-<a class="cta" rel="nofollow" href="${APP}/doctor/${esc(d._id || d.id)}">Book ${esc(name)} on My Dentist →</a>
+<div class="cols">
+  <div class="col-main">
+    ${aboutText ? `<div class="card"><h2>About ${esc(name)}</h2><p class="about">${esc(aboutText)}</p></div>` : ''}
+    <div class="card">
+      <h2>Clinic &amp; appointment details</h2>
+      <dl class="facts">
+        ${clinic ? `<div><dt>Clinic</dt><dd>${esc(clinic)}</dd></div>` : ''}
+        ${d.address ? `<div><dt>Address</dt><dd>${esc(d.address)}, ${esc(city)}</dd></div>` : ''}
+        ${d.clinicTiming?.days ? `<div><dt>Open</dt><dd>${esc(d.clinicTiming.days)}${d.clinicTiming.startTime ? `<span class="hrs">${esc(d.clinicTiming.startTime)}–${esc(d.clinicTiming.endTime || '')}</span>` : ''}</dd></div>` : ''}
+        ${d.experience ? `<div><dt>Experience</dt><dd>${Number(d.experience)}+ years</dd></div>` : ''}
+        ${(d.languages || []).length ? `<div><dt>Languages</dt><dd>${esc((d.languages || []).join(', '))}</dd></div>` : ''}
+      </dl>
+    </div>
+  </div>
+  <aside class="col-side">
+    <div class="book">
+      ${d.consultationFee ? `<div class="bookfee"><b>PKR ${Number(d.consultationFee).toLocaleString('en-PK')}</b><span>consultation fee</span></div>` : ''}
+      <a class="cta full" rel="nofollow" href="${APP}/doctor/${esc(d._id || d.id)}">Book appointment →</a>
+      <p class="booknote">Free to book · Confirmed by the clinic</p>
+    </div>
+    <div class="card sidelinks">
+      <h2>Nearby</h2>
+      <p class="sub"><a href="${SITE}/dentists/${slug(city)}">All dentists in ${esc(city)}</a></p>
+      <p class="sub"><a href="${SITE}/specialists/${slug(spec)}">${esc(specPlural(spec))} in Pakistan</a></p>
+    </div>
+  </aside>
+</div>
 </div>`;
 
   return { path: `dentist/${s}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
 }
+
+// Specialty labels. The API stores "General", which naively pluralised to
+// "Generals in Pakistan" — reads as a surname, not a profession. Map the odd
+// ones out and pluralise the rest.
+const SPEC_PLURAL = {
+  General: 'General Dentists',
+  'General Dentist': 'General Dentists',
+};
+const specPlural = (s) => SPEC_PLURAL[s] || `${s}s`;
+const SPEC_SINGULAR = { General: 'General Dentist' };
+const specSingular = (s) => SPEC_SINGULAR[s] || s;
 
 // Canonical URL for a doctor — the slug rule lives here so the page, the list
 // entries and the sitemap can't drift apart.
@@ -259,19 +431,34 @@ function cityPage(city, docs) {
       { '@type': 'ListItem', position: 2, name: `Dentists in ${city}`, item: canonical },
     ],
   }];
-  const cards = docs.map((d) => {
-    return `<a class="doclink" href="${doctorUrl(d)}"><div class="n">${esc(String(d.fullName || '').trim())}</div><div class="s">${esc(d.specialization || 'Dentist')}${d.clinicName ? ' · ' + esc(d.clinicName.trim()) : ''}</div><div class="s">${esc(d.address ? `${d.address}, ${city}` : city)}</div>${d.avgRating && d.totalReviews ? `<div class="s stars">★ ${Number(d.avgRating).toFixed(1)} (${d.totalReviews})</div>` : ''}</a>`;
-  }).join('');
+  const cards = docs.map((d) => doctorCard(d, esc(d.address ? `${d.address}, ${city}` : city))).join('');
   // Specialties represented in this city — links out to the specialist pages so
   // the two page families reinforce each other instead of standing alone.
   const specs = [...new Set(docs.map((d) => (d.specialization || '').trim()).filter(Boolean))].sort();
   const specLinks = specs.length
-    ? `<h2>Dental specialists in ${esc(city)}</h2><p class="sub">${specs.map((s) => `<a href="${SITE}/specialists/${slug(s)}">${esc(s)}s</a>`).join(' · ')}</p>`
+    ? `<h2>Dental specialists in ${esc(city)}</h2><p class="sub">${specs.map((s) => `<a href="${SITE}/specialists/${slug(s)}">${esc(specPlural(s))}</a>`).join(' · ')}</p>`
     : '';
+  const verified = docs.filter((d) => d.pmdcVerified).length;
+  const fees = docs.map((d) => Number(d.consultationFee)).filter((n) => n > 0);
+  const feeLabel = fees.length
+    ? (Math.min(...fees) === Math.max(...fees)
+      ? `PKR ${Math.min(...fees).toLocaleString('en-PK')}`
+      : `PKR ${Math.min(...fees).toLocaleString('en-PK')}–${Math.max(...fees).toLocaleString('en-PK')}`)
+    : null;
+  // Facts drawn from the listing itself — a summary of what is on the page,
+  // not decoration.
+  const stats = [
+    `<span class="stat"><b>${docs.length}</b>dentist${docs.length === 1 ? '' : 's'}</span>`,
+    verified ? `<span class="stat"><b>${verified}</b>PMDC verified</span>` : '',
+    specs.length ? `<span class="stat"><b>${specs.length}</b>specialt${specs.length === 1 ? 'y' : 'ies'}</span>` : '',
+    feeLabel ? `<span class="stat"><b>${feeLabel}</b>consultation</span>` : '',
+  ].filter(Boolean).join('');
+
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › Dentists in ${esc(city)}</nav>
-<h1>Best Dentists in ${esc(city)}</h1>
-<p class="sub">${docs.length} verified PMDC dentist${docs.length === 1 ? '' : 's'} in ${esc(city)}. Compare clinics, fees, timings and reviews, then book online.</p>
+<h1>Best dentists in ${esc(city)}</h1>
+<p class="sub">Compare verified PMDC dentists in ${esc(city)} by experience, clinic and consultation fee, then book online.</p>
+<div class="stats">${stats}</div>
 <div class="grid">${cards}</div>
 ${specLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a>
@@ -281,7 +468,7 @@ ${specLinks}
 
 function specPage(spec, docs) {
   const canonical = `${SITE}/specialists/${slug(spec)}`;
-  const title = `${spec}s in Pakistan — Book Verified ${spec} | My Dentist`;
+  const title = `${specPlural(spec)} in Pakistan — Book a Verified ${specSingular(spec)} | My Dentist`;
   const desc = `Find and book a verified ${spec} in Pakistan. ${docs.length} PMDC-verified specialist${docs.length === 1 ? '' : 's'} — compare clinics, reviews & fees on My Dentist.`;
   // Cities this specialty is actually available in — a real signal for
   // "<specialty> in <city>" queries, which is where a directory can rank
@@ -296,7 +483,7 @@ function specPage(spec, docs) {
       : {}),
   }, {
     '@context': 'https://schema.org', '@type': 'ItemList',
-    name: `${spec}s in Pakistan`,
+    name: `${specPlural(spec)} in Pakistan`,
     numberOfItems: docs.length,
     itemListElement: docs.map((d, i) => ({
       // `url` and `item` are mutually exclusive on a ListItem: a summary list
@@ -310,19 +497,33 @@ function specPage(spec, docs) {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
-      { '@type': 'ListItem', position: 2, name: `${spec}s in Pakistan`, item: canonical },
+      { '@type': 'ListItem', position: 2, name: `${specPlural(spec)} in Pakistan`, item: canonical },
     ],
   }];
-  const cards = docs.map((d) => {
-    return `<a class="doclink" href="${doctorUrl(d)}"><div class="n">${esc(String(d.fullName || '').trim())}</div><div class="s">${esc(d.city || '')}${d.clinicName ? ' · ' + esc(d.clinicName.trim()) : ''}</div>${d.avgRating && d.totalReviews ? `<div class="s stars">★ ${Number(d.avgRating).toFixed(1)} (${d.totalReviews})</div>` : ''}</a>`;
-  }).join('');
+  const cards = docs.map((d) => doctorCard(d, esc([d.address, d.city].filter(Boolean).join(', ')))).join('');
   // "<specialty> in <city>" is the query shape a directory can realistically win,
   // so surface those combinations as real links.
   const cityLinks = cities.length
-    ? `<h2>${esc(spec)}s by city</h2><p class="sub">${cities.map((c) => `<a href="${SITE}/dentists/${slug(c)}">${esc(spec)}s in ${esc(c)}</a>`).join(' · ')}</p>`
+    ? `<h2>${esc(specPlural(spec))} by city</h2><p class="sub">${cities.map((c) => `<a href="${SITE}/dentists/${slug(c)}">${esc(specPlural(spec))} in ${esc(c)}</a>`).join(' · ')}</p>`
     : '';
+  const verified = docs.filter((d) => d.pmdcVerified).length;
+  const fees = docs.map((d) => Number(d.consultationFee)).filter((n) => n > 0);
+  const feeLabel = fees.length
+    ? (Math.min(...fees) === Math.max(...fees)
+      ? `PKR ${Math.min(...fees).toLocaleString('en-PK')}`
+      : `PKR ${Math.min(...fees).toLocaleString('en-PK')}–${Math.max(...fees).toLocaleString('en-PK')}`)
+    : null;
+  const stats = [
+    `<span class="stat"><b>${docs.length}</b>${esc((docs.length===1?specSingular(spec):specPlural(spec)).toLowerCase())}</span>`,
+    verified ? `<span class="stat"><b>${verified}</b>PMDC verified</span>` : '',
+    cities.length ? `<span class="stat"><b>${cities.length}</b>cit${cities.length === 1 ? 'y' : 'ies'}</span>` : '',
+    feeLabel ? `<span class="stat"><b>${feeLabel}</b>consultation</span>` : '',
+  ].filter(Boolean).join('');
+
   const body = `<div class="wrap"><nav class="bc"><a href="${SITE}/">Home</a> › ${esc(spec)}</nav>
-<h1>${esc(spec)}s in Pakistan</h1><p class="sub">${docs.length} verified PMDC ${esc(spec.toLowerCase())}${docs.length === 1 ? '' : 's'}${cities.length ? ` across ${esc(cities.join(', '))}` : ''}. Compare fees and reviews, then book online.</p>
+<h1>${esc(specPlural(spec))} in Pakistan</h1>
+<p class="sub">Compare verified PMDC ${esc(specPlural(spec).toLowerCase())}${cities.length ? ` in ${esc(cities.join(' and '))}` : ''} by experience, clinic and consultation fee, then book online.</p>
+<div class="stats">${stats}</div>
 <div class="grid">${cards}</div>
 ${cityLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a></div>`;
@@ -404,7 +605,7 @@ ${cityLinks}
       href: `${SITE}/dentists/${slug(c)}`, label: `Dentists in ${c}`,
     }));
     const specLinks = Object.keys(bySpec).sort().map((s) => ({
-      href: `${SITE}/specialists/${slug(s)}`, label: `${s}s`,
+      href: `${SITE}/specialists/${slug(s)}`, label: specPlural(s),
     }));
     // Every doctor, so no profile page is more than one hop from the homepage.
     const docLinks = docs.map((d) => {

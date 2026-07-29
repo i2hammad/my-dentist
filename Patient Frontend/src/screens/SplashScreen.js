@@ -34,10 +34,21 @@ export default function SplashScreen({ navigation }) {
     };
 
     const checkLoginStatus = async () => {
-      // Web-only param bootstrap: impersonation token + deep-link params.
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.search) {
-        const params = new URLSearchParams(window.location.search);
+      // Web-only bootstrap: impersonation token + deep-link params.
+      // NOTE: this must NOT be gated on window.location.search — a clean path
+      // deep link like /doctor/<id> carries no query string at all.
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search || '');
         deepDoctorId = params.get('doctor');
+        // Also accept the PATH form /doctor/<id>. That is what AppNavigator's
+        // linking config declares for DoctorProfile and what every pre-rendered
+        // SEO page links to from its "View full profile & Book" CTA — but only
+        // the ?doctor= query form was ever read, so those links silently landed
+        // the visitor on Home instead of the dentist they clicked.
+        if (!deepDoctorId) {
+          const seg = (window.location.pathname || '').split('/').filter(Boolean);
+          if (seg[0] === 'doctor' && seg[1]) deepDoctorId = seg[1];
+        }
         wantLogin = params.get('login') === '1' || params.get('screen') === 'login';
         wantSignup = params.get('signup') === '1';
 

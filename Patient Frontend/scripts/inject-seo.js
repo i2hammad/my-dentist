@@ -161,6 +161,10 @@ const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow
     /* single-column list on phones (matches the app); grid on wide screens */
     .pp-cards{display:flex;flex-direction:column;gap:14px;}
     @media(min-width:900px){.pp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}}
+    /* WebTopNav shows the centre links only at >=1024px — match it so the bar
+       doesn't reflow when React mounts. */
+    .pp-links{display:none !important;}
+    @media(min-width:1024px){.pp-links{display:flex !important;}}
   </style>
   <!-- Mirrors the real HomeScreen: same top nav, the same search placeholder,
        the same filter chips and the same "Nearby Doctors / Top dentists near
@@ -171,7 +175,10 @@ const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow
     <div style="max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px;">
       <img src="/icons/hero-logo.webp" width="36" height="36" alt="My Dentist logo" style="border-radius:8px;display:block;"/>
       <span style="font-size:19px;font-weight:900;color:#0A1551;letter-spacing:-.3px;">My <span style="color:#0052FF;">Dentist</span></span>
-      <span class="pp-nav" style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <span class="pp-links" style="flex-grow:1;display:flex;gap:2px;align-items:center;justify-content:center;">
+        ${[['Home', true], ['Cosmetic', false], ['Orthodontics', false], ['Implants', false]].map(([t, active]) => `<span style="font-size:14px;font-weight:700;color:${active ? '#0052FF' : '#64748B'};background:${active ? '#EFF4FF' : 'transparent'};padding:9px 14px;border-radius:12px;">${t}</span>`).join('')}
+      </span>
+      <span style="display:flex;gap:8px;align-items:center;">
         <span style="font-size:14px;font-weight:700;color:#0052FF;background:#EFF4FF;padding:9px 16px;border-radius:12px;">Log in</span>
         <span style="font-size:14px;font-weight:700;color:#fff;background:#0052FF;padding:9px 16px;border-radius:12px;">Sign up</span>
       </span>
@@ -184,7 +191,15 @@ const HERO = `<div id="pp-hero" style="position:fixed;inset:0;z-index:2;overflow
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
       <span style="color:#94A3B8;font-size:15px;">Search Dentist / Clinic / Treatment</span>
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;">
+    <!-- City selector. The app defaults to Islamabad (HomeScreen's initial
+         selectedCity), so the hero shows the same value — otherwise the row
+         appears out of nowhere when React mounts. Inert until then. -->
+    <div style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;margin-top:12px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#0052FF"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+      <span style="font-size:14px;font-weight:700;color:#0F172A;">Islamabad, Pakistan</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.5" style="margin-left:auto;"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
       ${['Nearby', 'Elite Clinic', 'Modern Clinic', 'Standard Clinic'].map((t, i) => `<span style="background:${i === 0 ? '#0052FF' : '#fff'};color:${i === 0 ? '#fff' : '#475569'};border:1px solid ${i === 0 ? '#0052FF' : '#E7EDF5'};font-size:13px;font-weight:650;padding:8px 16px;border-radius:999px;">${t}</span>`).join('')}
     </div>
     <div style="margin-top:28px;font-weight:800;color:#0A1551;font-size:18px;">Nearby Doctors</div>

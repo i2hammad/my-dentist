@@ -209,14 +209,48 @@ function treatmentPage(t, docs, { SITE, esc, slug, head, foot, doctorCard, fullA
 
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › <a href="${SITE}/treatments">Treatments</a> › ${esc(t.name)}</nav>
-<h1>${esc(t.name)}</h1>
-<p class="sub">${esc(t.summary)}</p>
 
-${t.sections.map(([h, p]) => `<div class="card"><h2>${esc(h)}</h2><p class="about">${esc(p)}</p></div>`).join('')}
+<!-- Hero: the icon anchors the page and the summary answers "what is this"
+     before the reader has to commit to a section. -->
+<div class="thero">
+  <span class="thero-ico">${t.icon}</span>
+  <div class="thero-bd">
+    <h1>${esc(t.name)}</h1>
+    <p class="thero-sum">${esc(t.summary)}</p>
+  </div>
+</div>
 
-<div class="card">
-  <h2>Common questions</h2>
-  ${t.faqs.map(([q, a]) => `<div class="faq"><p class="faq-q">${esc(q)}</p><p class="faq-a">${esc(a)}</p></div>`).join('')}
+<div class="cols">
+  <div class="col-main">
+    ${t.sections.map(([h, p], i) => `<section class="tsec">
+      <h2 class="tsec-h"><span class="tsec-n">${i + 1}</span>${esc(h)}</h2>
+      <p class="about">${esc(p)}</p>
+    </section>`).join('')}
+
+    <section class="tsec">
+      <h2 class="tsec-h"><span class="tsec-n">?</span>Common questions</h2>
+      ${t.faqs.map(([q, a]) => `<details class="faq"><summary class="faq-q">${esc(q)}</summary><p class="faq-a">${esc(a)}</p></details>`).join('')}
+    </section>
+
+    <p class="disclaimer">This page is general information, not dental advice. Treatment suitability, length and cost depend on your own examination — ask the dentist at your consultation.</p>
+  </div>
+
+  <aside class="col-side">
+    ${matched.length ? `<div class="card sidelinks">
+      <h2>${matched.length} dentist${matched.length === 1 ? '' : 's'} offer this</h2>
+      <p class="sub">${cities.length ? `In ${esc(cities.join(' and '))}.` : ''} Compare and book online.</p>
+      <a class="cta full" rel="nofollow" href="${SITE}">Find a dentist →</a>
+    </div>` : `<div class="card sidelinks">
+      <h2>Find a dentist</h2>
+      <a class="cta full" rel="nofollow" href="${SITE}">Browse dentists →</a>
+    </div>`}
+    <div class="card sidelinks">
+      <h2>Other treatments</h2>
+      ${TREATMENTS.filter((o) => o.slug !== t.slug).slice(0, 5).map((o) =>
+        `<p class="sub"><a href="${SITE}/treatments/${o.slug}">${esc(o.name)}</a></p>`).join('')}
+      <p class="sub"><a href="${SITE}/treatments">All treatments →</a></p>
+    </div>
+  </aside>
 </div>
 
 ${matched.length ? `
@@ -224,9 +258,6 @@ ${matched.length ? `
 <div class="grid">${matched.slice(0, 6).map((d) => doctorCard(d, esc(fullAddress(d.address, d.city)))).join('')}</div>
 ${t.specialties.map((s) => `<p class="sub linkrow"><a href="${SITE}/specialists/${slug(s)}">See all ${esc(specPlural(s).toLowerCase())} →</a></p>`).join('')}
 ` : ''}
-
-<p class="disclaimer">This page is general information, not dental advice. Treatment suitability, length and cost depend on your own examination — ask the dentist at your consultation.</p>
-<a class="cta" rel="nofollow" href="${SITE}">Find a dentist →</a>
 </div>`;
 
   return { path: `treatments/${t.slug}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
@@ -471,10 +502,27 @@ function legalPage(key, { SITE, esc, head, foot }) {
 
 // Extra CSS for the content pages, appended to the shared stylesheet.
 const CONTENT_CSS = `
-.faq{padding:14px 0;border-top:1px solid #F1F5F9}
-.faq:first-of-type{border-top:0;padding-top:0}
-.faq-q{margin:0;font-weight:700;color:var(--ink);font-size:15px}
-.faq-a{margin:6px 0 0;color:#475569;font-size:14.5px;max-width:68ch}
+/* Treatment hero — icon plus the one-line answer to "what is this". */
+.thero{display:flex;gap:18px;align-items:flex-start;margin-top:6px}
+.thero-ico{flex:0 0 58px;width:58px;height:58px;border-radius:16px;background:#EFF4FF;display:flex;align-items:center;justify-content:center;font-size:27px;line-height:1;margin-top:6px}
+.thero-bd{min-width:0;flex:1}
+.thero h1{margin:0}
+.thero-sum{margin:8px 0 0;color:#475569;font-size:16.5px;line-height:1.6;max-width:62ch}
+/* Numbered sections read as a sequence — the reader is being walked through a
+   treatment in order, which a stack of identical cards did not convey. */
+.tsec{background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:22px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
+.tsec-h{display:flex;align-items:center;gap:11px;margin:0 0 12px;font-size:17px;font-weight:800;color:var(--ink);letter-spacing:-.2px}
+.tsec-n{flex:0 0 26px;width:26px;height:26px;border-radius:8px;background:#EFF4FF;color:var(--blue);font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+/* FAQ as <details> — the answers are secondary, and collapsing them keeps the
+   question list scannable. Open by default would just be the old wall of text. */
+.faq{border-top:1px solid #F1F5F9;padding:2px 0}
+.faq:first-of-type{border-top:0}
+.faq-q{list-style:none;cursor:pointer;padding:13px 28px 13px 0;position:relative;font-weight:700;color:var(--ink);font-size:15px}
+.faq-q::-webkit-details-marker{display:none}
+.faq-q::after{content:'+';position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:19px;font-weight:600;color:#94A3B8;line-height:1}
+.faq[open] .faq-q::after{content:'−'}
+.faq[open] .faq-q{color:var(--blue)}
+.faq-a{margin:0 0 14px;color:#475569;font-size:14.5px;max-width:68ch}
 /* Equal-height treatment cards: icon, body that absorbs the slack, then a
    footer pinned to the bottom so every card lines up regardless of summary
    length. */

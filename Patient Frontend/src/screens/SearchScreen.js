@@ -2,7 +2,7 @@
 import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Image, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ensureAuth } from '../utils/authGuard';
+import { ensureAuth, useIsGuest } from '../utils/authGuard';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
@@ -32,6 +32,10 @@ export default function SearchScreen({ navigation, route }) {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('Nearby');
+  // The chip row is always visible on wide screens; on a phone it costs 50px of
+  // vertical space, so the toolbar button collapses it.
+  const [showFilters, setShowFilters] = useState(true);
+  const isGuest = useIsGuest();
   const [profile, setProfile] = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
   const [favorites, setFavorites] = useState({});
@@ -64,6 +68,10 @@ export default function SearchScreen({ navigation, route }) {
   }, [activeFilter]);
 
   const toggleFavorite = async (id) => {
+    // Saving needs an account. Previously the heart filled in optimistically and
+    // then returned silently for a guest, so it looked saved but vanished on the
+    // next load. Send them to login before touching the UI.
+    if (!(await ensureAuth(navigation))) return;
     const key = String(id);
     const isFav = !!favorites[key];
     const newFavs = { ...favorites };
@@ -244,15 +252,18 @@ export default function SearchScreen({ navigation, route }) {
 
       <View style={styles.divider} />
 
+      {/* Inline rather than stacked label-over-value. The stacked form cost 56px
+          plus margins for two short facts, which on a phone meant barely two
+          cards fitted on screen. */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Experience</Text>
-          <Text style={styles.statValue}>{item.experience || 0}+ Years</Text>
+          <Ionicons name="briefcase-outline" size={13} color="#64748B" />
+          <Text style={styles.statValue}>{item.experience || 0}+ yrs</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Available</Text>
-          <Text style={styles.statValue}>Today</Text>
+          <Ionicons name="calendar-outline" size={13} color="#16A34A" />
+          <Text style={[styles.statValue, { color: '#16A34A' }]}>Available today</Text>
         </View>
       </View>
 
@@ -347,8 +358,15 @@ export default function SearchScreen({ navigation, route }) {
             />
             <Ionicons name="mic-outline" size={20} color="#94A3B8" style={{ marginRight: 10 }} />
             <View style={styles.searchDivider} />
-            <TouchableOpacity style={styles.filterBtn}>
-              <Ionicons name="options" size={20} color="#0066FF" />
+            {/* No filter sheet exists yet, so this scrolls to the filter chips
+                rather than sitting dead. A control that does nothing when
+                tapped is worse than no control. */}
+            <TouchableOpacity
+              style={styles.filterBtn}
+              onPress={() => setShowFilters((v) => !v)}
+              accessibilityLabel="Filter results"
+            >
+              <Ionicons name="options" size={20} color={showFilters ? '#0052FF' : '#94A3B8'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -356,6 +374,7 @@ export default function SearchScreen({ navigation, route }) {
 
       <View style={styles.bottomSheet}>
         <PromoCard style={isWide ? styles.centeredWide : undefined} />
+        {showFilters && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filterScroll, isWide && styles.centeredWide]} contentContainerStyle={{ paddingHorizontal: 20 }}>
           {filters.map((f, i) => (
             <TouchableOpacity 
@@ -375,6 +394,7 @@ export default function SearchScreen({ navigation, route }) {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        )}
 
         <View style={[styles.listHeader, isWide && styles.centeredWide]}>
           <View>
@@ -405,6 +425,48 @@ export default function SearchScreen({ navigation, route }) {
               isWide && styles.listContentWide,
             ]}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              // The list rendered nothing at all when empty. A guest tapping
+              // Favorites got a blank screen with no hint that saving needs an
+              // account.
+              <View style={styles.emptyWrap}>
+                <Ionicons
+                  name={activeFilter === 'Favorites' ? 'heart-outline' : 'search-outline'}
+                  size={40}
+                  color="#CBD5E1"
+                />
+                {activeFilter === 'Favorites' ? (
+                  <>
+                    <Text style={styles.emptyTitle}>
+                      {isGuest ? 'Log in to save dentists' : 'No saved dentists yet'}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {isGuest
+                        ? 'Saved dentists are kept with your account.'
+                        : 'Tap the heart on any dentist to save them here.'}
+                    </Text>
+                    {isGuest && (
+                      <TouchableOpacity
+                        style={styles.emptyBtn}
+                        onPress={() => navigation.navigate('Login', { role: 'patient' })}
+                      >
+                        <Text style={styles.emptyBtnTxt}>Log in</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                ) : searchQuery ? (
+                  <>
+                    <Text style={styles.emptyTitle}>No matches for “{searchQuery}”</Text>
+                    <Text style={styles.emptyText}>Try a dentist, clinic or treatment name.</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>No {activeFilter.toLowerCase()} found</Text>
+                    <Text style={styles.emptyText}>Try a different filter.</Text>
+                  </>
+                )}
+              </View>
+            }
           />
         )}
       </View>
@@ -633,13 +695,18 @@ const styles = StyleSheet.create({
   columnWrapper: {
     gap: 16,
   },
+  emptyWrap: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 16, fontWeight: '750', color: '#0A1551', marginTop: 12, textAlign: 'center' },
+  emptyText: { fontSize: 14, color: '#94A3B8', marginTop: 4, textAlign: 'center' },
+  emptyBtn: { marginTop: 16, backgroundColor: '#0052FF', paddingHorizontal: 22, paddingVertical: 11, borderRadius: 12 },
+  emptyBtnTxt: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#EEF2F7',
   },
   cardGrid: {
     flex: 1,
@@ -648,12 +715,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   doctorImageContainer: {
-    width: 80,
-    height: 80,
+    width: 64,
+    height: 64,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
     overflow: 'hidden',
-    marginRight: 16,
+    marginRight: 12,
   },
   doctorImage: {
     width: '100%',
@@ -727,30 +794,27 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#F1F5F9',
-    marginVertical: 16,
+    marginVertical: 10,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 12,
   },
   statItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginBottom: 4,
+    gap: 5,
   },
   statValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#0F172A',
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#334155',
   },
   statDivider: {
     width: 1,
-    height: 24,
+    height: 14,
     backgroundColor: '#E2E8F0',
   },
   actionButtonsRow: {
@@ -760,7 +824,7 @@ const styles = StyleSheet.create({
   },
   outlineBtn: {
     flex: 1,
-    height: 48,
+    height: 42,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#0052FF',
@@ -776,7 +840,7 @@ const styles = StyleSheet.create({
   },
   solidBtn: {
     flex: 1,
-    height: 48,
+    height: 42,
     borderRadius: 12,
     backgroundColor: '#0052FF',
     justifyContent: 'center',

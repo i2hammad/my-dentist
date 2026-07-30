@@ -38,6 +38,10 @@ export default function SearchScreen({ navigation, route }) {
   // The chip row is always visible on wide screens; on a phone it costs 50px of
   // vertical space, so the toolbar button collapses it.
   const [showFilters, setShowFilters] = useState(true);
+  // City is the axis patients actually narrow on, alongside specialty. The chip
+  // row previously offered only clinic-tier grades, which is a facilities score
+  // most people don't think in. Null means every city.
+  const [cityFilter, setCityFilter] = useState(null);
   const isGuest = useIsGuest();
   const [profile, setProfile] = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
@@ -167,11 +171,17 @@ export default function SearchScreen({ navigation, route }) {
     }
   };
 
+  // Cities that actually have dentists, so the row can't offer an empty filter.
+  const cities = [...new Set(doctors.map(d => (d.city || '').trim()).filter(Boolean))].sort();
+
   const filteredDoctors = (activeFilter === 'Favorites' ? favoriteDoctors : doctors).filter(d => {
     const haystack = [d.fullName, d.specialization, d.clinicName, d.city]
       .filter(Boolean).join(' ').toLowerCase().replace(/[^\w\s]/g, ' ');
     const words = searchQuery.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/).filter(Boolean);
     const matchesQuery = !words.length || words.every(w => haystack.includes(w));
+    // City narrows every tab except Favorites, where the saved list is the point.
+    if (cityFilter && activeFilter !== 'Favorites'
+        && (d.city || '').trim().toLowerCase() !== cityFilter.toLowerCase()) return false;
 
     if (activeFilter === 'Favorites') {
       return matchesQuery;
@@ -402,6 +412,35 @@ export default function SearchScreen({ navigation, route }) {
 
       <View style={styles.bottomSheet}>
         <PromoCard style={isWide ? styles.centeredWide : undefined} />
+        {showFilters && cities.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={[styles.cityScroll, isWide && styles.centeredWide]}
+            contentContainerStyle={{ paddingHorizontal: 20, alignItems: 'center' }}
+          >
+            <Text style={styles.cityLabel}>City</Text>
+            <TouchableOpacity
+              style={[styles.cityChip, !cityFilter && styles.cityChipActive]}
+              onPress={() => setCityFilter(null)}
+            >
+              <Text style={[styles.cityChipTxt, !cityFilter && styles.cityChipTxtActive]}>All</Text>
+            </TouchableOpacity>
+            {cities.map((c) => {
+              const on = cityFilter === c;
+              return (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.cityChip, on && styles.cityChipActive]}
+                  onPress={() => setCityFilter(on ? null : c)}
+                >
+                  <Text style={[styles.cityChipTxt, on && styles.cityChipTxtActive]}>{c}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {showFilters && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filterScroll, isWide && styles.centeredWide]} contentContainerStyle={{ paddingHorizontal: 20 }}>
           {filters.map((f, i) => (
@@ -489,8 +528,17 @@ export default function SearchScreen({ navigation, route }) {
                   </>
                 ) : (
                   <>
-                    <Text style={styles.emptyTitle}>No {activeFilter.toLowerCase()} found</Text>
-                    <Text style={styles.emptyText}>Try a different filter.</Text>
+                    <Text style={styles.emptyTitle}>
+                      No {activeFilter.toLowerCase()}{cityFilter ? ` in ${cityFilter}` : ''}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {cityFilter ? 'Try another city, or clear the filter.' : 'Try a different filter.'}
+                    </Text>
+                    {!!cityFilter && (
+                      <TouchableOpacity style={styles.emptyBtn} onPress={() => setCityFilter(null)}>
+                        <Text style={styles.emptyBtnTxt}>Show all cities</Text>
+                      </TouchableOpacity>
+                    )}
                   </>
                 )}
               </View>
@@ -653,6 +701,15 @@ const styles = StyleSheet.create({
     minHeight: 50,
     marginTop: 16,
   },
+  cityScroll: { maxHeight: 44, minHeight: 44, marginTop: 12 },
+  cityLabel: { fontSize: 12, fontWeight: '700', color: '#94A3B8', marginRight: 10 },
+  cityChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7EDF5', marginRight: 8,
+  },
+  cityChipActive: { backgroundColor: '#EFF4FF', borderColor: '#BFD7FF' },
+  cityChipTxt: { fontSize: 13, fontWeight: '650', color: '#475569' },
+  cityChipTxtActive: { color: '#0052FF', fontWeight: '750' },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -138,11 +138,12 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
     ? imgUrl(doc.photo, { w: 160 }) // small card avatar — request a resized thumb
     : null;
 
-  const status = doc.isOnline === true
-    ? 'online'
-    : doc.isOnline === false
-    ? 'offline'
-    : 'offline';
+  // The API returns `onlineStatus` ('online' | 'offline'); `isOnline` does not
+  // exist on the response, so this always fell through to 'offline' and stamped
+  // a grey "Offline" badge on every card. Offline says nothing about whether an
+  // appointment can be booked, so the badge now appears only when a dentist is
+  // genuinely online.
+  const isOnlineNow = doc.onlineStatus === 'online';
 
   return (
     <View style={[styles.doctorCard, style]}>
@@ -158,9 +159,11 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
             </View>
           )}
           {/* Status badge overlaid */}
-          <View style={styles.statusBadgeOverlay}>
-            <StatusBadge status={status} />
-          </View>
+          {isOnlineNow && (
+            <View style={styles.statusBadgeOverlay}>
+              <StatusBadge status="online" />
+            </View>
+          )}
         </View>
 
         {/* Doctor info */}

@@ -42,6 +42,7 @@ export default function SearchScreen({ navigation, route }) {
   // row previously offered only clinic-tier grades, which is a facilities score
   // most people don't think in. Null means every city.
   const [cityFilter, setCityFilter] = useState(null);
+  const [showCityMenu, setShowCityMenu] = useState(false);
   const isGuest = useIsGuest();
   const [profile, setProfile] = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
@@ -269,11 +270,18 @@ export default function SearchScreen({ navigation, route }) {
         </View>
 
         <View style={styles.rightActions}>
-          <View style={[styles.statusBadge, { backgroundColor: item.onlineStatus === 'online' ? '#DCFCE7' : '#FEF3C7' }]}>
-            <Text style={[styles.statusText, { color: item.onlineStatus === 'online' ? '#16A34A' : '#D97706' }]}>
-              {item.onlineStatus === 'online' ? 'Online' : 'Busy'}
-            </Text>
-          </View>
+          {/* Shown only when the dentist is actually online. `onlineStatus` is
+              'offline' for 28 of 29 dentists, and the badge previously rendered
+              anything that wasn't 'online' as "Busy" — so nearly every card
+              claimed the dentist was busy when they had simply not opened the
+              app. It also contradicted the "Available today" line below it.
+              Offline is not a state worth a badge; it says nothing about
+              whether an appointment can be booked. */}
+          {item.onlineStatus === 'online' && (
+            <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7' }]}>
+              <Text style={[styles.statusText, { color: '#16A34A' }]}>Online</Text>
+            </View>
+          )}
           <TouchableOpacity
             style={styles.heartButton}
             onPress={() => toggleFavorite(item._id)}
@@ -412,37 +420,34 @@ export default function SearchScreen({ navigation, route }) {
 
       <View style={styles.bottomSheet}>
         <PromoCard style={isWide ? styles.centeredWide : undefined} />
-        {showFilters && cities.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={[styles.cityScroll, isWide && styles.centeredWide]}
-            contentContainerStyle={{ paddingHorizontal: 20, alignItems: 'center' }}
-          >
-            <Text style={styles.cityLabel}>City</Text>
-            <TouchableOpacity
-              style={[styles.cityChip, !cityFilter && styles.cityChipActive]}
-              onPress={() => setCityFilter(null)}
-            >
-              <Text style={[styles.cityChipTxt, !cityFilter && styles.cityChipTxtActive]}>All</Text>
-            </TouchableOpacity>
-            {cities.map((c) => {
-              const on = cityFilter === c;
-              return (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.cityChip, on && styles.cityChipActive]}
-                  onPress={() => setCityFilter(on ? null : c)}
-                >
-                  <Text style={[styles.cityChipTxt, on && styles.cityChipTxtActive]}>{c}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-
         {showFilters && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filterScroll, isWide && styles.centeredWide]} contentContainerStyle={{ paddingHorizontal: 20 }}>
+          {/* City sits with the other filters as a dropdown rather than its own
+              row of chips: one control that states its current value, and the
+              list grows with the number of cities instead of the row getting
+              longer. */}
+          {cities.length > 1 && (
+            <TouchableOpacity
+              style={[styles.filterChip, !!cityFilter && styles.filterChipActive]}
+              onPress={() => setShowCityMenu(v => !v)}
+            >
+              <Ionicons
+                name="location"
+                size={16}
+                color={cityFilter ? '#FFFFFF' : '#64748B'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterChipText, !!cityFilter && styles.filterChipTextActive]}>
+                {cityFilter || 'All cities'}
+              </Text>
+              <Ionicons
+                name={showCityMenu ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={cityFilter ? '#FFFFFF' : '#94A3B8'}
+                style={{ marginLeft: 5 }}
+              />
+            </TouchableOpacity>
+          )}
           {filters.map((f, i) => (
             <TouchableOpacity 
               key={f.id} 
@@ -461,6 +466,26 @@ export default function SearchScreen({ navigation, route }) {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        )}
+
+        {showCityMenu && cities.length > 1 && (
+          <View style={[styles.cityMenu, isWide && styles.centeredWide]}>
+            {[null, ...cities].map((c) => {
+              const on = cityFilter === c;
+              return (
+                <TouchableOpacity
+                  key={c || 'all'}
+                  style={[styles.cityMenuItem, on && styles.cityMenuItemOn]}
+                  onPress={() => { setCityFilter(c); setShowCityMenu(false); }}
+                >
+                  <Text style={[styles.cityMenuTxt, on && styles.cityMenuTxtOn]}>
+                    {c || 'All cities'}
+                  </Text>
+                  {on && <Ionicons name="checkmark" size={16} color="#0052FF" />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
 
         <View style={[styles.listHeader, isWide && styles.centeredWide]}>
@@ -701,15 +726,18 @@ const styles = StyleSheet.create({
     minHeight: 50,
     marginTop: 16,
   },
-  cityScroll: { maxHeight: 44, minHeight: 44, marginTop: 12 },
-  cityLabel: { fontSize: 12, fontWeight: '700', color: '#94A3B8', marginRight: 10 },
-  cityChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7EDF5', marginRight: 8,
+  cityMenu: {
+    marginHorizontal: 20, marginTop: 8, backgroundColor: '#FFFFFF',
+    borderRadius: 14, borderWidth: 1, borderColor: '#E7EDF5', overflow: 'hidden',
   },
-  cityChipActive: { backgroundColor: '#EFF4FF', borderColor: '#BFD7FF' },
-  cityChipTxt: { fontSize: 13, fontWeight: '650', color: '#475569' },
-  cityChipTxtActive: { color: '#0052FF', fontWeight: '750' },
+  cityMenuItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 13,
+    borderBottomWidth: 1, borderBottomColor: '#F5F7FA',
+  },
+  cityMenuItemOn: { backgroundColor: '#F8FAFF' },
+  cityMenuTxt: { fontSize: 14, fontWeight: '600', color: '#334155' },
+  cityMenuTxtOn: { color: '#0052FF', fontWeight: '750' },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',

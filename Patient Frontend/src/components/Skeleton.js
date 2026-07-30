@@ -91,10 +91,32 @@ export function SkeletonCard() {
 }
 
 // N stacked card skeletons.
-export function SkeletonList({ count = 4 }) {
+/**
+ * Placeholder cards while a list loads.
+ *
+ * Pass `columns` to match the grid the real content will use. Without it the
+ * skeleton always stacked in a single column, so on a wide screen the layout
+ * visibly jumped from one column to three the moment data arrived — the exact
+ * shift a skeleton exists to prevent.
+ */
+export function SkeletonList({ count = 4, columns = 1, maxWidth }) {
+  const grid = columns > 1;
   return (
-    <View style={{ padding: 16 }}>
-      {Array.from({ length: count }).map((_, i) => <SkeletonCard key={i} />)}
+    <View
+      style={[
+        { padding: 16 },
+        // No `gap` here: a gap plus an exact 100/columns width overflows the
+        // row and wraps a card early, which is how a 3-column grid rendered as
+        // 2. The cards carry their own horizontal margin instead.
+        grid && { flexDirection: 'row', flexWrap: 'wrap' },
+        maxWidth && { width: '100%', maxWidth, alignSelf: 'center' },
+      ]}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={grid ? { width: `${100 / columns}%` } : null}>
+          <SkeletonCard />
+        </View>
+      ))}
     </View>
   );
 }

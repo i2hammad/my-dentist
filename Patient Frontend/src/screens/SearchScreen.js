@@ -391,7 +391,7 @@ export default function SearchScreen({ navigation, route }) {
         </View>
 
         {loading ? (
-          <SkeletonList count={4} />
+          <SkeletonList count={columns * 2} columns={columns} maxWidth={isWide ? 1100 : undefined} />
         ) : (
           <FlatList
             key={`cols-${columns}`}

@@ -31,6 +31,41 @@ async function webReverseGeocode(lat, lng) {
 }
 
 /**
+ * Coordinates only, resolving to null instead of alerting.
+ *
+ * detectCoords() is built for a form field: it reverse-geocodes to an address
+ * and pops an alert when permission is denied. Sorting a list by distance needs
+ * neither — a blocking alert on a filter tap is the wrong response to someone
+ * declining, and the address is unused. Resolves null on denial, timeout, or
+ * an environment without geolocation, leaving the caller to degrade quietly.
+ */
+export function getCoords({ timeout = 10000 } = {}) {
+  return new Promise((resolve) => {
+    try {
+      if (Platform.OS !== 'web') {
+        const Location = require('expo-location');
+        (async () => {
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return resolve(null);
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          } catch { resolve(null); }
+        })();
+        return;
+      }
+      const geo = (typeof navigator !== 'undefined' && navigator.geolocation) ? navigator.geolocation : null;
+      if (!geo) return resolve(null);
+      geo.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: false, timeout, maximumAge: 300000 },
+      );
+    } catch { resolve(null); }
+  });
+}
+
+/**
  * Detect the user's precise location and return BOTH a readable address and the
  * raw coordinates.
  *

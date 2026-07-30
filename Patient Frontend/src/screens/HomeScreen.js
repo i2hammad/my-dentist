@@ -48,6 +48,7 @@ import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
 import { ctaLabel } from '../utils/promo';
+import { getCoords } from '../utils/geo';
 import { matchesTier } from '../utils/clinicTier';
 
 // ─── Filter tab config ──────────────────────────────────────────────
@@ -241,6 +242,10 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
 export default function HomeScreen({ navigation }) {
   const [profile, setProfile]         = useState(null);
   const [patientCoords, setPatientCoords] = useState(null);
+  // True once we've asked the browser/OS for a location, so we ask at most once
+  // per visit rather than on every tap of the Nearby chip.
+  const askedForLocation = useRef(false);
+  const [locating, setLocating] = useState(false);
   const [selectedCity, setSelectedCity]   = useState('Islamabad');
   // Set when the doctor fetch fails, so the UI can say "couldn't load" and offer
   // a retry instead of the misleading "No doctors found for this filter".
@@ -250,6 +255,7 @@ export default function HomeScreen({ navigation }) {
   const [doctors, setDoctors]         = useState([]);
   const [loading, setLoading]         = useState(true);
   const [filterTab, setFilterTab]     = useState('Nearby');
+  const isNearby = filterTab === 'Nearby';
   const [favorites, setFavorites]     = useState({});
   const isGuest = useIsGuest();
   // Favorites needs an account — hide that filter chip for guests.
@@ -339,13 +345,47 @@ export default function HomeScreen({ navigation }) {
     if (isFocused) fetchData();
   }, [isFocused]);
 
-  // Re-fetch doctors whenever the selected city changes (also runs on mount).
+  // Ask the device for a location when Nearby is active and we don't already
+  // have one from the signed-in profile.
+  //
+  // Without this, Nearby did nothing at all for signed-out visitors: coordinates
+  // only ever came from /api/users/me, so `patientCoords` stayed null, the sort
+  // was skipped, and the list rendered in API order while the chip and the
+  // "Top dentists near you" heading both claimed otherwise.
+  //
+  // Asked on demand rather than at page load — a permission prompt before the
+  // visitor has expressed any interest in location gets denied far more often,
+  // and a denial is remembered by the browser.
+  useEffect(() => {
+    if (!isNearby || patientCoords || askedForLocation.current) return;
+    askedForLocation.current = true;
+    let active = true;
+    (async () => {
+      setLocating(true);
+      const c = await getCoords();
+      if (!active) return;
+      setLocating(false);
+      // Null means denied, timed out, or unsupported. Leave patientCoords unset;
+      // the UI below drops the distance claim rather than faking it.
+      if (c) setPatientCoords(c);
+    })();
+    return () => { active = false; };
+  }, [isNearby, patientCoords]);
+
+  // Re-fetch doctors when the city changes, or when the Nearby filter is picked.
+  //
+  // Nearby deliberately ignores the city. "Nearest" scoped to one city is not
+  // nearest — a Rawalpindi clinic 3km away would lose to an Islamabad one 15km
+  // away simply because the selector said Islamabad. Every other filter stays
+  // city-scoped, which is what the selector is for.
   useEffect(() => {
     let active = true;
     const fetchByCity = async () => {
       setDoctorsError(null);
       try {
-        const cityParam = selectedCity ? `&city=${encodeURIComponent(selectedCity)}` : '';
+        const cityParam = (selectedCity && filterTab !== 'Nearby')
+          ? `&city=${encodeURIComponent(selectedCity)}`
+          : '';
         const res = await axios.get(
           `${API_BASE_URL}/api/doctors?limit=50${cityParam}`,
           { timeout: REQUEST_TIMEOUT },
@@ -364,7 +404,10 @@ export default function HomeScreen({ navigation }) {
     };
     fetchByCity();
     return () => { active = false; };
-  }, [selectedCity, doctorsReloadKey]);
+    // Keyed on whether Nearby is active rather than on filterTab itself: only
+    // that distinction changes the request. Switching between Elite/Modern/
+    // Standard filters the list we already hold and must not refetch.
+  }, [selectedCity, doctorsReloadKey, isNearby]);
 
 
   useFocusEffect(
@@ -718,8 +761,12 @@ export default function HomeScreen({ navigation }) {
 
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={[styles.locationRowBody, isWeb && isWide && styles.locationRowWide]} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location" size={16} color="#0052FF" />
-          <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
+          <Ionicons name="location" size={16} color={isNearby ? '#94A3B8' : '#0052FF'} />
+          {/* Nearby searches every city, so showing a single city here would
+              contradict the results below it. */}
+          <Text style={[styles.locationTextBody, isNearby && styles.locationTextMuted]}>
+            {isNearby ? 'All cities' : `${selectedCity}, Pakistan`}
+          </Text>
           <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
         </TouchableOpacity>
 
@@ -740,7 +787,14 @@ export default function HomeScreen({ navigation }) {
                   <TouchableOpacity
                     key={city}
                     style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: active ? '#0052FF' : '#E2E8F0' }}
-                    onPress={() => { setSelectedCity(city); setShowCityPicker(false); }}
+                    onPress={() => {
+                      setSelectedCity(city);
+                      setShowCityPicker(false);
+                      // Nearby ignores the city, so leaving it active would make
+                      // the choice look like it did nothing. Clear the filter
+                      // rather than swapping in a different one.
+                      if (isNearby) setFilterTab(null);
+                    }}
                   >
                     <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#FFF' : '#334155' }}>{city}</Text>
                   </TouchableOpacity>
@@ -783,8 +837,21 @@ export default function HomeScreen({ navigation }) {
         {/* ── SECTION HEADER ── */}
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>Nearby Doctors</Text>
-            <Text style={styles.sectionSubtitle}>Top dentists near you</Text>
+            {/* The heading states what the list actually is. Claiming "near you"
+                without coordinates was the visible half of the bug — for a
+                signed-out visitor nothing was ever sorted by distance. */}
+            <Text style={styles.sectionTitle}>
+              {isNearby && patientCoords ? 'Nearby Doctors' : 'Dentists'}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {locating
+                ? 'Finding dentists near you…'
+                : isNearby
+                  ? (patientCoords
+                    ? 'Sorted by distance from you'
+                    : 'All cities · turn on location to sort by distance')
+                  : `In ${selectedCity}`}
+            </Text>
           </View>
           <TouchableOpacity
             style={styles.seeMapBtn}
@@ -853,7 +920,7 @@ export default function HomeScreen({ navigation }) {
             ) : (
               <>
                 <Text style={styles.emptyTitle}>
-                  No {filterTab.toLowerCase()} clinics in {selectedCity}
+                  No {(filterTab || '').toLowerCase()} clinics in {selectedCity}
                 </Text>
                 <Text style={styles.emptyText}>
                   {doctors.length} other dentist{doctors.length === 1 ? '' : 's'} available here.

@@ -828,6 +828,8 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
 
         {/* LOCATION ROW — tap to toggle city picker */}
+        {/* Positioning context for the floating picker below. */}
+        <View style={styles.cityAnchor}>
         <TouchableOpacity style={[styles.locationRowBody, isWeb && isWide && styles.locationRowWide]} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
           <Ionicons name="location" size={16} color="#0052FF" />
           {/* Always the selected city. This row is the city control, so it shows
@@ -872,6 +874,7 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
         )}
+        </View>
 
         {/* ── FILTER TABS ── */}
         <ScrollView
@@ -1178,7 +1181,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginHorizontal: 2,
   },
-  locationRowWide: { maxWidth: 1100, alignSelf: 'center', width: '100%' },
+  // Nothing to override on wide screens — the shared 16px inset already aligns
+  // this with the headline, search bar and filter chips.
+  locationRowWide: {},
+  cityAnchor: { position: 'relative', zIndex: 50 },
   locationRowBody: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1200,12 +1206,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   cityPickerCard: {
+    // Floats over the content instead of pushing it down. In normal flow the
+    // whole doctor list jumped by the height of the panel each time the picker
+    // opened.
+    position: 'absolute',
+    top: '100%',
+    left: 16,
+    right: 16,
+    zIndex: 50,
+    elevation: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#DBEAFE',
     padding: 14,
-    marginHorizontal: 16,
     marginBottom: 10,
     shadowColor: '#000',
     shadowOpacity: 0.08,
@@ -1376,13 +1390,12 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   searchBarWide: {
-    // Match the doctor grid's column (1100) — a narrower cap left the field
-    // looking stranded above full-width content.
+    // Only shape here. The parent ScrollView already caps the column at 1100,
+    // so re-declaring maxWidth + width:'100%' made this 1100 wide *inside* a
+    // 1100 column and its own marginHorizontal:16 pushed it past the headline
+    // and chips, which sit on a plain 16px inset.
     borderRadius: 14,
     paddingVertical: 14,
-    maxWidth: 1100,
-    alignSelf: 'center',
-    width: '100%',
     marginTop: 4,
   },
   searchPlaceholder: {

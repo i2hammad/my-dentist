@@ -250,12 +250,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     height: 66,
-    paddingHorizontal: 32,
+    paddingHorizontal: 20,
     width: '100%',
-    // No maxWidth cap: the brand should hug the LEFT edge of the window and the
-    // actions the RIGHT edge, like a normal app bar — not float inset in a
-    // centered 1320px column.
-    alignSelf: 'stretch',
+    // Capped to the same column the page content uses (1100 + the 16px inset
+    // each side). Left edge-to-edge, the brand and the actions drifted far
+    // outside the content below them on a wide monitor, so the bar read as
+    // belonging to a different page.
+    maxWidth: 1132,
+    alignSelf: 'center',
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   logo: { width: 36, height: 36 },

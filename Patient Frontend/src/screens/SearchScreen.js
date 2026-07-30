@@ -420,6 +420,7 @@ export default function SearchScreen({ navigation, route }) {
 
       <View style={styles.bottomSheet}>
         <PromoCard style={isWide ? styles.centeredWide : undefined} />
+        <View style={styles.cityMenuAnchor}>
         {showFilters && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filterScroll, isWide && styles.centeredWide]} contentContainerStyle={{ paddingHorizontal: 20 }}>
           {/* City sits with the other filters as a dropdown rather than its own
@@ -487,6 +488,7 @@ export default function SearchScreen({ navigation, route }) {
             })}
           </View>
         )}
+        </View>
 
         <View style={[styles.listHeader, isWide && styles.centeredWide]}>
           <View>
@@ -727,9 +729,16 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   cityMenu: {
-    marginHorizontal: 20, marginTop: 8, backgroundColor: '#FFFFFF',
+    // Overlays the list rather than shifting it. In normal flow every card moved
+    // down by the height of the menu whenever it opened.
+    position: 'absolute',
+    top: '100%', left: 20, right: 20, zIndex: 50, elevation: 12,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14, borderWidth: 1, borderColor: '#E7EDF5', overflow: 'hidden',
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12, shadowRadius: 20,
   },
+  cityMenuAnchor: { position: 'relative', zIndex: 50 },
   cityMenuItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 13,

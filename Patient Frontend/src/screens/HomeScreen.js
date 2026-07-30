@@ -761,12 +761,13 @@ export default function HomeScreen({ navigation }) {
 
         {/* LOCATION ROW — tap to toggle city picker */}
         <TouchableOpacity style={[styles.locationRowBody, isWeb && isWide && styles.locationRowWide]} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location" size={16} color={isNearby ? '#94A3B8' : '#0052FF'} />
-          {/* Nearby searches every city, so showing a single city here would
-              contradict the results below it. */}
-          <Text style={[styles.locationTextBody, isNearby && styles.locationTextMuted]}>
-            {isNearby ? 'All cities' : `${selectedCity}, Pakistan`}
-          </Text>
+          <Ionicons name="location" size={16} color="#0052FF" />
+          {/* Always the selected city. This row is the city control, so it shows
+              its own value — an earlier version swapped in "All cities" while
+              Nearby was active, which made the control look like it reset itself
+              every time a filter was tapped. Nearby's wider scope is stated in
+              the section subtitle instead, where it belongs. */}
+          <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
           <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
         </TouchableOpacity>
 
@@ -843,12 +844,15 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.sectionTitle}>
               {isNearby && patientCoords ? 'Nearby Doctors' : 'Dentists'}
             </Text>
+            {/* Scope lives here, not on the city control. Nearby searches every
+                city either way; whether it can sort by distance depends on
+                having coordinates. */}
             <Text style={styles.sectionSubtitle}>
               {locating
                 ? 'Finding dentists near you…'
                 : isNearby
                   ? (patientCoords
-                    ? 'Sorted by distance from you'
+                    ? 'All cities · sorted by distance from you'
                     : 'All cities · turn on location to sort by distance')
                   : `In ${selectedCity}`}
             </Text>

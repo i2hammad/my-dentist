@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Image, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ensureAuth, useIsGuest } from '../utils/authGuard';
+import { getCoords } from '../utils/geo';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
@@ -24,7 +25,9 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
+// No " away" suffix — this now renders inside a pill beside the city, where the
+// icon already conveys distance. Matches HomeScreen's format.
+const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 
 export default function SearchScreen({ navigation, route }) {
   const { isWide, columns, isWeb } = useResponsive();
@@ -66,6 +69,23 @@ export default function SearchScreen({ navigation, route }) {
   useEffect(() => {
     if (activeFilter === 'Favorites') loadFavorites();
   }, [activeFilter]);
+
+  // Ask the device for a location when Nearby is active and the signed-in
+  // profile didn't supply one. Without this, patientCoords stayed null for
+  // signed-out visitors, so the Nearby sort was skipped and every card fell
+  // back to showing its city instead of a distance. HomeScreen already does
+  // this; Search was missed.
+  const askedForLocation = useRef(false);
+  useEffect(() => {
+    if (activeFilter !== 'Nearby' || patientCoords || askedForLocation.current) return;
+    askedForLocation.current = true;
+    let active = true;
+    (async () => {
+      const c = await getCoords();
+      if (active && c) setPatientCoords(c);
+    })();
+    return () => { active = false; };
+  }, [activeFilter, patientCoords]);
 
   const toggleFavorite = async (id) => {
     // Saving needs an account. Previously the heart filled in optimistically and
@@ -216,17 +236,25 @@ export default function SearchScreen({ navigation, route }) {
 
           <Text style={styles.clinic}>{item.clinicName}</Text>
           
+          {/* City, plus a distance pill when we can compute one — matching how
+              Home presents distance, rather than plain grey text. */}
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={12} color="#64748B" />
-            <Text style={styles.distanceText}>
-              {(() => {
-                if (!patientCoords) return item.city || 'Nearby';
-                const dc = item.coordinates ? String(item.coordinates).split(',').map(Number) : null;
-                if (!dc || dc.length < 2 || isNaN(dc[0])) return item.city || 'Nearby';
-                const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
-                return km !== null ? fmtKm(km) : (item.city || 'Nearby');
-              })()}
-            </Text>
+            <Text style={styles.distanceText}>{item.city || 'Pakistan'}</Text>
+            {(() => {
+              if (!patientCoords || !item.coordinates) return null;
+              const dc = String(item.coordinates).split(',').map(Number);
+              if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return null;
+              if (Math.abs(dc[0]) < 0.001 && Math.abs(dc[1]) < 0.001) return null; // skip 0,0
+              const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
+              if (km === null) return null;
+              return (
+                <View style={styles.distPill}>
+                  <Ionicons name="navigate" size={10} color="#2563EB" />
+                  <Text style={styles.distPillTxt}>{fmtKm(km)}</Text>
+                </View>
+              );
+            })()}
           </View>
         </View>
 
@@ -775,6 +803,12 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginLeft: 4,
   },
+  distPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#EFF6FF', borderRadius: 8,
+    paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6,
+  },
+  distPillTxt: { fontSize: 11, color: '#2563EB', fontWeight: '700' },
   rightActions: {
     alignItems: 'flex-end',
     justifyContent: 'space-between',

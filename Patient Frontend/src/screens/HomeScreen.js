@@ -26,6 +26,9 @@ const PK_CITIES = [
 
 const isWeb = Platform.OS === 'web';
 
+// Doctors per request. The API hard-caps `limit` at 100.
+const PAGE_SIZE = 30;
+
 const haversineKm = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
   const R = 6371;
@@ -35,6 +38,38 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 const fmtKm = (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+
+// One readable location line for a card.
+//
+// Addresses here run to 125 characters and are entered freehand, so a raw dump
+// truncated mid-word ("…main Saidpur Road, Ra…"). This drops the parts that add
+// nothing on a card — the clinic name, which is already on the line above, plus
+// trailing country and postcode — and keeps the street and area, which is what
+// tells someone whether a clinic is convenient.
+const shortAddress = (doc) => {
+  const clinic = String(doc.clinicName || '').trim();
+  const city = String(doc.clinicCity || doc.city || '').trim();
+  let a = String(doc.address || '').trim();
+  if (!a) return city || 'Pakistan';
+
+  a = a
+    .replace(/[,\s]*\bPakistan\b[.,\s]*$/i, '')
+    .replace(/[,\s]*\b\d{5}\b[.,\s]*$/, '')
+    .replace(/[,\s]+$/, '');
+
+  // The clinic name is the line directly above; repeating it wastes the row.
+  if (clinic) {
+    const esc = clinic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    a = a.replace(new RegExp(`^${esc}[,\\s]*`, 'i'), '').trim();
+  }
+  if (!a) return city || 'Pakistan';
+
+  // Append the city only when the address doesn't already name it.
+  if (city && !new RegExp(`\\b${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(a)) {
+    a = `${a}, ${city}`;
+  }
+  return a;
+};
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -191,8 +226,8 @@ function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patient
           {/* Location — distance already shows as a pill beside the specialty above */}
           <View style={styles.infoRow}>
             <Ionicons name="location-outline" size={13} color="#64748B" />
-            <Text style={styles.infoText} numberOfLines={1}>
-              {doc.clinicCity || doc.address || 'Islamabad'}
+            <Text style={styles.infoText} numberOfLines={2}>
+              {shortAddress(doc)}
             </Text>
           </View>
         </View>
@@ -251,6 +286,12 @@ export default function HomeScreen({ navigation }) {
   // a retry instead of the misleading "No doctors found for this filter".
   const [doctorsError, setDoctorsError]   = useState(null);
   const [doctorsReloadKey, setDoctorsReloadKey] = useState(0);
+  // Paging. The API caps `limit` at 100, so requesting everything stops working
+  // silently once the directory passes that — the list would just end, with no
+  // sign anything was missing. `total` comes back on every response.
+  const [doctorPage, setDoctorPage] = useState(1);
+  const [doctorTotal, setDoctorTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [doctors, setDoctors]         = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -382,17 +423,23 @@ export default function HomeScreen({ navigation }) {
     let active = true;
     const fetchByCity = async () => {
       setDoctorsError(null);
+      if (doctorPage > 1) setLoadingMore(true);
       try {
         const cityParam = (selectedCity && filterTab !== 'Nearby')
           ? `&city=${encodeURIComponent(selectedCity)}`
           : '';
         const res = await axios.get(
-          `${API_BASE_URL}/api/doctors?limit=50${cityParam}`,
+          `${API_BASE_URL}/api/doctors?limit=${PAGE_SIZE}&page=${doctorPage}${cityParam}`,
           { timeout: REQUEST_TIMEOUT },
         );
         if (!active) return; // city changed again while this was in flight
-        if (res.data?.success) setDoctors(res.data.data || []);
-        else setDoctorsError(res.data?.message || NETWORK_MSG);
+        if (res.data?.success) {
+          const batch = res.data.data || [];
+          // Append on Load more, replace when the query itself changed.
+          setDoctors((prev) => (doctorPage > 1 ? [...prev, ...batch] : batch));
+          setDoctorTotal(res.data.total ?? batch.length);
+        } else setDoctorsError(res.data?.message || NETWORK_MSG);
+        setLoadingMore(false);
       } catch (e) {
         if (!active) return;
         // Previously this swallowed every failure, leaving `doctors` empty — so
@@ -400,6 +447,7 @@ export default function HomeScreen({ navigation }) {
         // blames the filter for what is actually a connection problem.
         console.log('Doctors fetch error:', e?.message);
         setDoctorsError(e?.response?.data?.message || NETWORK_MSG);
+        setLoadingMore(false);
       }
     };
     fetchByCity();
@@ -407,7 +455,22 @@ export default function HomeScreen({ navigation }) {
     // Keyed on whether Nearby is active rather than on filterTab itself: only
     // that distinction changes the request. Switching between Elite/Modern/
     // Standard filters the list we already hold and must not refetch.
-  }, [selectedCity, doctorsReloadKey, isNearby]);
+  }, [selectedCity, doctorsReloadKey, isNearby, doctorPage]);
+
+  // Any change to the query itself restarts at page 1, so an appended page
+  // can't be carried over from a different city or filter.
+  useEffect(() => { setDoctorPage(1); }, [selectedCity, isNearby, doctorsReloadKey]);
+
+  // Infinite scroll: pull the next page when the user nears the bottom.
+  const hasMore = doctors.length < doctorTotal;
+  const onBodyScroll = useCallback((e) => {
+    if (!hasMore || loadingMore || loading) return;
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    // 600px of runway so the next page is usually there before it's needed.
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 600) {
+      setDoctorPage((p) => p + 1);
+    }
+  }, [hasMore, loadingMore, loading]);
 
 
   useFocusEffect(
@@ -601,6 +664,8 @@ export default function HomeScreen({ navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onScroll={onBodyScroll}
+        scrollEventThrottle={200}
       >
 
         {/* ── ADMIN CAMPAIGNS (horizontal scroll + auto-rotate) ── */}
@@ -953,6 +1018,25 @@ export default function HomeScreen({ navigation }) {
               </View>
             ))}
           </View>
+        )}
+
+        {/* Paging footer. Without this the list simply ended once the directory
+            passed the request limit, with nothing to say more existed. */}
+        {loadingMore && (
+          <View style={styles.moreRow}>
+            <ActivityIndicator size="small" color="#0052FF" />
+            <Text style={styles.moreTxt}>Loading more dentists…</Text>
+          </View>
+        )}
+        {!loadingMore && hasMore && !loading && (
+          <TouchableOpacity style={styles.moreBtn} onPress={() => setDoctorPage((p) => p + 1)}>
+            <Text style={styles.moreBtnTxt}>
+              Show more · {doctors.length} of {doctorTotal}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {!hasMore && doctorTotal > PAGE_SIZE && !loading && (
+          <Text style={styles.moreEnd}>All {doctorTotal} dentists shown</Text>
         )}
 
       </ScrollView>
@@ -1597,6 +1681,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  moreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 22 },
+  moreTxt: { fontSize: 13.5, color: '#64748B', fontWeight: '600' },
+  // A visible control as well as the scroll trigger: infinite scroll alone is
+  // unreachable by keyboard and unreliable on short viewports.
+  moreBtn: { alignSelf: 'center', marginTop: 8, marginBottom: 20, paddingHorizontal: 20, paddingVertical: 11,
+             borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7EDF5' },
+  moreBtnTxt: { fontSize: 13.5, fontWeight: '700', color: '#0052FF' },
+  moreEnd: { textAlign: 'center', color: '#94A3B8', fontSize: 12.5, paddingVertical: 20 },
   emptyCities: {
     flexDirection: 'row',
     flexWrap: 'wrap',

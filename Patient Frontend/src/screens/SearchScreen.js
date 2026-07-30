@@ -12,6 +12,7 @@ import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useNotifications } from '../context/NotificationContext';
 import useResponsive from '../hooks/useResponsive';
 import PromoCard from '../components/PromoCard';
+import { REQUEST_TIMEOUT } from '../config/net';
 
 // Haversine formula — returns distance in km between two lat/lng points
 const haversineKm = (lat1, lon1, lat2, lon2) => {
@@ -106,11 +107,31 @@ export default function SearchScreen({ navigation, route }) {
     }
   }, [route.params?.specialty]);
 
+  // Search filters the whole directory client-side (name, specialty, clinic,
+  // city), so it needs every doctor rather than a page. The API caps `limit` at
+  // 100, so a single request silently stopped at 100 once the directory grew
+  // past that — the missing doctors were simply unsearchable, with nothing to
+  // indicate it. Page through until the reported total is reached.
   const fetchDoctors = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_BASE_URL}/api/doctors`, { params: { limit: 100 } });
-      setDoctors(res.data.data || []);
+      const PER = 100;
+      let all = [];
+      let page = 1;
+      let total = Infinity;
+      // Bounded so a bad `total` can't spin forever.
+      while (all.length < total && page <= 50) {
+        const res = await axios.get(`${API_BASE_URL}/api/doctors`, {
+          params: { limit: PER, page },
+          timeout: REQUEST_TIMEOUT,
+        });
+        const batch = res.data?.data || [];
+        total = res.data?.total ?? batch.length;
+        all = all.concat(batch);
+        if (batch.length < PER) break; // last page
+        page += 1;
+      }
+      setDoctors(all);
     } catch (error) {
       console.error(error);
     } finally {

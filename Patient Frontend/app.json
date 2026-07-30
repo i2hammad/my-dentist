@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.mydentist.patientapp",
-      "versionCode": 5,
+      "versionCode": 6,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.BLUETOOTH",

@@ -173,7 +173,9 @@ export default function SplashScreen({ navigation }) {
             resizeMode="contain"
           />
         </View>
-        <Text style={styles.brandName}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={{ color: '#60A5FA' }}>Dentist</Text></Text>
+        {/* Same wordmark treatment as the nav and the static pages: ink "My",
+            brand-blue "Dentist". */}
+        <Text style={styles.brandName}><Text style={{ color: '#0A1551' }}>My</Text> <Text style={{ color: '#0052FF' }}>Dentist</Text></Text>
         <View style={styles.brandRule} />
         <Text style={styles.brandTagline}>Find &amp; book trusted dentists across Pakistan</Text>
       </View>

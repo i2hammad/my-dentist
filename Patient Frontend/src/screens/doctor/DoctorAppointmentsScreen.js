@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput, RefreshControl, Image, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform, TextInput, RefreshControl, Image, Modal, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -264,20 +264,46 @@ export default function DoctorAppointmentsScreen({ navigation }) {
       <DoctorHeader
         title="Appointments"
         right={
-          <TouchableOpacity style={[styles.liveToggle, { backgroundColor: online ? '#DCFCE7' : '#F1F5F9' }]} onPress={toggleOnline}>
-            <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
-            <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>{online ? 'Live' : 'Offline'}</Text>
-          </TouchableOpacity>
+          <View style={styles.liveToggle}>
+            {/* A labelled switch rather than a pill reading "Live"/"Offline".
+                Doctors could not tell that the pill was a control, nor what
+                being "Offline" meant for them — the wording now says what it
+                actually does. */}
+            <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>
+              {online ? 'Accepting now' : 'Not accepting'}
+            </Text>
+            <Switch
+              value={online}
+              onValueChange={toggleOnline}
+              trackColor={{ false: '#E2E8F0', true: '#86EFAC' }}
+              thumbColor={online ? '#16A34A' : '#F8FAFC'}
+              ios_backgroundColor="#E2E8F0"
+              accessibilityLabel="Accepting appointment requests now"
+            />
+          </View>
         }
       />
       {/* Web: slim title + Live toggle row (native shows these in DoctorHeader). */}
       {isWeb && (
         <View style={[styles.webHeaderRow, styles.webBlock]}>
           <Text style={styles.headerTitle}>Appointments</Text>
-          <TouchableOpacity style={[styles.liveToggle, { backgroundColor: online ? '#DCFCE7' : '#F1F5F9' }]} onPress={toggleOnline}>
-            <View style={[styles.liveDot, { backgroundColor: online ? '#16A34A' : '#94A3B8' }]} />
-            <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>{online ? 'Live' : 'Offline'}</Text>
-          </TouchableOpacity>
+          <View style={styles.liveToggle}>
+            {/* A labelled switch rather than a pill reading "Live"/"Offline".
+                Doctors could not tell that the pill was a control, nor what
+                being "Offline" meant for them — the wording now says what it
+                actually does. */}
+            <Text style={[styles.liveToggleText, { color: online ? '#15803D' : '#64748B' }]}>
+              {online ? 'Accepting now' : 'Not accepting'}
+            </Text>
+            <Switch
+              value={online}
+              onValueChange={toggleOnline}
+              trackColor={{ false: '#E2E8F0', true: '#86EFAC' }}
+              thumbColor={online ? '#16A34A' : '#F8FAFC'}
+              ios_backgroundColor="#E2E8F0"
+              accessibilityLabel="Accepting appointment requests now"
+            />
+          </View>
         </View>
       )}
 
@@ -536,7 +562,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  liveToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999 },
+  liveToggle: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   liveToggleText: { fontSize: 13, fontWeight: '700' },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },

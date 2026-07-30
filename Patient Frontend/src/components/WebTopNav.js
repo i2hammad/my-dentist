@@ -123,7 +123,11 @@ export default function WebTopNav({ navRef, navInfo }) {
         {/* LEFT: Brand */}
         <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
           <Image source={require('../../assets/logo-mark-sm.png')} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.brandText}><Text style={{ color: '#0052FF' }}>My</Text> <Text style={styles.brandAccent}>Dentist</Text></Text>
+          {/* "My" in ink, "Dentist" in brand blue — matching the static pages
+              and the pre-load hero, so the wordmark does not change colour when
+              React mounts. Was inverted: blue "My" and a pale #60A5FA
+              "Dentist". */}
+          <Text style={styles.brandText}>My <Text style={styles.brandAccent}>Dentist</Text></Text>
         </Pressable>
 
         {/* CENTER: primary nav links (wide screens only) */}
@@ -256,7 +260,7 @@ const styles = StyleSheet.create({
   brand: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   logo: { width: 36, height: 36 },
   brandText: { fontSize: 19, fontWeight: '900', color: '#0A1551', letterSpacing: -0.3 },
-  brandAccent: { color: '#60A5FA' },
+  brandAccent: { color: '#0052FF' },
 
   // Center nav — a soft segmented group.
   links: { flexDirection: 'row', alignItems: 'center', gap: 2, flexGrow: 1, justifyContent: 'center', marginHorizontal: 16 },

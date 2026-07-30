@@ -245,9 +245,13 @@ export default function DoctorHomeScreen({ route, navigation }) {
                 <Ionicons name="person" size={40} color="#94A3B8" />
               </View>
             )}
+            {/* Wording matches the switch on Appointments. "Offline" told the
+                doctor nothing about what it meant for them. */}
             <View style={styles.onlineBadgeTop}>
               <View style={[styles.onlineDot, { backgroundColor: profile?.onlineStatus === 'online' ? '#16A34A' : '#94A3B8' }]} />
-              <Text style={styles.onlineText}>{profile?.onlineStatus === 'online' ? 'Online' : 'Offline'}</Text>
+              <Text style={styles.onlineText}>
+                {profile?.onlineStatus === 'online' ? 'Accepting now' : 'Not accepting'}
+              </Text>
             </View>
           </View>
 

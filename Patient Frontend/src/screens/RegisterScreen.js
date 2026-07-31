@@ -9,6 +9,7 @@ import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
 import { webForm } from '../config/webLayout';
 import { REQUEST_TIMEOUT, NETWORK_MSG } from '../config/net';
+import { trackSignup } from '../utils/analytics';
 
 export default function RegisterScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -77,6 +78,9 @@ export default function RegisterScreen({ route, navigation }) {
       // to fire before the body was inspected, so a 200 with an unexpected shape
       // told the user "Registration Successful!" and then dropped them on Login.
       if (!res.data?.success) throw new Error(res.data?.message || NETWORK_MSG);
+      // After the API confirms, never on submit — a failed signup is not a
+      // registration.
+      trackSignup(role);
       alert('Registration Successful!');
 
       if (res.data.data?.accessToken) {

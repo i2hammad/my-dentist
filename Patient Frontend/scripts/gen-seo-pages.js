@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const content = require('./content-pages');
+const { pixelHead, pixelNoscript, pixelViewContent } = require('./meta-pixel');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const SITE = 'https://mydentistpk.com';
@@ -50,7 +51,7 @@ const slug = (s) => String(s || '').toLowerCase().trim()
 const imgUrl = (u) => !u ? `${SITE}/og-image.png` : (u.startsWith('http') ? u : `${API}${u}`);
 
 // Shared <head> for every generated page.
-function head({ title, description, canonical, jsonld }) {
+function head({ title, description, canonical, jsonld, pixel }) {
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
@@ -68,6 +69,7 @@ function head({ title, description, canonical, jsonld }) {
 <meta property="og:image" content="${SITE}/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 ${jsonld.map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join('\n')}
+${pixelHead()}${pixel ? pixelViewContent(pixel) : ''}
 <style>
 /* Values mirror the app's own styles so a visitor arriving from search
    recognises the brand: #0052FF primary + #0A1551 ink from WebTopNav, the
@@ -231,7 +233,8 @@ footer a{color:var(--blue);text-decoration:none;font-weight:600}
     <a href="${SITE}/about">About</a>
   </nav>
   <span class="navcta"><a class="btn-ghost" rel="nofollow" href="${APP}">Log in</a><a class="btn-solid" rel="nofollow" href="${APP}">Sign up</a></span>
-</div></header>`;
+</div></header>
+${pixelNoscript()}`;
 }
 // "Open the app" / CTA links point at SPA routes that render the generic app
 // shell (same title + canonical as the homepage). Marking them nofollow keeps
@@ -417,7 +420,9 @@ function doctorPage(d) {
 </div>
 </div>`;
 
-  return { path: `dentist/${s}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
+  // ViewContent for a dentist profile — a real page load the SPA never sees.
+  const pixel = { name, category: spec, id: String(d._id || d.id) };
+  return { path: `dentist/${s}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld, pixel }) + body + foot };
 }
 
 // Specialty labels. The API stores "General", which naively pluralised to

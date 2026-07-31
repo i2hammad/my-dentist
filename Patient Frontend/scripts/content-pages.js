@@ -260,7 +260,10 @@ ${t.specialties.map((s) => `<p class="sub linkrow"><a href="${SITE}/specialists/
 ` : ''}
 </div>`;
 
-  return { path: `treatments/${t.slug}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
+  // ViewContent for a treatment guide — these pages target cost/procedure
+  // queries, so a view is a genuine signal of intent.
+  const pixel = { name: t.name, category: 'Treatment', id: t.slug };
+  return { path: `treatments/${t.slug}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld, pixel }) + body + foot };
 }
 
 function treatmentsIndex(docs, { SITE, esc, head, foot }) {

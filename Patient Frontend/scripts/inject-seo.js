@@ -14,6 +14,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { pixelHead, pixelNoscript } = require('./meta-pixel');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const INDEX = path.join(DIST, 'index.html');
@@ -121,7 +122,7 @@ const SEO_HEAD = `
       "areaServed": "Pakistan",
       "description": "Online platform to find and book verified PMDC dentists across Pakistan."
     }
-    </script>${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}${ioniconsHref ? `\n    <link rel="preload" as="font" type="font/ttf" href="${ioniconsHref}" crossorigin />` : ''}
+    </script>${pixelHead()}${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}${ioniconsHref ? `\n    <link rel="preload" as="font" type="font/ttf" href="${ioniconsHref}" crossorigin />` : ''}
 `;
 
 // Remove Expo's default favicon link so it doesn't conflict with (or override)
@@ -232,7 +233,7 @@ const HERO_FADE = `<script>(function(){
   // Safety net: never let the hero linger.
   setTimeout(done,8000);
 })();</script>`;
-html = html.replace('<div id="root"></div>', `<div id="root"></div>${HERO}${HERO_FADE}`);
+html = html.replace('<div id="root"></div>', `<div id="root"></div>${pixelNoscript()}${HERO}${HERO_FADE}`);
 
 fs.writeFileSync(INDEX, html, 'utf8');
 console.log('[inject-seo] SEO head + instant hero injected into dist/index.html' + (bundleHref ? ` (preload ${bundleHref})` : ''));

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRequireLogin } from "../utils/authGuard";
+import { trackBookingStarted, trackBookingCompleted } from '../utils/analytics';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, KeyboardAvoidingView, Platform, Alert, Modal
@@ -179,6 +180,13 @@ export default function BookingScreen({ route, navigation }) {
   const twoCol = isWeb && width >= 900;
   const doctor = route.params?.doctor || {};
 
+  // Booking intent: the form opened for this dentist. Distinct from the
+  // completed booking below — the gap between the two is the drop-off rate.
+  useEffect(() => {
+    if (doctor?._id) trackBookingStarted(doctor);
+  }, [doctor?._id]);
+
+
   const [selectedDate, setSelectedDate]             = useState(null);
   const [selectedTime, setSelectedTime]             = useState(null);
   const [selectedTreatments, setSelectedTreatments] = useState([]);
@@ -315,6 +323,14 @@ export default function BookingScreen({ route, navigation }) {
         duration: 30,
       }, {
         headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // The conversion worth optimising ads against — fired only after the API
+      // confirms the appointment exists, never on submit.
+      trackBookingCompleted({
+        doctor,
+        treatment: selectedTreatments.join(', '),
+        date: selectedDate,
       });
 
       // Branded success modal (works on web + native).

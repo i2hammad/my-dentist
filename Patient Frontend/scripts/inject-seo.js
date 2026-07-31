@@ -295,13 +295,29 @@ console.log('[inject-seo] wrote llms.txt');
 
 // ── 4. .htaccess: SPA fallback + compression + caching ──────────────────────
 fs.writeFileSync(path.join(DIST, '.htaccess'), `# SPA fallback — serve index.html for any non-file/non-directory request
-Options -MultiViews
+# -Indexes matters more than usual here: with DirectorySlash off, a directory
+# request that falls through would otherwise render a browsable file listing.
+Options -MultiViews -Indexes
+
+# mod_dir 301s /treatments → /treatments/ whenever a directory of that name
+# exists. /treatments is both a real directory (the six treatment pages) and a
+# page of its own, so the canonical clean URL answered with a redirect and
+# Search Console reported it as "Page with redirect". Off, so the .html rule
+# below can serve treatments.html at /treatments directly.
+DirectorySlash Off
+
 RewriteEngine On
 RewriteBase /
 
-# Real files / directories are served as-is.
-RewriteCond %{REQUEST_FILENAME} -f [OR]
+# Real files are served as-is. Directories are NOT matched here: with
+# DirectorySlash off, letting a directory through would list it or 404 rather
+# than serve the matching .html handled below.
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# A directory with no same-named .html (e.g. /assets) is still served as-is.
 RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_FILENAME}.html !-f
 RewriteRule ^ - [L]
 
 # Pre-rendered SEO pages: an extensionless URL like /dentist/dr-x maps to the

@@ -329,7 +329,12 @@ ${TREATMENTS.map((t) => {
 <a class="cta" rel="nofollow" href="${SITE}">Find a dentist →</a>
 </div>`;
 
-  return { path: 'treatments/index.html', url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
+  // Flat `treatments.html`, not `treatments/index.html`. As a directory, Apache's
+  // DirectorySlash 301s /treatments → /treatments/ before the .html rewrite runs,
+  // so the canonical, sitemap and internal links all pointed at a redirect —
+  // exactly the "Page with redirect" state Search Console flags. Every other page
+  // here is flat and resolves directly; this one was the odd one out.
+  return { path: 'treatments.html', url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
 }
 
 function aboutPage(docs, { SITE, esc, head, foot }) {

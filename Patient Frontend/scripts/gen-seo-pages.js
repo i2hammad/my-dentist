@@ -77,10 +77,10 @@ ${pixelHead()}${pixel ? pixelViewContent(pixel) : ''}
 :root{--blue:#0052FF;--ink:#0A1551;--muted:#64748B;--line:#E2E8F0;--bg:#F8FAFC}
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;color:#0F172A;background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1080px;margin:0 auto;padding:24px 20px 64px}
+.wrap{max-width:1720px;margin:0 auto;padding:24px 24px 64px}
 /* Top bar — same white bar, logo mark and wordmark as the app's web nav. */
 header.nav{background:#fff;border-bottom:1px solid #F1F5F9;position:sticky;top:0;z-index:10}
-header.nav .navin{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px}
+header.nav .navin{max-width:1720px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:10px}
 header.nav .brand{display:flex;align-items:center;gap:10px;text-decoration:none}
 header.nav .brand img{width:36px;height:36px;border-radius:8px;display:block}
 header.nav .brandtxt{font-size:19px;font-weight:900;color:var(--ink);letter-spacing:-.3px}
@@ -92,7 +92,7 @@ header.nav .navcta a{font-size:14px;font-weight:700;text-decoration:none;padding
 a.cta{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#fff;text-decoration:none;font-weight:700;padding:13px 24px;border-radius:14px;margin-top:18px;box-shadow:0 4px 14px rgba(0,82,255,.25)}
 h1{font-size:30px;line-height:1.25;color:var(--ink);margin:14px 0 6px;font-weight:800;letter-spacing:-.4px}
 h2{font-size:19px;color:var(--ink);margin:30px 0 10px;font-weight:800}
-.sub{color:var(--muted);font-size:15px;margin:0}
+.sub{color:var(--muted);font-size:15px;margin:0;max-width:90ch}
 .card{background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:20px;margin:0;box-shadow:0 1px 2px rgba(2,6,23,.04)}
 .card h2{margin:0 0 14px;font-size:16px}
 .meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
@@ -111,7 +111,18 @@ h2{font-size:19px;color:var(--ink);margin:30px 0 10px;font-weight:800}
 .specsec{scroll-margin-top:80px}
 .sech{display:flex;align-items:center;gap:9px;font-size:17px;margin:26px 0 0}
 .sccount{font-size:12px;font-weight:750;color:#475569;background:#F1F5F9;padding:2px 9px;border-radius:999px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-top:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px}
+/* auto-fit collapses unused tracks, which stops a lone card sitting beside dead
+   space — but it would then stretch that card the full width. Cap the track so a
+   one- or two-card row keeps card proportions instead of becoming a banner. */
+/* auto-fit collapses unused tracks so a lone card isn't marooned beside dead
+   space — but on its own it then stretches that card the full row (a 1-card
+   group measured 1552px wide: a banner, not a card). min() keeps tracks fluid
+   while capping them, so groups of 1, 2 and 13 all keep the same card shape and
+   wide screens still gain a 4th column. */
+.grid{grid-template-columns:repeat(auto-fit,minmax(300px,min(400px,100%)));justify-content:start;max-width:1660px}
+/* Invisible anchor: merged specialties keep their own jump-bar target. */
+.anch{display:block;height:0;scroll-margin-top:80px}
 /* Doctor card. A 3-row grid keeps every card the same shape regardless of how
    long the clinic name or address is: identity row, location row, fee row. */
 .doc{display:grid;grid-template-columns:72px 1fr;grid-template-areas:"ph bd" "loc loc" "fee fee";gap:0 14px;
@@ -204,7 +215,7 @@ header.nav .navlinks a:hover{background:#F1F5F9;color:var(--ink)}
 /* Footer: four link columns over a baseline. Present on every generated page,
    so a crawler landing anywhere can reach the rest of the site. */
 footer{background:#fff;border-top:1px solid #EEF2F7;margin-top:56px}
-footer .fin{max-width:1080px;margin:0 auto;padding:36px 20px 24px;color:var(--muted);font-size:13px}
+footer .fin{max-width:1720px;margin:0 auto;padding:36px 24px 24px;color:var(--muted);font-size:13px}
 .fcols{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:28px}
 .fcol{display:flex;flex-direction:column;gap:9px;min-width:0}
 .fcol h3{margin:0 0 3px;font-size:13px;font-weight:750;color:var(--ink);letter-spacing:.02em}
@@ -586,13 +597,31 @@ function cityPage(city, docs) {
 <div class="stats">${stats}</div>
 ${specs.length > 1 ? `<nav class="jump" aria-label="Jump to a specialty"><span class="jumplbl">Jump to</span>${specs.map((s) => `<a href="#${slug(s)}">${esc(specPlural(s))}</a>`).join('')}</nav>` : ''}
 ${specs.length > 1
-  ? specs.map((s) => {
-      const group = docs.filter((d) => (d.specialization || '').trim() === s);
-      return `<section class="specsec" id="${slug(s)}">
-<h2 class="sech">${esc(specPlural(s))} in ${esc(city)}<span class="sccount">${group.length}</span></h2>
-<div class="grid">${group.map((d) => doctorCard(d, esc(fullAddress(d.address, city)), { showFee })).join('')}</div>
+  ? (() => {
+      // Rawalpindi runs 1, 1, 13, 1, 2, 1 by specialty. Giving a lone dentist the
+      // same section header as a group of thirteen fragments the page into mostly
+      // empty bands, so only groups big enough to fill a row get their own
+      // section; the rest collect under one heading. The jump bar still links to
+      // every specialty, so nothing becomes unreachable.
+      const groups = specs.map((sp) => ({ sp, list: docs.filter((d) => (d.specialization || '').trim() === sp) }));
+      const big = groups.filter((g) => g.list.length >= 3);
+      const small = groups.filter((g) => g.list.length < 3);
+      const section = (id, heading, list) => `<section class="specsec" id="${id}">
+<h2 class="sech">${heading}<span class="sccount">${list.length}</span></h2>
+<div class="grid">${list.map((d) => doctorCard(d, esc(fullAddress(d.address, city)), { showFee })).join('')}</div>
 </section>`;
-    }).join('')
+      const smallList = small.flatMap((g) => g.list);
+      return [
+        ...big.map((g) => section(slug(g.sp), `${esc(specPlural(g.sp))} in ${esc(city)}`, g.list)),
+        // Anchors for the merged specialties so the jump bar keeps working.
+        smallList.length
+          ? `<section class="specsec" id="${slug(small[0].sp)}">${small.slice(1).map((g) => `<span class="anch" id="${slug(g.sp)}"></span>`).join('')}
+<h2 class="sech">Other specialists in ${esc(city)}<span class="sccount">${smallList.length}</span></h2>
+<div class="grid">${smallList.map((d) => doctorCard(d, esc(fullAddress(d.address, city)), { showFee })).join('')}</div>
+</section>`
+          : '',
+      ].join('');
+    })()
   : `<div class="grid">${cards}</div>`}
 ${specLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a>

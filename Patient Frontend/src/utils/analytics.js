@@ -84,6 +84,53 @@ export const trackSignup = (role) => {
   });
 };
 
+/**
+ * A message thread opened with a dentist. Custom rather than standard: Meta has
+ * a `Contact` event, but that is closer to "contacted the business" — this is
+ * in-app chat, which is a distinct funnel step worth separating from booking.
+ */
+export const trackContactDoctor = (doc) => {
+  trackCustom('ContactDentist', {
+    content_name: String(doc?.fullName || 'Dentist').trim(),
+    content_ids: [String(doc?._id || doc?.id || '')],
+    content_category: doc?.specialization || 'Dentist',
+  });
+};
+
+/**
+ * A review submitted. Only three of the listed dentists have any reviews, so
+ * this is the signal to watch when judging whether review prompts are working.
+ */
+export const trackReviewSubmitted = ({ doctor, rating }) => {
+  trackCustom('SubmitReview', {
+    content_name: String(doctor?.fullName || 'Dentist').trim(),
+    content_ids: [String(doctor?._id || doctor?.id || '')],
+    value: Number(rating) || 0,
+  });
+};
+
+/** Signed in. Separate from CompleteRegistration — a return visit, not a new one. */
+export const trackLogin = (role) => {
+  trackCustom('Login', { role: role || 'patient' });
+};
+
+/**
+ * A treatment or specialty page opened inside the app — the same intent the
+ * pre-rendered pages report, but for in-app navigation the pixel cannot see.
+ */
+export const trackViewCategory = ({ name, type }) => {
+  track('ViewContent', {
+    content_name: String(name || '').trim(),
+    content_category: type || 'Category',
+    content_type: 'product_group',
+  });
+};
+
+/** A patient completed their profile — the point they can actually book. */
+export const trackProfileCompleted = () => {
+  trackCustom('CompleteProfile', { status: true });
+};
+
 /** A search run in the app. */
 export const trackSearch = (query) => {
   const q = String(query || '').trim();

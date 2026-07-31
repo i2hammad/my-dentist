@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ensureAuth, useIsGuest } from '../utils/authGuard';
 import { getCoords } from '../utils/geo';
+import { trackSearch } from '../utils/analytics';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import imgUrl from '../config/imgUrl';
@@ -133,6 +134,15 @@ export default function SearchScreen({ navigation, route }) {
       }
     } catch (e) { /* ignore */ }
   };
+
+  // Report the query once the user stops typing, not on every keystroke — a
+  // 12-character search would otherwise fire 12 Search events.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 3) return;
+    const t = setTimeout(() => trackSearch(q), 900);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (route.params?.specialty) {

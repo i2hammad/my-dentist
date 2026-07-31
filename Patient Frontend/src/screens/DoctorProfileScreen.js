@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ensureAuth } from "../utils/authGuard";
+import { trackViewDoctor, trackContactDoctor, trackReviewSubmitted, trackSaveDoctor } from '../utils/analytics';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
   Dimensions, Platform, ActivityIndicator, Alert, Share, Modal, TextInput, Linking, Pressable, StatusBar, Clipboard
@@ -219,6 +220,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
     if (!docId) return;
     const newVal = !isFavorite;
     setIsFavorite(newVal);
+    if (newVal) trackSaveDoctor(doctor);
     try {
       const token = await storage.getItem('userToken');
       if (!token) return;
@@ -278,7 +280,12 @@ export default function DoctorProfileScreen({ route, navigation }) {
       // Fetch doctor details
       try {
         const docRes = await axios.get(`${API_BASE_URL}/api/doctors/${docId}`);
-        if (docRes.data?.success) setDoctor(docRes.data.data);
+        if (docRes.data?.success) {
+          setDoctor(docRes.data.data);
+          // In-app profile view — the pixel cannot see SPA navigation, so the
+          // pre-rendered page's ViewContent doesn't cover this path.
+          trackViewDoctor(docRes.data.data);
+        }
       } catch (e) {
         console.log('Error fetching doctor details:', e?.message);
       }
@@ -490,6 +497,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data?.success) {
+        trackReviewSubmitted({ doctor, rating: reviewRating });
         Alert.alert('Success', 'Thank you for your feedback! You earned +50 points!');
         setShowReviewModal(false);
         setReviewComment('');
@@ -731,7 +739,8 @@ export default function DoctorProfileScreen({ route, navigation }) {
             if (!(await ensureAuth(navigation))) return; // guests → login
             const docUserId = doctor.userId?._id || doctor.userId?.id || doctor.userId;
             if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
-            navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
+            trackContactDoctor(doctor);
+                navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
           }}>
             <Ionicons name="chatbubble-outline" size={18} color="#0052FF" /><Text style={styles.actionBtnText}>Chat</Text>
           </TouchableOpacity>
@@ -912,6 +921,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
                 if (!(await ensureAuth(navigation))) return; // guests → login
                 const docUserId = doctor.userId?._id || doctor.userId?.id || doctor.userId;
                 if (!docUserId) { Alert.alert('Error', 'Unable to start chat.'); return; }
+                trackContactDoctor(doctor);
                 navigation.navigate('Chat', { userId: docUserId, userName: drName(doctor.fullName) });
               }}
             >

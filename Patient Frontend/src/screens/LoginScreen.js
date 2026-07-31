@@ -9,6 +9,7 @@ import useResponsive from '../hooks/useResponsive';
 import WebAuthLayout from '../components/WebAuthLayout';
 import { webForm } from '../config/webLayout';
 import { REQUEST_TIMEOUT, NETWORK_MSG } from '../config/net';
+import { trackLogin } from '../utils/analytics';
 
 export default function LoginScreen({ route, navigation }) {
   const { isWide } = useResponsive();
@@ -65,6 +66,7 @@ export default function LoginScreen({ route, navigation }) {
       await storage.setItem('userToken', token);
       // Role is whatever the account actually is — no role selection on login.
       const userRole = res.data?.data?.user?.role || 'patient';
+      trackLogin(userRole);
 
       // Fetch profile to check if it's new
       const profileRes = await axios.get(`${API_BASE_URL}/api/users/me`, {

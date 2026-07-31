@@ -36,18 +36,28 @@ src="https://www.facebook.com/tr?id=${PIXEL_ID}&ev=PageView&noscript=1"/></noscr
  * A ViewContent event for a pre-rendered page. These are real page loads, so
  * they are tracked here rather than in the app.
  *
- * `content_type: 'product'` is what Meta's catalogue matching expects; a dentist
- * or a treatment is the thing being considered, so it maps cleanly.
+ * A dentist or a treatment is a single item Meta can match to a catalogue entry,
+ * so it defaults to `content_type: 'product'`. City and specialty pages are
+ * browse pages listing many dentists — they pass `type: 'product_group'`, which
+ * matches what trackViewCategory reports for the same intent inside the app.
  */
-const pixelViewContent = ({ name, category, id }) => {
-  const esc = (v) => String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const pixelViewContent = ({ name, category, id, type }) => {
+  // Names come from the database, so they are untrusted input being written into
+  // an inline <script>. Backslash and quote keep the JS string valid; escaping
+  // `<` stops a literal "</script>" in a name from closing the tag early, which
+  // would break the pixel on that page and spill markup into the document.
+  const esc = (v) =>
+    String(v == null ? '' : v)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/</g, '\\x3C');
   return `
     <script>
     window.fbq && fbq('track', 'ViewContent', {
       content_name: '${esc(name)}',
       content_category: '${esc(category)}',
       content_ids: ['${esc(id)}'],
-      content_type: 'product'
+      content_type: '${esc(type || 'product')}'
     });
     </script>`;
 };

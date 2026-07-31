@@ -12,6 +12,7 @@ import { detectCoords } from '../utils/geo';
 import { sanitizePhone } from '../utils/phone';
 import { webForm, fieldGridFor, halfFor, fullFor } from '../config/webLayout';
 import CityPicker from '../components/CityPicker';
+import { trackProfileCompleted } from '../utils/analytics';
 
 const GENDER_PLACEHOLDER = 'Select your gender';
 
@@ -210,6 +211,8 @@ export default function PatientSetupScreen({ navigation }) {
 
       if (res.data?.success) {
         setProfileExists(true);
+        // The point a patient can actually book — a meaningful step past signup.
+        trackProfileCompleted();
 
         if (isLocalImage) {
           try {

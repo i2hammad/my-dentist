@@ -597,7 +597,8 @@ ${specs.length > 1
 ${specLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a>
 </div>`;
-  return { path: `dentists/${slug(city)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
+  const pixel = { name: city, category: 'City', id: slug(city), type: 'product_group' };
+  return { path: `dentists/${slug(city)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld, pixel }) + body + foot };
 }
 
 function specPage(spec, docs) {
@@ -665,7 +666,8 @@ function specPage(spec, docs) {
 <div class="grid">${cards}</div>
 ${cityLinks}
 <a class="cta" rel="nofollow" href="${APP}">Open My Dentist to book →</a></div>`;
-  return { path: `specialists/${slug(spec)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld }) + body + foot };
+  const pixel = { name: spec, category: 'Specialty', id: slug(spec), type: 'product_group' };
+  return { path: `specialists/${slug(spec)}.html`, url: canonical, html: head({ title, description: desc, canonical, jsonld, pixel }) + body + foot };
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────

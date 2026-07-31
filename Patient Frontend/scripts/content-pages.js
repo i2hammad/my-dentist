@@ -20,6 +20,20 @@ const SUPPORT_PHONE = '+92 336 5257815';
 const SUPPORT_WHATSAPP = '923365257815'; // wa.me format (intl, no +)
 const LEGAL_UPDATED = 'June 16, 2026';
 
+// Official profiles on other sites, for schema.org `sameAs`. This is how search
+// engines tie those accounts to this organisation as one entity, so only list
+// profiles we actually control — a wrong URL here asserts a link that isn't ours.
+// Defined once and shared by every Organization node (homepage, About, Contact)
+// so the three can't drift apart.
+// The Maps entry is the resolved canonical form of the maps.app.goo.gl shortlink.
+// Shortlinks are a redirect Google could retire, and the long /maps/place/ URL it
+// expands to carries session and map-viewport params that change per visit; the
+// ?cid= form is the stable identifier for the business itself.
+const SAME_AS = [
+  'https://www.instagram.com/mydentist840',
+  'https://www.google.com/maps?cid=11766849356386640534',
+];
+
 // Treatments to generate a page for. `specialties` maps the page to the
 // specialisations in the directory, so each one can link to dentists who
 // actually offer it — a page that lists nobody is worse than no page.
@@ -331,6 +345,7 @@ function aboutPage(docs, { SITE, esc, head, foot }) {
       email: SUPPORT_EMAIL,
       telephone: SUPPORT_PHONE,
       areaServed: 'Pakistan',
+      sameAs: SAME_AS,
     },
   }];
 
@@ -415,6 +430,7 @@ function contactPage({ SITE, esc, head, foot }) {
         areaServed: 'PK',
         availableLanguage: ['English', 'Urdu'],
       }],
+      sameAs: SAME_AS,
     },
   }];
 
@@ -550,4 +566,4 @@ const CONTENT_CSS = `
 .about strong{color:var(--ink)}
 `;
 
-module.exports = { TREATMENTS, treatmentPage, treatmentsIndex, aboutPage, contactPage, legalPage, CONTENT_CSS };
+module.exports = { TREATMENTS, treatmentPage, treatmentsIndex, aboutPage, contactPage, legalPage, CONTENT_CSS, SAME_AS };

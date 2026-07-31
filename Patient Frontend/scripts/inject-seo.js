@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pixelHead, pixelNoscript } = require('./meta-pixel');
+const { SAME_AS } = require('./content-pages');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const INDEX = path.join(DIST, 'index.html');
@@ -120,7 +121,8 @@ const SEO_HEAD = `
       },
       "image": "${SITE_URL}/og-image.png",
       "areaServed": "Pakistan",
-      "description": "Online platform to find and book verified PMDC dentists across Pakistan."
+      "description": "Online platform to find and book verified PMDC dentists across Pakistan.",
+      "sameAs": ${JSON.stringify(SAME_AS)}
     }
     </script>${pixelHead()}${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}${ioniconsHref ? `\n    <link rel="preload" as="font" type="font/ttf" href="${ioniconsHref}" crossorigin />` : ''}
 `;

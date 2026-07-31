@@ -32,7 +32,11 @@ const LEGAL_UPDATED = 'June 16, 2026';
 // TikTok is the param-free profile URL: the shared link carries `_r`/`_t` share
 // tracking that is per-share and not part of the profile's identity. TikTok's own
 // oEmbed reports this form as the canonical author_url.
+// Facebook is the /people/ form the profile declares as its own canonical, not
+// the profile.php?id= link that was shared — same account, but the canonical is
+// what Facebook itself points at.
 const SAME_AS = [
+  'https://www.facebook.com/people/My-Dentist/61592273030385/',
   'https://www.instagram.com/mydentist840',
   'https://www.tiktok.com/@mydentist840',
   'https://www.google.com/maps?cid=11766849356386640534',

@@ -29,8 +29,12 @@ const LEGAL_UPDATED = 'June 16, 2026';
 // Shortlinks are a redirect Google could retire, and the long /maps/place/ URL it
 // expands to carries session and map-viewport params that change per visit; the
 // ?cid= form is the stable identifier for the business itself.
+// TikTok is the param-free profile URL: the shared link carries `_r`/`_t` share
+// tracking that is per-share and not part of the profile's identity. TikTok's own
+// oEmbed reports this form as the canonical author_url.
 const SAME_AS = [
   'https://www.instagram.com/mydentist840',
+  'https://www.tiktok.com/@mydentist840',
   'https://www.google.com/maps?cid=11766849356386640534',
 ];
 

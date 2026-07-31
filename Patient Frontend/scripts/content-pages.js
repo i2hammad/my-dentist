@@ -35,9 +35,12 @@ const LEGAL_UPDATED = 'June 16, 2026';
 // Facebook is the /people/ form the profile declares as its own canonical, not
 // the profile.php?id= link that was shared — same account, but the canonical is
 // what Facebook itself points at.
+// Threads is .com, not the older .net: threads.net now serves the same profile
+// but points its canonical at threads.com, so that is the identity URL.
 const SAME_AS = [
   'https://www.facebook.com/people/My-Dentist/61592273030385/',
   'https://www.instagram.com/mydentist840',
+  'https://www.threads.com/@mydentist840',
   'https://www.tiktok.com/@mydentist840',
   'https://www.google.com/maps?cid=11766849356386640534',
 ];

@@ -91,10 +91,15 @@ ${ioniconsHref ? `    <style>
       @font-face{font-family:ionicons;font-display:swap;src:url('${ioniconsHref}') format('truetype')}
     </style>` : ''}
     <link rel="canonical" href="${SITE_URL}/" />
-    <link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png" />
+    <!-- WebP favicons with an explicit type, so a browser that cannot decode WebP
+         skips them and falls back to /favicon.ico (still PNG bytes) rather than
+         showing no icon. apple-touch-icon stays PNG deliberately: iOS does not
+         reliably accept WebP there, and an unsupported format means no
+         home-screen icon at all rather than a fallback. -->
+    <link rel="icon" type="image/webp" sizes="48x48" href="/icons/icon-48.webp" />
+    <link rel="icon" type="image/webp" sizes="96x96" href="/icons/icon-96.webp" />
+    <link rel="icon" type="image/webp" sizes="32x32" href="/icons/icon-32.webp" />
+    <link rel="icon" type="image/webp" sizes="16x16" href="/icons/icon-16.webp" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-title" content="My Dentist" />
@@ -126,7 +131,7 @@ ${ioniconsHref ? `    <style>
       "url": "${SITE_URL}/",
       "logo": {
         "@type": "ImageObject",
-        "url": "${SITE_URL}/icons/icon-512.png",
+        "url": "${SITE_URL}/icons/icon-512.webp",
         "width": 512,
         "height": 512
       },
@@ -361,8 +366,13 @@ console.log('[inject-seo] wrote .htaccess (SPA + compression + caching)');
 
 // ── 5. og-image.png for link previews (from the app logo) ───────────────────
 try {
+  // PNG stays the advertised og:image on purpose: Facebook's scraper has
+  // unreliable WebP support, and a share card that fails to render is worse
+  // than a large one. The WebP copy ships alongside for clients that prefer it.
   fs.copyFileSync(path.join(__dirname, '..', 'assets', 'app-logo.png'), path.join(DIST, 'og-image.png'));
-  console.log('[inject-seo] copied og-image.png');
+  const ogWebp = path.join(__dirname, '..', 'assets', 'app-logo.webp');
+  if (fs.existsSync(ogWebp)) fs.copyFileSync(ogWebp, path.join(DIST, 'og-image.webp'));
+  console.log('[inject-seo] copied og-image.png (+ .webp)');
 } catch (e) {
   console.warn('[inject-seo] could not copy og-image.png:', e.message);
 }
@@ -393,10 +403,12 @@ fs.writeFileSync(path.join(DIST, 'manifest.webmanifest'), JSON.stringify({
   display: 'standalone',
   background_color: '#FFFFFF',
   theme_color: '#0052FF',
+  // WebP: 40KB -> 8KB and 164KB -> 20KB for the 192/512 icons. Chrome's PWA
+  // installer reads the declared `type`, so there is no format sniffing.
   icons: [
-    { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+    { src: '/icons/icon-192.webp', sizes: '192x192', type: 'image/webp' },
+    { src: '/icons/icon-512.webp', sizes: '512x512', type: 'image/webp' },
+    { src: '/icons/icon-512.webp', sizes: '512x512', type: 'image/webp', purpose: 'any maskable' },
   ],
 }, null, 2));
 console.log('[inject-seo] wrote manifest.webmanifest');

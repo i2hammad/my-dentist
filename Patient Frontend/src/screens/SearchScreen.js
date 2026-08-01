@@ -219,7 +219,10 @@ export default function SearchScreen({ navigation, route }) {
       const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
       return km == null ? Infinity : km;
     };
-    filteredDoctors.sort((a, b) => distOf(a) - distOf(b));
+    // Popular first, then distance — same rule as HomeScreen's Nearby tab. Sorting
+    // purely by distance discarded the promoted placement the API returns.
+    const popRank = (d) => (d.popularType === 'paid' ? 2 : d.popularType === 'earned' ? 1 : 0);
+    filteredDoctors.sort((a, b) => popRank(b) - popRank(a) || distOf(a) - distOf(b));
   }
 
   const filters = [

@@ -168,7 +168,7 @@ export default function SplashScreen({ navigation }) {
       <View style={styles.brandWrap}>
         <View style={styles.logoBadgePhone}>
           <Image
-            source={require('../../assets/logo-mark-sm.png')}
+            source={require('../../assets/logo-mark-sm.webp')}
             style={styles.logo}
             resizeMode="contain"
           />

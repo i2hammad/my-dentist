@@ -65,7 +65,7 @@ export default function DoctorHeader({ title, subtitle, right }) {
           {/* Brand */}
           <View style={styles.brandRow}>
             <View style={styles.logoBox}>
-              <Image source={require('../../assets/logo-mark-sm.png')} style={styles.logoImg} resizeMode="contain" />
+              <Image source={require('../../assets/logo-mark-sm.webp')} style={styles.logoImg} resizeMode="contain" />
             </View>
             {/* Ink "My", brand-blue "Dentist" — same as the nav, splash and
                 static pages. */}

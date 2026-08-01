@@ -122,7 +122,7 @@ export default function WebTopNav({ navRef, navInfo }) {
       <View style={styles.inner}>
         {/* LEFT: Brand */}
         <Pressable style={styles.brand} onPress={() => goTab(tabs[0])}>
-          <Image source={require('../../assets/logo-mark-sm.png')} style={styles.logo} resizeMode="contain" />
+          <Image source={require('../../assets/logo-mark-sm.webp')} style={styles.logo} resizeMode="contain" />
           {/* "My" in ink, "Dentist" in brand blue — matching the static pages
               and the pre-load hero, so the wordmark does not change colour when
               React mounts. Was inverted: blue "My" and a pale #60A5FA

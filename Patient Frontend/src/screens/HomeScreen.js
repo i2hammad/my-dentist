@@ -107,7 +107,13 @@ function filterDoctors(doctors, tab, favorites, patientCoords, tierThresholds) {
       const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
       return km == null ? Infinity : km;
     };
-    return [...doctors].sort((a, b) => distOf(a) - distOf(b));
+    // Popular first, then distance. The API already returns paid/earned doctors
+    // ahead of the rest, but sorting purely by distance here threw that away —
+    // a promoted doctor who was not the closest got buried, which is the one
+    // thing a paid placement must not do. Distance still orders within each
+    // tier, so Nearby stays genuinely nearby.
+    const popRank = (d) => (d.popularType === 'paid' ? 2 : d.popularType === 'earned' ? 1 : 0);
+    return [...doctors].sort((a, b) => popRank(b) - popRank(a) || distOf(a) - distOf(b));
   }
   if (tab === 'Favorites') return doctors.filter(d => favorites && (favorites[String(d._id)] || favorites[String(d.userId)]));
   if (tab === 'Elite')     return doctors.filter(d => matchesTier(d.facilityScore, 'elite', tierThresholds));
@@ -596,7 +602,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.headerRow1}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={styles.headerLogoBadge}>
-              <Image source={require('../../assets/logo-mark-sm.png')} style={styles.headerLogo} resizeMode="contain" />
+              <Image source={require('../../assets/logo-mark-sm.webp')} style={styles.headerLogo} resizeMode="contain" />
             </View>
             <Text style={styles.headerTitle}>My <Text style={{ color: '#BFD7FF' }}>Dentist</Text></Text>
           </View>

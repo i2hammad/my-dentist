@@ -223,7 +223,7 @@ export default function DoctorHomeScreen({ route, navigation }) {
 
   const reviewsCount = reviewStats?.totalReviews || 0;
   const ratingStars = reviewStats?.avgRating ? reviewStats.avgRating.toFixed(1) : '0.0';
-  const photoUri = profile?.photo ? { uri: imgUrl(profile.photo) } : require('../../../assets/app-logo.png'); // fallback to the app logo when the doctor has no photo
+  const photoUri = profile?.photo ? { uri: imgUrl(profile.photo) } : require('../../../assets/app-logo.webp'); // fallback to the app logo when the doctor has no photo
 
   return (
     <SafeAreaView edges={[]} style={styles.safeArea}>

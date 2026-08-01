@@ -21,7 +21,10 @@ export default function imgUrl(src, opts) {
   // /uploads path is served statically by LiteSpeed and can't resize). Only for
   // our own /uploads images with a resizable extension.
   if (w && /^\/?uploads\/.+\.(png|jpe?g|webp)$/i.test(rel)) {
-    return `${API_BASE_URL}/api/img?src=${encodeURIComponent(rel)}&w=${w}`;
+    // `popular` draws the promoted pill into the pixels. The backend resizes a
+    // file path and has no doctor record, so the caller has to say so.
+    const pop = opts && opts.popular ? '&popular=1' : '';
+    return `${API_BASE_URL}/api/img?src=${encodeURIComponent(rel)}&w=${w}${pop}`;
   }
   return `${API_BASE_URL}${rel}`;
 }

@@ -130,7 +130,18 @@ h2{font-size:19px;color:var(--ink);margin:30px 0 10px;font-weight:800}
   box-shadow:0 1px 2px rgba(2,6,23,.04);transition:border-color .15s,box-shadow .15s,transform .15s}
 .doc:hover{border-color:#BFD7FF;box-shadow:0 10px 24px rgba(2,6,23,.09);transform:translateY(-2px)}
 .doc:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
-.doc-ph{grid-area:ph;width:72px;height:72px;border-radius:14px;object-fit:cover;background:#EFF6FF;display:block}
+/* The wrapper takes over the grid area so the photo keeps its slot; the pill is
+   positioned against it. */
+.doc-phwrap{grid-area:ph;position:relative;width:72px;height:72px;display:block}
+.doc-ph{width:72px;height:72px;border-radius:14px;object-fit:cover;background:#EFF6FF;display:block}
+/* Popular marker. A star reads at 72px where a URL would be an illegible smudge,
+   so listings carry the star and the readable URL goes on the large profile
+   photo instead. */
+.popmark{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;
+  border:2px solid #fff;box-shadow:0 1px 3px rgba(2,6,23,.2)}
+.popmark.paid{background:#1D4ED8;color:#fff}
+.popmark.earned{background:#15803D;color:#fff}
 .doc-bd{grid-area:bd;min-width:0;display:flex;flex-direction:column;justify-content:center}
 .doc-n{font-weight:750;color:var(--ink);font-size:16px;line-height:1.3;letter-spacing:-.2px}
 .doc-sp{color:var(--blue);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
@@ -190,7 +201,21 @@ nav.bc a{color:var(--blue);text-decoration:none;font-weight:600}
 }
 /* Doctor profile hero — photo beside the name/specialty, like the app's header. */
 .prof{display:flex;gap:20px;align-items:center;background:#fff;border:1px solid #EEF2F7;border-radius:18px;padding:20px;margin-top:4px;box-shadow:0 1px 2px rgba(2,6,23,.04)}
-.prof .profph{width:104px;height:104px;border-radius:16px;object-fit:cover;flex:0 0 104px;background:#EFF6FF}
+.prof .profphwrap{position:relative;flex:0 0 104px;width:104px;height:104px;display:block}
+.prof .profph{width:104px;height:104px;border-radius:16px;object-fit:cover;background:#EFF6FF;display:block}
+/* Popular sits top, the site URL sits along the bottom edge. At 104px the URL is
+   readable; the listing thumbnails are 72px, which is why they carry the star
+   only. Both are CSS, so they cost nothing and stay sharp on any display —
+   though they do not survive someone saving the image (the resize route bakes a
+   watermark into the large sizes for that). */
+.prof .propop{position:absolute;top:-6px;left:-6px;display:inline-flex;align-items:center;gap:3px;
+  font-size:9.5px;font-weight:800;letter-spacing:.2px;color:#fff;padding:3px 7px;border-radius:999px;
+  border:2px solid #fff;box-shadow:0 1px 4px rgba(2,6,23,.25);white-space:nowrap}
+.prof .propop.paid{background:#1D4ED8}
+.prof .propop.earned{background:#15803D}
+.prof .prosite{position:absolute;left:0;right:0;bottom:0;text-align:center;font-size:8.5px;font-weight:700;
+  letter-spacing:.1px;color:#fff;background:linear-gradient(transparent,rgba(2,6,23,.72));
+  padding:10px 2px 3px;border-radius:0 0 16px 16px;pointer-events:none}
 .prof .profbd{min-width:0;flex:1}
 .prof h1{margin:0 0 4px;font-size:27px}
 .prof .meta{margin:12px 0 0;gap:7px}
@@ -307,8 +332,14 @@ function doctorCard(d, locLine, opts = {}) {
       ? `<span class="fact star">★ ${Number(d.avgRating).toFixed(1)} <i>(${d.totalReviews})</i></span>` : '',
   ].filter(Boolean).join('');
 
+  // Paid and earned are visually distinct: paid is the blue promoted placement,
+  // earned is green and reflects reward points. Same wording, different weight.
+  const popPill = d.isPopular
+    ? `<span class="popmark ${d.popularType === 'paid' ? 'paid' : 'earned'}" aria-label="Popular dentist">★</span>`
+    : '';
+
   return `<a class="doc" href="${doctorUrl(d)}">
-  <img class="doc-ph" src="${esc(photo)}" width="72" height="72" alt="${esc(name)}" loading="lazy"/>
+  <span class="doc-phwrap"><img class="doc-ph" src="${esc(photo)}" width="72" height="72" alt="${esc(name)}" loading="lazy"/>${popPill}</span>
   <span class="doc-bd">
     <span class="doc-n">${esc(name)}</span>
     <span class="doc-sp">${esc(spec)}</span>
@@ -391,7 +422,7 @@ function doctorPage(d) {
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › <a href="${SITE}/dentists/${slug(city)}">Dentists in ${esc(city)}</a> › ${esc(name)}</nav>
 <div class="prof">
-  <img class="profph" src="${esc(d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`)}" width="120" height="120" alt="${esc(name)}"/>
+  <span class="profphwrap"><img class="profph" src="${esc(d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`)}" width="120" height="120" alt="${esc(name)}"/>${d.isPopular ? `<span class="propop ${d.popularType === 'paid' ? 'paid' : 'earned'}">★ Popular</span>` : ''}<span class="prosite">mydentistpk.com</span></span>
   <div class="profbd">
     <h1>${esc(name)}</h1>
     <p class="sub">${esc(spec)}${clinic ? ` · ${esc(clinic)}` : ''} · ${esc(city)}</p>

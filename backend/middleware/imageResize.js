@@ -8,6 +8,43 @@ try { sharp = require('sharp'); } catch { /* sharp not installed → passthrough
 const UPLOADS = path.join(__dirname, '..', 'uploads');
 const CACHE = path.join(UPLOADS, '.cache');
 const ALLOWED_W = [80, 160, 320, 640]; // snap to these to bound cache size
+
+// Baked-in watermark. CSS overlays are sharper and free, and the apps use those —
+// but they disappear the moment someone saves or screenshots the photo, which is
+// exactly when attribution matters. These pixels survive that.
+//
+// Only 320px and up: at 80/160px the URL renders as an illegible smudge that
+// dirties the thumbnail without communicating anything.
+const WATERMARK_MIN_W = 320;
+const SITE_LABEL = 'mydentistpk.com';
+
+/**
+ * SVG overlay sized to the image: a bottom scrim with the site URL, plus a
+ * "POPULAR" pill when the doctor holds that placement.
+ */
+function watermarkSvg(w, popular) {
+  const pad = Math.round(w * 0.025);
+  const fs_ = Math.max(11, Math.round(w * 0.045));      // URL text
+  const scrim = Math.round(fs_ * 2.6);
+  const pillH = Math.max(16, Math.round(w * 0.062));
+  const pillFs = Math.max(9, Math.round(w * 0.036));
+  const pillW = Math.round(pillFs * 5.4);
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${w}">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="rgba(2,6,23,0)"/><stop offset="100%" stop-color="rgba(2,6,23,0.66)"/>
+  </linearGradient></defs>
+  <rect x="0" y="${w - scrim}" width="${w}" height="${scrim}" fill="url(#g)"/>
+  <text x="${w / 2}" y="${w - pad}" text-anchor="middle" font-family="Helvetica,Arial,sans-serif"
+        font-size="${fs_}" font-weight="700" fill="#ffffff" opacity="0.92">${esc(SITE_LABEL)}</text>
+  ${popular ? `<g>
+    <rect x="${pad}" y="${pad}" rx="${pillH / 2}" ry="${pillH / 2}" width="${pillW}" height="${pillH}" fill="#1D4ED8"/>
+    <text x="${pad + pillW / 2}" y="${pad + pillH * 0.72}" text-anchor="middle"
+          font-family="Helvetica,Arial,sans-serif" font-size="${pillFs}" font-weight="700"
+          fill="#ffffff" letter-spacing="0.4">POPULAR</text>
+  </g>` : ''}
+</svg>`);
+}
 const EXT_RE = /\.(png|jpe?g|webp)$/i;
 
 /**
@@ -35,7 +72,9 @@ function imageResize(req, res, next) {
   if (!src.startsWith(UPLOADS + path.sep)) return res.status(400).end();
   if (!fs.existsSync(src)) return next();    // let static return its 404
 
-  const key = crypto.createHash('sha1').update(rel + '|' + w).digest('hex');
+  const popular = req.query.popular === '1';
+  const mark = w >= WATERMARK_MIN_W;
+  const key = crypto.createHash('sha1').update(`${rel}|${w}|${mark ? 'wm' : 'raw'}|${popular ? 'pop' : ''}`).digest('hex');
   const cached = path.join(CACHE, `${key}.webp`);
 
   const serve = (file) => {
@@ -47,9 +86,11 @@ function imageResize(req, res, next) {
   if (fs.existsSync(cached)) return serve(cached);
 
   fs.mkdirSync(CACHE, { recursive: true });
-  sharp(src)
+  let pipe = sharp(src)
     .rotate()                                // honour EXIF orientation
-    .resize(w, w, { fit: 'cover', withoutEnlargement: true })
+    .resize(w, w, { fit: 'cover', withoutEnlargement: true });
+  if (mark) pipe = pipe.composite([{ input: watermarkSvg(w, popular), top: 0, left: 0 }]);
+  pipe
     .webp({ quality: 72 })
     .toBuffer()
     .then((buf) => {
@@ -81,7 +122,13 @@ function imageResizeRoute(req, res) {
   if (!src.startsWith(UPLOADS + path.sep)) return res.status(400).end();
   if (!fs.existsSync(src)) return res.status(404).end();
 
-  const key = crypto.createHash('sha1').update(rel + '|' + w).digest('hex');
+  // ?popular=1 draws the promoted pill. The caller supplies it because this
+  // route resizes a file path and has no doctor record to look it up from.
+  const popular = req.query.popular === '1';
+  const mark = w >= WATERMARK_MIN_W;
+  // The flags are part of the cache key: without them a previously cached
+  // un-watermarked render would be served forever.
+  const key = crypto.createHash('sha1').update(`${rel}|${w}|${mark ? 'wm' : 'raw'}|${popular ? 'pop' : ''}`).digest('hex');
   const cached = path.join(CACHE, `${key}.webp`);
   const send = (buf) => {
     res.setHeader('Content-Type', 'image/webp');
@@ -91,9 +138,13 @@ function imageResizeRoute(req, res) {
   if (fs.existsSync(cached)) return fs.readFile(cached, (e, b) => (e ? res.status(500).end() : send(b)));
 
   fs.mkdirSync(CACHE, { recursive: true });
-  sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true }).webp({ quality: 72 }).toBuffer()
+  let pipe = sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true });
+  if (mark) pipe = pipe.composite([{ input: watermarkSvg(w, popular), top: 0, left: 0 }]);
+  pipe.webp({ quality: 72 }).toBuffer()
     .then((buf) => { fs.writeFile(cached, buf, () => {}); send(buf); })
-    .catch(() => res.status(500).end());
+    // Never fail an image because the watermark failed — retry clean.
+    .catch(() => sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true })
+      .webp({ quality: 72 }).toBuffer().then(send).catch(() => res.status(500).end()));
 }
 
 module.exports = imageResize;

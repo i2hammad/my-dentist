@@ -66,19 +66,30 @@ const SEO_HEAD = `
     <meta name="keywords" content="best dentist in Pakistan, best dentist in Lahore, best dentist in Karachi, best dentist in Islamabad, dental clinic near me, book dentist online Pakistan, orthodontist, dental implants, cosmetic dentist, root canal, teeth whitening, braces, PMDC verified dentist, dentist appointment" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0052FF" />${GSC_TOKEN ? `\n    <meta name="google-site-verification" content="${GSC_TOKEN}" />` : ''}
+    <!-- preconnect, not just dns-prefetch: the API is contacted on first paint, so
+         opening the TCP+TLS connection early saves a full round trip rather than
+         only the DNS lookup. -->
+    <link rel="preconnect" href="https://api.mydentistpk.com" crossorigin />
     <link rel="dns-prefetch" href="https://api.mydentistpk.com" />
+    <!-- The Meta Pixel loads from connect.facebook.net on every page. It was the
+         one third-party origin with no hint at all. -->
+    <link rel="preconnect" href="https://connect.facebook.net" crossorigin />
+    <link rel="dns-prefetch" href="https://connect.facebook.net" />
     <!-- Icon fonts (@expo/vector-icons) default to font-display:block, which blocks
-         text paint until the font loads (~2s per PageSpeed). Pre-declaring them with
-         font-display:swap lets the browser paint immediately and swap in glyphs. -->
-    <style>
-      @font-face{font-family:Ionicons;font-display:swap;src:local('Ionicons')}
-      @font-face{font-family:MaterialCommunityIcons;font-display:swap;src:local('MaterialCommunityIcons')}
-      @font-face{font-family:MaterialIcons;font-display:swap;src:local('MaterialIcons')}
-      @font-face{font-family:FontAwesome;font-display:swap;src:local('FontAwesome')}
-      @font-face{font-family:Feather;font-display:swap;src:local('Feather')}
-      @font-face{font-family:AntDesign;font-display:swap;src:local('AntDesign')}
-      @font-face{font-family:Entypo;font-display:swap;src:local('Entypo')}
-    </style>
+         text paint until the font loads — PageSpeed measured 1,470ms of invisible
+         text on the Ionicons file alone.
+
+         This block previously declared font-family:Ionicons with
+         src:local('Ionicons'). Both halves were wrong: react-native-web injects
+         its face as lowercase "ionicons", so the names never matched, and no
+         machine has an "Ionicons" font installed locally, so the rule resolved to
+         nothing either way. The real face kept font-display's default and the
+         1,470ms stayed. Matching the actual family name and the real file makes
+         swap apply — the URL comes from the same lookup as the preload below, so
+         the two cannot drift apart.${ioniconsHref ? '' : '\n         (Ionicons file not found this build; swap block omitted.)'} -->
+${ioniconsHref ? `    <style>
+      @font-face{font-family:ionicons;font-display:swap;src:url('${ioniconsHref}') format('truetype')}
+    </style>` : ''}
     <link rel="canonical" href="${SITE_URL}/" />
     <link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png" />
     <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png" />

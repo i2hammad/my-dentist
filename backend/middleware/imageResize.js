@@ -86,13 +86,19 @@ function imageResize(req, res, next) {
   if (fs.existsSync(cached)) return serve(cached);
 
   fs.mkdirSync(CACHE, { recursive: true });
-  let pipe = sharp(src)
+  // Same two-step as the route handler: the overlay must match the ACTUAL output
+  // size, which `withoutEnlargement` may cap below the requested width.
+  sharp(src)
     .rotate()                                // honour EXIF orientation
-    .resize(w, w, { fit: 'cover', withoutEnlargement: true });
-  if (mark) pipe = pipe.composite([{ input: watermarkSvg(w, popular), top: 0, left: 0 }]);
-  pipe
-    .webp({ quality: 72 })
+    .resize(w, w, { fit: 'cover', withoutEnlargement: true })
     .toBuffer()
+    .then(async (resized) => {
+      if (!mark) return sharp(resized).webp({ quality: 72 }).toBuffer();
+      const { width } = await sharp(resized).metadata();
+      return sharp(resized)
+        .composite([{ input: watermarkSvg(width, popular), top: 0, left: 0 }])
+        .webp({ quality: 72 }).toBuffer();
+    })
     .then((buf) => {
       fs.writeFile(cached, buf, () => {});   // cache best-effort
       res.setHeader('Content-Type', 'image/webp');
@@ -138,9 +144,20 @@ function imageResizeRoute(req, res) {
   if (fs.existsSync(cached)) return fs.readFile(cached, (e, b) => (e ? res.status(500).end() : send(b)));
 
   fs.mkdirSync(CACHE, { recursive: true });
-  let pipe = sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true });
-  if (mark) pipe = pipe.composite([{ input: watermarkSvg(w, popular), top: 0, left: 0 }]);
-  pipe.webp({ quality: 72 }).toBuffer()
+  // Resize first, then read the real output size. `withoutEnlargement` caps the
+  // result at the source's own dimensions, so a 512px photo asked for at w=640
+  // comes back 512 — and compositing a 640px overlay onto it throws
+  // "Image to composite must have same dimensions or smaller". Sizing the
+  // overlay to the requested width silently lost every watermark on any photo
+  // smaller than the requested size.
+  sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true }).toBuffer()
+    .then(async (resized) => {
+      if (!mark) return sharp(resized).webp({ quality: 72 }).toBuffer();
+      const { width } = await sharp(resized).metadata();
+      return sharp(resized)
+        .composite([{ input: watermarkSvg(width, popular), top: 0, left: 0 }])
+        .webp({ quality: 72 }).toBuffer();
+    })
     .then((buf) => { fs.writeFile(cached, buf, () => {}); send(buf); })
     // Never fail an image because the watermark failed — retry clean.
     .catch(() => sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true })

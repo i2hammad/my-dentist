@@ -902,10 +902,9 @@ export default function HomeScreen({ navigation }) {
                   isFavorite={!!favorites[doc._id]}
                   onToggleFavorite={toggleFavorite}
                   onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
-                  onBook={async (d) => {
-                    if (!(await ensureAuth(navigation))) return;
-                    navigation.navigate('Booking', { doctor: d });
-                  }}
+                  // Guests included: the account is created at the confirm step
+                  // inside Booking, not before they have chosen anything.
+                  onBook={(d) => navigation.navigate('Booking', { doctor: d })}
                   patientCoords={patientCoords}
                 />
               </View>

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useRequireLogin } from "../utils/authGuard";
-import { trackBookingStarted, trackBookingCompleted } from '../utils/analytics';
+import { trackBookingStarted, trackBookingCompleted, trackSignup, trackLogin } from '../utils/analytics';
+import BookingAuthSheet from '../components/BookingAuthSheet';
+import { REQUEST_TIMEOUT } from '../config/net';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, KeyboardAvoidingView, Platform, Alert, Modal
@@ -173,7 +174,10 @@ function generateTimeSlots(timing = {}, stepMinutes = SLOT_STEP_MINUTES) {
 }
 
 export default function BookingScreen({ route, navigation }) {
-  useRequireLogin();
+  // Deliberately NOT useRequireLogin(): a guest may fill in this whole form.
+  // The account is created at the confirm step instead, when they have chosen a
+  // dentist, date, time and treatment and abandoning would cost them that work.
+  // Redirecting on mount asked for a password at the point of least investment.
   const { width } = useResponsive();
   const insets = useSafeAreaInsets(); // bottom inset so the action bar clears the nav bar
   // Two columns only when there's room (wide web); otherwise stack (mobile web + native).
@@ -201,6 +205,12 @@ export default function BookingScreen({ route, navigation }) {
   const [customDateLabel, setCustomDateLabel]       = useState('');
   const [customTimeLabel, setCustomTimeLabel]       = useState('');
   const [successInfo, setSuccessInfo]               = useState(null); // shows the success modal
+  // Deferred registration. The selection lives in this screen's state, so a
+  // failed signup (email taken, weak password, network) leaves it untouched —
+  // losing it would make this worse than the redirect it replaces.
+  const [authSheet, setAuthSheet]                   = useState(null); // null | 'signup' | 'login'
+  const [authBusy, setAuthBusy]                     = useState(false);
+  const [authError, setAuthError]                   = useState('');
 
   const clinicTiming = doctor.clinicTiming || {};
   const clinicTimingKey = JSON.stringify(clinicTiming);
@@ -308,10 +318,25 @@ export default function BookingScreen({ route, navigation }) {
     if (selectedTreatments.length === 0) {
       return Alert.alert('Missing Info', 'Please select at least one treatment.');
     }
+    // Guest: collect the account at this point rather than on entry. Everything
+    // above has already validated, so the sheet is the last step.
+    const existing = await storage.getItem('userToken');
+    if (!existing) {
+      setAuthError('');
+      setAuthSheet('signup');
+      return;
+    }
+    submitBooking(existing);
+  };
+
+  /**
+   * Posts the appointment with a known-good token. Split out of handleBooking so
+   * the auth sheet can call it straight after creating the account, without
+   * re-running validation or risking the selection being rebuilt.
+   */
+  const submitBooking = async (token) => {
     try {
       setLoading(true);
-      const token = await storage.getItem('userToken');
-      if (!token) return Alert.alert('Error', 'Please login first!');
 
       await axios.post(`${API_BASE_URL}/api/appointments`, {
         doctorId: doctor._id,
@@ -347,6 +372,62 @@ export default function BookingScreen({ route, navigation }) {
       Alert.alert('Booking Failed', msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Creates the account (or logs in), then books — the whole point of deferring
+   * registration to this step.
+   *
+   * /api/auth/register already accepts name + phone, creates the PatientProfile
+   * and returns tokens, so this is one call rather than register → login →
+   * create-profile. On failure the sheet stays open with the message and the
+   * selection above is untouched.
+   */
+  const handleAuthAndBook = async ({ fullName, email, phone, password }) => {
+    setAuthBusy(true);
+    setAuthError('');
+    try {
+      const isLogin = authSheet === 'login';
+      const url = `${API_BASE_URL}/api/auth/${isLogin ? 'login' : 'register'}`;
+      const payload = isLogin
+        ? { email, password }
+        : { email, password, role: 'patient', name: fullName, phone };
+
+      const res = await axios.post(url, payload, { timeout: REQUEST_TIMEOUT });
+      const token = res.data?.data?.accessToken;
+      if (!res.data?.success || !token) {
+        throw new Error(res.data?.message || 'Could not complete sign in.');
+      }
+
+      // A doctor account cannot hold a patient appointment; booking would fail
+      // on the server with a role error that reads as a bug from here.
+      const role = res.data?.data?.user?.role;
+      if (role && role !== 'patient') {
+        setAuthError('That account is registered as a doctor. Please use a patient account to book.');
+        return;
+      }
+
+      await storage.setItem('userToken', token);
+      if (isLogin) trackLogin('patient'); else trackSignup('patient');
+
+      setAuthSheet(null);
+      await submitBooking(token);
+    } catch (err) {
+      const msg = err.response?.data?.message
+        || err.response?.data?.errors?.map((e) => e.msg || e.message).join(', ')
+        || err.message
+        || 'Something went wrong. Please try again.';
+      // The single most likely failure: a returning patient signing up again.
+      // Offer the login path instead of leaving them stuck on an error.
+      if (/already exists/i.test(msg)) {
+        setAuthSheet('login');
+        setAuthError('You already have an account with this email. Log in to confirm your booking.');
+      } else {
+        setAuthError(msg);
+      }
+    } finally {
+      setAuthBusy(false);
     }
   };
 
@@ -796,6 +877,23 @@ export default function BookingScreen({ route, navigation }) {
         )}
 
         {/* ── Success confirmation modal ─────────────────────────────── */}
+        {/* Account step for guests — rendered beside the success modal so it sits
+            above the form without unmounting it. Closing keeps the selection. */}
+        <BookingAuthSheet
+          visible={!!authSheet}
+          mode={authSheet || 'signup'}
+          onModeChange={(m) => { setAuthError(''); setAuthSheet(m); }}
+          onSubmit={handleAuthAndBook}
+          onClose={() => { setAuthSheet(null); setAuthError(''); }}
+          busy={authBusy}
+          error={authError}
+          summary={{
+            doctor: doctor?.fullName || 'your dentist',
+            date: customDateLabel || (selectedDate ? dateLabel(selectedDate) : ''),
+            time: customTimeLabel || (selectedTime ? timeLabel(selectedTime) : ''),
+          }}
+        />
+
         <Modal visible={!!successInfo} transparent animationType="fade" onRequestClose={goToAppointments}>
           <View style={styles.successOverlay}>
             <View style={styles.successCard}>

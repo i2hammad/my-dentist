@@ -337,7 +337,7 @@ export default function SearchScreen({ navigation, route }) {
         <TouchableOpacity 
           style={styles.solidBtn}
           onPress={async () => {
-            if (!(await ensureAuth(navigation))) return; // guests → login, never reach Booking
+            // Guests reach Booking; the account is collected at confirm.
             navigation.navigate('Booking', { doctor: item });
           }}
         >

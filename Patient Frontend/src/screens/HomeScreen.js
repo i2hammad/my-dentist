@@ -81,18 +81,21 @@ import { AnimatedHeader, PressableScale } from '../components/Animated';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
+import DoctorCard from '../components/DoctorCard';
 import useResponsive from '../hooks/useResponsive';
 import { ctaLabel } from '../utils/promo';
 import { getCoords } from '../utils/geo';
 import { matchesTier } from '../utils/clinicTier';
 
 // ─── Filter tab config ──────────────────────────────────────────────
+// Solid icons, matching SearchScreen's row — the outline variants read as
+// washed-out at 14px next to a solid active chip.
 const FILTER_TABS = [
-  { key: 'Nearby',    label: 'Nearby',           icon: 'navigate-outline' },
+  { key: 'Nearby',    label: 'Nearby',           icon: 'navigate' },
   { key: 'Favorites', label: 'Favorites',        icon: 'heart' },
-  { key: 'Elite',     label: 'Elite Clinic',     icon: 'ribbon-outline' },
-  { key: 'Modern',    label: 'Modern Clinic',    icon: 'diamond-outline' },
-  { key: 'Standard',  label: 'Standard Clinic',  icon: 'shield-outline' },
+  { key: 'Elite',     label: 'Elite Clinic',     icon: 'star' },
+  { key: 'Modern',    label: 'Modern Clinic',    icon: 'star-half' },
+  { key: 'Standard',  label: 'Standard Clinic',  icon: 'shield-checkmark' },
 ];
 
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
@@ -139,148 +142,10 @@ function StatusBadge({ status }) {
 }
 
 // ─── Single Doctor Card ──────────────────────────────────────────────
-function DoctorCard({ doc, onPress, isFavorite, onToggleFavorite, style, patientCoords }) {
-  const photoUri = doc.photo
-    ? imgUrl(doc.photo, { w: 160 }) // small card avatar — request a resized thumb
-    : null;
-
-  // The API returns `onlineStatus` ('online' | 'offline'); `isOnline` does not
-  // exist on the response, so this always fell through to 'offline' and stamped
-  // a grey "Offline" badge on every card. Offline says nothing about whether an
-  // appointment can be booked, so the badge now appears only when a dentist is
-  // genuinely online.
-  const isOnlineNow = doc.onlineStatus === 'online';
-
-  return (
-    <View style={[styles.doctorCard, style]}>
-      {/* Top section: photo + info */}
-      <View style={styles.doctorCardTop}>
-        {/* Photo */}
-        <View style={styles.photoWrapper}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.doctorPhoto} />
-          ) : (
-            <View style={styles.doctorPhotoPlaceholder}>
-              <Ionicons name="person" size={36} color="#94A3B8" />
-            </View>
-          )}
-          {/* Status badge overlaid */}
-          {isOnlineNow && (
-            <View style={styles.statusBadgeOverlay}>
-              <StatusBadge status="online" />
-            </View>
-          )}
-        </View>
-
-        {/* Doctor info */}
-        <View style={styles.doctorInfo}>
-          {/* Name row */}
-          <View style={styles.nameRow}>
-            <Text style={styles.doctorName} numberOfLines={1}>
-              {doc.fullName || 'Doctor'}
-            </Text>
-            {doc.pmdcVerified && (
-              <Ionicons name="checkmark-circle" size={16} color="#2563EB" style={{ marginLeft: 4 }} />
-            )}
-          </View>
-
-          {/* Specialty + Distance inline */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
-            <Text style={styles.doctorSpecialty} numberOfLines={1}>
-              {doc.specialization || 'Dentist'}
-            </Text>
-            {(() => {
-              if (!patientCoords || !doc.coordinates) return null;
-              const dc = String(doc.coordinates).split(',').map(Number);
-              if (dc.length < 2 || isNaN(dc[0]) || isNaN(dc[1])) return null;
-              if (Math.abs(dc[0]) < 0.001 && Math.abs(dc[1]) < 0.001) return null; // skip 0,0
-              const km = haversineKm(patientCoords.lat, patientCoords.lng, dc[0], dc[1]);
-              if (km === null) return null;
-              return (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                  <Ionicons name="navigate" size={11} color="#2563EB" style={{ marginRight: 3 }} />
-                  <Text style={{ fontSize: 11, color: '#2563EB', fontWeight: '700' }}>{fmtKm(km)}</Text>
-                </View>
-              );
-            })()}
-          </View>
-
-          {/* Popular badge — green = earned, blue = paid */}
-          {doc.isPopular && (
-            <View style={[styles.popularBadge, { backgroundColor: doc.popularType === 'paid' ? '#DBEAFE' : '#DCFCE7' }]}>
-              <Ionicons name="star" size={11} color={doc.popularType === 'paid' ? '#1D4ED8' : '#15803D'} />
-              <Text style={[styles.popularBadgeText, { color: doc.popularType === 'paid' ? '#1D4ED8' : '#15803D' }]}>Popular</Text>
-            </View>
-          )}
-
-          {/* Rating */}
-          <View style={styles.ratingRow}>
-            <Ionicons name="star" size={13} color="#F59E0B" />
-            <Text style={styles.ratingText}>
-              {doc.avgRating !== undefined ? doc.avgRating : '4.9'}
-            </Text>
-            <Text style={styles.reviewCount}>
-              ({doc.totalReviews !== undefined ? doc.totalReviews : '0'} Reviews)
-            </Text>
-          </View>
-
-          {/* Clinic name */}
-          <View style={styles.infoRow}>
-            <Ionicons name="business-outline" size={13} color="#64748B" />
-            <Text style={styles.infoText} numberOfLines={1}>
-              {doc.clinicName || 'Private Clinic'}
-            </Text>
-          </View>
-
-          {/* Location — distance already shows as a pill beside the specialty above */}
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={13} color="#64748B" />
-            <Text style={styles.infoText} numberOfLines={2}>
-              {shortAddress(doc)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Heart / Favorite button */}
-        <TouchableOpacity
-          style={styles.heartButton}
-          onPress={() => onToggleFavorite(doc._id)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons
-            name={isFavorite ? 'heart' : 'heart-outline'}
-            size={22}
-            color={isFavorite ? '#EF4444' : '#94A3B8'}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Divider */}
-      <View style={styles.divider} />
-
-      {/* Bottom row: experience + availability */}
-      <View style={styles.doctorCardBottom}>
-        <View style={styles.bottomInfoItem}>
-          <Ionicons name="time-outline" size={14} color="#2563EB" />
-          <Text style={styles.bottomInfoText}>
-            Experience: {doc.experience ? `${doc.experience}+ Years` : '5+ Years'}
-          </Text>
-        </View>
-        <View style={styles.bottomInfoItem}>
-          <Ionicons name="calendar-outline" size={14} color="#16A34A" />
-          <Text style={[styles.bottomInfoText, { color: '#16A34A' }]}>
-            Available: Today
-          </Text>
-        </View>
-      </View>
-
-      {/* View Profile button */}
-      <TouchableOpacity style={styles.viewProfileBtn} onPress={onPress} activeOpacity={0.85}>
-        <Text style={styles.viewProfileBtnText}>View Profile</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
+// The doctor card now lives in components/DoctorCard.js, shared with
+// SearchScreen. The two screens each had their own copy and drifted apart
+// every time one was touched — the guest-distance fix, the popular-first
+// sort and the card styling were each fixed twice. One component ends that.
 
 // ─── Main HomeScreen ─────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
@@ -901,8 +766,10 @@ export default function HomeScreen({ navigation }) {
                 <Ionicons
                   name={tab.icon}
                   size={14}
-                  color={active ? '#FFFFFF' : '#64748B'}
-                  style={{ marginRight: 5 }}
+                  // Accent per filter, as on Search: Favorites orange, Elite
+                  // blue, the rest grey. Active chips go white on blue.
+                  color={active ? '#FFFFFF' : (tab.key === 'Favorites' ? '#F59E0B' : tab.key === 'Elite' ? '#3B82F6' : '#64748B')}
+                  style={{ marginRight: 6 }}
                 />
                 <Text style={[styles.filterTabText, active && styles.filterTabTextActive]}>
                   {tab.label}
@@ -1020,11 +887,15 @@ export default function HomeScreen({ navigation }) {
                 style={isWide ? [styles.doctorGridCell, { width: `${100 / columns}%` }] : null}
               >
                 <DoctorCard
-                  doc={doc}
+                  doctor={doc}
+                  isWide={isWide}
                   isFavorite={!!favorites[doc._id]}
                   onToggleFavorite={toggleFavorite}
                   onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
-                  style={isWide ? { marginHorizontal: 0 } : null}
+                  onBook={async (d) => {
+                    if (!(await ensureAuth(navigation))) return;
+                    navigation.navigate('Booking', { doctor: d });
+                  }}
                   patientCoords={patientCoords}
                 />
               </View>
@@ -1433,15 +1304,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  // Matches SearchScreen's chip exactly — fixed height so the row reads as one
+  // band rather than chips of slightly different sizes.
   filterTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 50,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    marginRight: 10,
+    height: 36,
   },
   filterTabActive: {
     backgroundColor: '#0052FF',
@@ -1450,7 +1325,7 @@ const styles = StyleSheet.create({
   filterTabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#0F172A',
   },
   filterTabTextActive: {
     color: '#FFFFFF',
@@ -1500,6 +1375,12 @@ const styles = StyleSheet.create({
   },
   doctorGridCell: {
     paddingHorizontal: 8,
+    // Cards in a row have different content heights — a Popular badge, a
+    // two-line clinic name, a three-line address — so without this each card
+    // sized to its own content and the "View Profile" buttons sat at different
+    // heights across the row. Stretch makes every cell in a row the height of
+    // the tallest; the card fills it and pins its actions to the bottom.
+    alignSelf: 'stretch',
   },
 
   // Doctor card

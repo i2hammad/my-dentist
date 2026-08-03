@@ -708,7 +708,7 @@ export default function HomeScreen({ navigation }) {
               Nearby was active, which made the control look like it reset itself
               every time a filter was tapped. Nearby's wider scope is stated in
               the section subtitle instead, where it belongs. */}
-          <Text style={styles.locationTextBody}>{selectedCity}, Pakistan</Text>
+          <Text style={styles.locationTextBody}>{selectedCity ? `${selectedCity}, Pakistan` : 'All cities'}</Text>
           <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
         </TouchableOpacity>
 
@@ -723,6 +723,16 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {/* Without this there was no way back to browsing everywhere once a
+                  city had been picked. The fetch already drops the city param
+                  when this is null, so it needed the option, not new plumbing. */}
+              <TouchableOpacity
+                key="__all"
+                style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: !selectedCity ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: !selectedCity ? '#0052FF' : '#E2E8F0' }}
+                onPress={() => { setSelectedCity(null); setShowCityPicker(false); }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: !selectedCity ? '#FFF' : '#334155' }}>All cities</Text>
+              </TouchableOpacity>
               {PK_CITIES.map(city => {
                 const active = city === selectedCity;
                 return (
@@ -798,7 +808,7 @@ export default function HomeScreen({ navigation }) {
                   ? (patientCoords
                     ? 'All cities · sorted by distance from you'
                     : 'All cities · turn on location to sort by distance')
-                  : `In ${selectedCity}`}
+                  : (selectedCity ? `In ${selectedCity}` : 'All cities')}
             </Text>
           </View>
           <TouchableOpacity
@@ -852,7 +862,7 @@ export default function HomeScreen({ navigation }) {
               </>
             ) : doctors.length === 0 ? (
               <>
-                <Text style={styles.emptyTitle}>No dentists in {selectedCity} yet</Text>
+                <Text style={styles.emptyTitle}>{selectedCity ? `No dentists in ${selectedCity} yet` : 'No dentists yet'}</Text>
                 <Text style={styles.emptyText}>
                   We're adding clinics city by city. Try one of these instead:
                 </Text>
@@ -868,7 +878,7 @@ export default function HomeScreen({ navigation }) {
             ) : (
               <>
                 <Text style={styles.emptyTitle}>
-                  No {(filterTab || '').toLowerCase()} clinics in {selectedCity}
+                  No {(filterTab || '').toLowerCase()} clinics{selectedCity ? ` in ${selectedCity}` : ''}
                 </Text>
                 <Text style={styles.emptyText}>
                   {doctors.length} other dentist{doctors.length === 1 ? '' : 's'} available here.

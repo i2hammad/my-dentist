@@ -49,7 +49,7 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
       <View style={styles.cardTop}>
         <View style={styles.doctorImageContainer}>
           <Image
-            source={{ uri: item.photo ? imgUrl(item.photo, { w: 160, popular: !!item.isPopular }) : item.photoUrl || 'https://via.placeholder.com/150' }}
+            source={{ uri: item.photo ? imgUrl(item.photo, { w: 160, popular: !!item.isPopular, name: item.fullName, spec: item.specialization, clinic: item.clinicName, city: item.city }) : item.photoUrl || 'https://via.placeholder.com/150' }}
             style={styles.doctorImage}
           />
         </View>

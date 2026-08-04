@@ -24,7 +24,12 @@ export default function imgUrl(src, opts) {
     // `popular` draws the promoted pill into the pixels. The backend resizes a
     // file path and has no doctor record, so the caller has to say so.
     const pop = opts && opts.popular ? '&popular=1' : '';
-    return `${API_BASE_URL}/api/img?src=${encodeURIComponent(rel)}&w=${w}${pop}`;
+    // Caption fields, written into the image's EXIF so the file carries who /
+    // what / where once it leaves the site. All optional; capped server-side too.
+    const tag = (k, v) => (v ? `&${k}=${encodeURIComponent(String(v).slice(0, 80))}` : '');
+    const o = opts || {};
+    const meta = tag('name', o.name) + tag('spec', o.spec) + tag('clinic', o.clinic) + tag('city', o.city);
+    return `${API_BASE_URL}/api/img?src=${encodeURIComponent(rel)}&w=${w}${pop}${meta}`;
   }
   return `${API_BASE_URL}${rel}`;
 }

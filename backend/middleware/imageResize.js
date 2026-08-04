@@ -17,6 +17,55 @@ const ALLOWED_W = [80, 160, 320, 640]; // snap to these to bound cache size
 // dirties the thumbnail without communicating anything.
 const WATERMARK_MIN_W = 320;
 const SITE_LABEL = 'mydentistpk.com';
+const SITE_URL = 'https://mydentistpk.com';
+
+/**
+ * EXIF written into every resized photo.
+ *
+ * The watermark is visible attribution; this is the machine-readable half. It
+ * survives the file being downloaded and re-shared, so a photo lifted from the
+ * directory still carries where it came from — which is also what image search
+ * and CMSes read when they credit a source.
+ *
+ * `name` is optional: the route resizes a file path and only knows the doctor
+ * when the caller passes it. Values are sanitised because EXIF is a binary
+ * container and a stray NUL or newline from a free-text profile field can
+ * corrupt the block.
+ */
+function photoExif(meta) {
+  // EXIF is a binary container: a stray NUL or newline from a free-text profile
+  // field can corrupt the block, so every value is stripped and length-capped.
+  const clean = (v, max = 120) =>
+    String(v || '').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+  const name = clean(meta.name, 80);
+  const spec = clean(meta.spec, 60);
+  const clinic = clean(meta.clinic, 80);
+  const city = clean(meta.city, 40);
+
+  // Reads as a caption, because that is what image search and most CMSes
+  // surface when they credit a source: who, what, where.
+  const who = name || 'Verified dentist';
+  const parts = [spec, clinic, city].filter(Boolean).join(', ');
+  const description = parts
+    ? `${who} — ${parts}. Verified dentist listed on ${SITE_LABEL}`
+    : `${who} — verified dentist listed on ${SITE_LABEL}`;
+
+  const exif = {
+    IFD0: {
+      ImageDescription: description,
+      Copyright: `© ${new Date().getFullYear()} My Dentist (${SITE_LABEL}). All rights reserved.`,
+      Artist: 'My Dentist',
+      Software: SITE_URL,
+      // Shown as the document title in most viewers.
+      DocumentName: name ? `${name} | My Dentist` : 'My Dentist',
+    },
+  };
+  // Keyword-style subject line, the closest EXIF equivalent of IPTC keywords.
+  const keywords = [name, spec, clinic, city, 'dentist', 'Pakistan', SITE_LABEL].filter(Boolean);
+  exif.IFD0.XPKeywords = keywords.join('; ').slice(0, 200);
+  return exif;
+}
 
 /**
  * SVG overlay sized to the image: a bottom scrim with the site URL, plus a
@@ -74,7 +123,11 @@ function imageResize(req, res, next) {
 
   const popular = req.query.popular === '1';
   const mark = w >= WATERMARK_MIN_W;
-  const key = crypto.createHash('sha1').update(`${rel}|${w}|${mark ? 'wm' : 'raw'}|${popular ? 'pop' : ''}`).digest('hex');
+  // Caption fields. The route resizes a file path and has no doctor record, so
+  // the caller supplies what it knows; all are optional.
+  const q = (k) => (typeof req.query[k] === 'string' ? req.query[k] : '');
+  const photoMeta = { name: q('name'), spec: q('spec'), clinic: q('clinic'), city: q('city') };
+  const key = crypto.createHash('sha1').update(`${rel}|${w}|${mark ? 'wm' : 'raw'}|${popular ? 'pop' : ''}|${photoMeta.name}|${photoMeta.spec}|${photoMeta.clinic}|${photoMeta.city}`).digest('hex');
   const cached = path.join(CACHE, `${key}.webp`);
 
   const serve = (file) => {
@@ -93,10 +146,12 @@ function imageResize(req, res, next) {
     .resize(w, w, { fit: 'cover', withoutEnlargement: true })
     .toBuffer()
     .then(async (resized) => {
-      if (!mark) return sharp(resized).webp({ quality: 72 }).toBuffer();
+      const meta = { exif: photoExif(photoMeta) };
+      if (!mark) return sharp(resized).withMetadata(meta).webp({ quality: 72 }).toBuffer();
       const { width } = await sharp(resized).metadata();
       return sharp(resized)
         .composite([{ input: watermarkSvg(width, popular), top: 0, left: 0 }])
+        .withMetadata(meta)
         .webp({ quality: 72 }).toBuffer();
     })
     .then((buf) => {
@@ -132,9 +187,14 @@ function imageResizeRoute(req, res) {
   // route resizes a file path and has no doctor record to look it up from.
   const popular = req.query.popular === '1';
   const mark = w >= WATERMARK_MIN_W;
+  // Optional: the caller knows the doctor, this route only sees a file path.
+  // Caption fields. The route resizes a file path and has no doctor record, so
+  // the caller supplies what it knows; all are optional.
+  const q = (k) => (typeof req.query[k] === 'string' ? req.query[k] : '');
+  const photoMeta = { name: q('name'), spec: q('spec'), clinic: q('clinic'), city: q('city') };
   // The flags are part of the cache key: without them a previously cached
   // un-watermarked render would be served forever.
-  const key = crypto.createHash('sha1').update(`${rel}|${w}|${mark ? 'wm' : 'raw'}|${popular ? 'pop' : ''}`).digest('hex');
+  const key = crypto.createHash('sha1').update(`${rel}|${w}|${mark ? 'wm' : 'raw'}|${popular ? 'pop' : ''}|${photoMeta.name}|${photoMeta.spec}|${photoMeta.clinic}|${photoMeta.city}`).digest('hex');
   const cached = path.join(CACHE, `${key}.webp`);
   const send = (buf) => {
     res.setHeader('Content-Type', 'image/webp');
@@ -152,10 +212,14 @@ function imageResizeRoute(req, res) {
   // smaller than the requested size.
   sharp(src).rotate().resize(w, w, { fit: 'cover', withoutEnlargement: true }).toBuffer()
     .then(async (resized) => {
-      if (!mark) return sharp(resized).webp({ quality: 72 }).toBuffer();
+      // Attribution EXIF on every size, including thumbnails — it costs ~200
+      // bytes and survives the file being saved and re-shared.
+      const meta = { exif: photoExif(photoMeta) };
+      if (!mark) return sharp(resized).withMetadata(meta).webp({ quality: 72 }).toBuffer();
       const { width } = await sharp(resized).metadata();
       return sharp(resized)
         .composite([{ input: watermarkSvg(width, popular), top: 0, left: 0 }])
+        .withMetadata(meta)
         .webp({ quality: 72 }).toBuffer();
     })
     .then((buf) => { fs.writeFile(cached, buf, () => {}); send(buf); })

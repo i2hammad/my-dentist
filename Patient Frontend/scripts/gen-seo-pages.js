@@ -50,6 +50,24 @@ const slug = (s) => String(s || '').toLowerCase().trim()
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const imgUrl = (u) => !u ? `${SITE}/og-image.png` : (u.startsWith('http') ? u : `${API}${u}`);
 
+// Photo URL that goes through the resize route, so the image carries the
+// watermark and the attribution EXIF. The raw /uploads path served the original
+// with neither — which is what search engines were indexing and what anyone
+// saving the image got. `w` picks the rendered size; 320 is the smallest width
+// the watermark is drawn at.
+const photoUrl = (d, w) => {
+  const u = d && d.photo;
+  if (!u) return `${SITE}/icons/hero-logo.webp`;
+  if (String(u).startsWith('http')) return u;
+  const q = new URLSearchParams({ src: u, w: String(w) });
+  if (d.isPopular) q.set('popular', '1');
+  if (d.fullName) q.set('name', String(d.fullName).slice(0, 80));
+  if (d.specialization) q.set('spec', String(d.specialization).slice(0, 60));
+  if (d.clinicName) q.set('clinic', String(d.clinicName).slice(0, 80));
+  if (d.city) q.set('city', String(d.city).slice(0, 40));
+  return `${API}/api/img?${q.toString()}`;
+};
+
 // Shared <head> for every generated page.
 function head({ title, description, canonical, jsonld, pixel }) {
   return `<!doctype html><html lang="en"><head>
@@ -321,7 +339,7 @@ const foot = `<footer><div class="fin">
 // previously dominated every card and left them ragged and uneven.
 function doctorCard(d, locLine, opts = {}) {
   const name = String(d.fullName || '').trim();
-  const photo = d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`;
+  const photo = photoUrl(d, 160);
   const spec = (d.specialization || 'Dentist').trim();
   const clinic = (d.clinicName || '').trim();
 
@@ -375,7 +393,7 @@ function doctorPage(d) {
     '@context': 'https://schema.org',
     '@type': ['Dentist', 'LocalBusiness'],
     name, description: (d.about || desc).slice(0, 500),
-    image: imgUrl(d.photo), url: canonical,
+    image: photoUrl(d, 640), url: canonical,
     medicalSpecialty: spec,
     telephone: d.clinicContact || d.phone || undefined,
     address: { '@type': 'PostalAddress', addressLocality: city, addressCountry: 'PK', streetAddress: d.address || undefined },
@@ -422,7 +440,7 @@ function doctorPage(d) {
   const body = `<div class="wrap">
 <nav class="bc"><a href="${SITE}/">Home</a> › <a href="${SITE}/dentists/${slug(city)}">Dentists in ${esc(city)}</a> › ${esc(name)}</nav>
 <div class="prof">
-  <span class="profphwrap"><img class="profph" src="${esc(d.photo ? imgUrl(d.photo) : `${SITE}/icons/hero-logo.webp`)}" width="120" height="120" alt="${esc(name)}"/>${d.isPopular ? `<span class="propop ${d.popularType === 'paid' ? 'paid' : 'earned'}">★ Popular</span>` : ''}<span class="prosite">mydentistpk.com</span></span>
+  <span class="profphwrap"><img class="profph" src="${esc(photoUrl(d, 320))}" width="120" height="120" alt="${esc(name)}"/>${d.isPopular ? `<span class="propop ${d.popularType === 'paid' ? 'paid' : 'earned'}">★ Popular</span>` : ''}<span class="prosite">mydentistpk.com</span></span>
   <div class="profbd">
     <h1>${esc(name)}</h1>
     <p class="sub">${esc(spec)}${clinic ? ` · ${esc(clinic)}` : ''} · ${esc(city)}</p>
@@ -534,7 +552,7 @@ function doctorNode(d) {
     '@type': ['Dentist', 'LocalBusiness'],
     name: String(d.fullName || '').trim(),
     url: doctorUrl(d),
-    image: imgUrl(d.photo),
+    image: photoUrl(d, 640),
     ...(d.specialization ? { medicalSpecialty: d.specialization } : {}),
     ...(d.clinicContact || d.phone ? { telephone: d.clinicContact || d.phone } : {}),
     address: {

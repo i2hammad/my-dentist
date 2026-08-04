@@ -102,6 +102,12 @@ ${ioniconsHref ? `    <style>
     <link rel="icon" type="image/webp" sizes="16x16" href="/icons/icon-16.webp" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS ignores the web manifest's display mode. Without these, a home-screen
+         launch opens inside Safari with its address bar and toolbars, which is
+         the difference between "installed app" and "bookmark". -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="My Dentist" />
     <meta name="application-name" content="My Dentist" />
     <meta property="og:site_name" content="My Dentist" />
@@ -140,7 +146,17 @@ ${ioniconsHref ? `    <style>
       "description": "Online platform to find and book verified PMDC dentists across Pakistan.",
       "sameAs": ${JSON.stringify(SAME_AS)}
     }
-    </script>${pixelHead()}${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}${ioniconsHref ? `\n    <link rel="preload" as="font" type="font/ttf" href="${ioniconsHref}" crossorigin />` : ''}
+    </script>${pixelHead()}
+    <script>
+      // Registered after load so it never competes with the first paint or the
+      // bundle download. Failure is swallowed: a service worker is an
+      // enhancement, and a registration error must not break the page.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+      }
+    </script>${bundleHref ? `\n    <link rel="preload" as="script" href="${bundleHref}" />` : ''}${ioniconsHref ? `\n    <link rel="preload" as="font" type="font/ttf" href="${ioniconsHref}" crossorigin />` : ''}
 `;
 
 // Remove Expo's default favicon link so it doesn't conflict with (or override)
@@ -395,6 +411,40 @@ try {
   console.warn('[inject-seo] could not copy web icons:', e.message);
 }
 
+// ── Service worker + offline page ───────────────────────────────────────────
+// Versioned from the bundle hash so every deploy invalidates the old cache.
+try {
+  const swSrc = fs.readFileSync(path.join(__dirname, 'sw-template.js'), 'utf8');
+  const version = (bundleHref && bundleHref.match(/index-([a-z0-9]+)\.js/) || [])[1] || String(Date.now());
+  fs.writeFileSync(path.join(DIST, 'sw.js'), swSrc.replace('__CACHE_VERSION__', version));
+  console.log('[inject-seo] wrote sw.js (cache version ' + version.slice(0, 8) + ')');
+
+  fs.writeFileSync(path.join(DIST, 'offline.html'), `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>You're offline — My Dentist</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F8FAFC;color:#0F172A;padding:24px}
+  .card{max-width:380px;text-align:center}
+  .mark{width:64px;height:64px;border-radius:16px;background:#EFF4FF;display:flex;align-items:center;
+    justify-content:center;margin:0 auto 18px;font-size:30px}
+  h1{font-size:20px;margin:0 0 8px;letter-spacing:-.3px}
+  p{color:#64748B;font-size:14.5px;line-height:1.6;margin:0 0 20px}
+  button{background:#0052FF;color:#fff;border:0;border-radius:12px;padding:13px 24px;
+    font-size:15px;font-weight:700;cursor:pointer}
+</style></head><body>
+<div class="card">
+  <div class="mark">📶</div>
+  <h1>You're offline</h1>
+  <p>My Dentist needs a connection to show dentists and appointments. Your booking details are safe — reconnect and try again.</p>
+  <button onclick="location.reload()">Try again</button>
+</div></body></html>`);
+  console.log('[inject-seo] wrote offline.html');
+} catch (e) {
+  console.warn('[inject-seo] could not write service worker:', e.message);
+}
+
 fs.writeFileSync(path.join(DIST, 'manifest.webmanifest'), JSON.stringify({
   name: 'My Dentist',
   short_name: 'My Dentist',
@@ -403,12 +453,30 @@ fs.writeFileSync(path.join(DIST, 'manifest.webmanifest'), JSON.stringify({
   display: 'standalone',
   background_color: '#FFFFFF',
   theme_color: '#0052FF',
-  // WebP: 40KB -> 8KB and 164KB -> 20KB for the 192/512 icons. Chrome's PWA
-  // installer reads the declared `type`, so there is no format sniffing.
+  // `id` keeps the install identity stable even if start_url ever changes —
+  // without it a changed start_url reads as a different app and re-prompts.
+  id: '/',
+  scope: '/',
+  lang: 'en-PK',
+  dir: 'ltr',
+  orientation: 'portrait-primary',
+  categories: ['health', 'medical', 'lifestyle'],
+  // WebP first (40KB -> 8KB and 164KB -> 20KB for the 192/512 icons), PNG after
+  // as a fallback: installers pick the first format they can decode, and a
+  // WebP-only list risks a silently un-installable app on older Android
+  // WebViews. The PNGs ship anyway for the favicons, so this costs nothing.
   icons: [
     { src: '/icons/icon-192.webp', sizes: '192x192', type: 'image/webp' },
     { src: '/icons/icon-512.webp', sizes: '512x512', type: 'image/webp' },
-    { src: '/icons/icon-512.webp', sizes: '512x512', type: 'image/webp', purpose: 'any maskable' },
+    { src: '/icons/icon-512.webp', sizes: '512x512', type: 'image/webp', purpose: 'maskable' },
+    { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+  // Deep-link straight into the two things people install this app to do.
+  shortcuts: [
+    { name: 'Find a dentist', short_name: 'Find', url: '/?screen=Search' },
+    { name: 'My appointments', short_name: 'Appointments', url: '/?screen=Appointments' },
   ],
 }, null, 2));
 console.log('[inject-seo] wrote manifest.webmanifest');

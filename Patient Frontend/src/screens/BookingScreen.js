@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { trackBookingStarted, trackBookingCompleted, trackSignup, trackLogin } from '../utils/analytics';
 import BookingAuthSheet from '../components/BookingAuthSheet';
+import { clarityEvent, clarityUpgrade } from '../utils/clarity';
 import { REQUEST_TIMEOUT } from '../config/net';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
@@ -324,6 +325,10 @@ export default function BookingScreen({ route, navigation }) {
     if (!existing) {
       setAuthError('');
       setAuthSheet('signup');
+      // The new funnel's riskiest step. Tagging it makes the abandoned ones
+      // findable, which is the whole reason to watch replays here.
+      clarityEvent('booking_auth_prompted');
+      clarityUpgrade('booking_auth_prompted');
       return;
     }
     submitBooking(existing);
@@ -352,6 +357,11 @@ export default function BookingScreen({ route, navigation }) {
 
       // The conversion worth optimising ads against — fired only after the API
       // confirms the appointment exists, never on submit.
+      // Flags the session so Clarity keeps the replay: a completed booking is
+      // exactly the recording worth watching, and replays are sampled.
+      clarityEvent('booking_completed');
+      clarityUpgrade('booking_completed');
+
       trackBookingCompleted({
         doctor,
         treatment: selectedTreatments.join(', '),

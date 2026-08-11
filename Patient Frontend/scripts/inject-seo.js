@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pixelHead, pixelNoscript } = require('./meta-pixel');
+const { clarityHead, CLARITY_ID } = require('./clarity');
 const { SAME_AS } = require('./content-pages');
 
 const DIST = path.join(__dirname, '..', 'dist');
@@ -74,7 +75,9 @@ const SEO_HEAD = `
     <!-- The Meta Pixel loads from connect.facebook.net on every page. It was the
          one third-party origin with no hint at all. -->
     <link rel="preconnect" href="https://connect.facebook.net" crossorigin />
-    <link rel="dns-prefetch" href="https://connect.facebook.net" />
+    <link rel="dns-prefetch" href="https://connect.facebook.net" />${CLARITY_ID ? `
+    <link rel="preconnect" href="https://www.clarity.ms" crossorigin />
+    <link rel="dns-prefetch" href="https://www.clarity.ms" />` : ''}
     <!-- Icon fonts (@expo/vector-icons) default to font-display:block, which blocks
          text paint until the font loads — PageSpeed measured 1,470ms of invisible
          text on the Ionicons file alone.
@@ -146,7 +149,7 @@ ${ioniconsHref ? `    <style>
       "description": "Online platform to find and book verified PMDC dentists across Pakistan.",
       "sameAs": ${JSON.stringify(SAME_AS)}
     }
-    </script>${pixelHead()}
+    </script>${pixelHead()}${clarityHead()}
     <script>
       // Registered after load so it never competes with the first paint or the
       // bundle download. Failure is swallowed: a service worker is an

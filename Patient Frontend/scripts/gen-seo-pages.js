@@ -22,6 +22,7 @@ const path = require('path');
 const https = require('https');
 const content = require('./content-pages');
 const { pixelHead, pixelNoscript, pixelViewContent } = require('./meta-pixel');
+const { clarityHead } = require('./clarity');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const SITE = 'https://mydentistpk.com';
@@ -87,7 +88,7 @@ function head({ title, description, canonical, jsonld, pixel }) {
 <meta property="og:image" content="${SITE}/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 ${jsonld.map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join('\n')}
-${pixelHead()}${pixel ? pixelViewContent(pixel) : ''}
+${pixelHead()}${clarityHead()}${pixel ? pixelViewContent(pixel) : ''}
 <style>
 /* Values mirror the app's own styles so a visitor arriving from search
    recognises the brand: #0052FF primary + #0A1551 ink from WebTopNav, the

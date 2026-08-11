@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, AppState, Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
+import { clarityScreen } from '../utils/clarity';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -304,6 +305,13 @@ export default function AppNavigator() {
   const [navInfo, setNavInfo] = React.useState({ root: null, tab: null });
   const syncNavInfo = React.useCallback(() => {
     try { setNavInfo(readNavInfo(navRef.getRootState())); } catch {}
+    // Clarity sees one page load for the whole session — every screen after the
+    // first is a state change, not a navigation. Without this the dashboard
+    // groups an entire visit under "/" and heatmaps mix every screen together.
+    try {
+      const name = navRef.getCurrentRoute && navRef.getCurrentRoute()?.name;
+      if (name) clarityScreen(name);
+    } catch {}
   }, [navRef]);
 
   return (

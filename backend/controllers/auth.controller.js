@@ -44,6 +44,9 @@ const register = async (req, res) => {
         data: {
           userId: user.id,
           fullName: req.body.name || 'New Doctor',
+          // Was dropped on the doctor branch while the patient branch stored it,
+          // so a doctor who gave a number at signup had to enter it again.
+          phone: req.body.phone || '',
           specialization: 'General',
         },
       });

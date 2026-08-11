@@ -13,6 +13,11 @@ import { trackSignup } from '../utils/analytics';
 
 export default function RegisterScreen({ route, navigation }) {
   const { isWide } = useResponsive();
+  // Name and phone are collected here rather than left to the setup screen:
+  // the API writes both onto the profile at registration, so asking now means
+  // one less step before a patient can book.
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,6 +35,9 @@ export default function RegisterScreen({ route, navigation }) {
     }
   }, [route.params?.role]);
 
+  const isNameValid = fullName.trim().length >= 2;
+  // Pakistani mobile, e.g. 03001234567 — same rule as PatientSetupScreen.
+  const isPhoneValid = /^03\d{9}$/.test(phone.trim());
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const isLengthValid = password.length >= 8;
   const hasUppercase = /[A-Z]/.test(password);
@@ -39,8 +47,16 @@ export default function RegisterScreen({ route, navigation }) {
   const isPasswordValid = isLengthValid && hasUppercase && hasLowercase && hasNumber && hasSpecialChar;
 
   const handleRegister = async () => {
-    if (!email.trim() || !password || !confirmPassword) {
+    if (!fullName.trim() || !phone.trim() || !email.trim() || !password || !confirmPassword) {
       return alert('Please fill in all fields.');
+    }
+
+    if (!isNameValid) {
+      return alert('Please enter your full name.');
+    }
+
+    if (!isPhoneValid) {
+      return alert('Enter an 11-digit mobile number starting with 03.');
     }
     
     if (!isEmailValid) {
@@ -71,7 +87,9 @@ export default function RegisterScreen({ route, navigation }) {
       const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
         email: email.trim().toLowerCase(),
         password,
-        role
+        role,
+        name: fullName.trim(),
+        phone: phone.trim()
       }, { timeout: REQUEST_TIMEOUT });
 
       // Only claim success once the response actually says so — this alert used
@@ -127,6 +145,39 @@ export default function RegisterScreen({ route, navigation }) {
             >
               <Text style={[styles.roleButtonText, role === 'doctor' && styles.roleButtonTextActive]}>I'm a Dentist</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Full name */}
+          <Text style={styles.label}>Full Name</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Ayesha Khan"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="words"
+              textContentType="name"
+              returnKeyType="next"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+          </View>
+
+          {/* Mobile number */}
+          <Text style={styles.label}>Mobile Number</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="call-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="03001234567"
+              placeholderTextColor="#94A3B8"
+              keyboardType="phone-pad"
+              maxLength={11}
+              textContentType="telephoneNumber"
+              returnKeyType="next"
+              value={phone}
+              onChangeText={setPhone}
+            />
           </View>
 
           {/* Email Address */}

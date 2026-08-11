@@ -78,8 +78,6 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
             <Text style={styles.reviewsText}>({item.totalReviews || 0} Reviews)</Text>
           </View>
 
-          <Text style={styles.clinic} numberOfLines={1}>{item.clinicName}</Text>
-
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={12} color="#64748B" />
             <Text style={styles.distanceText} numberOfLines={1}>{item.city || 'Pakistan'}</Text>

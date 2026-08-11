@@ -814,7 +814,10 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.seeMapBtn}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('Map', { doctors, patientCoords })}
+            onPress={async () => {
+              if (!(await ensureAuth(navigation))) return; // guests → signup
+              navigation.navigate('Map', { doctors, patientCoords });
+            }}
           >
             <Ionicons name="map-outline" size={14} color="#2563EB" />
             <Text style={styles.seeMapText}>See Map</Text>

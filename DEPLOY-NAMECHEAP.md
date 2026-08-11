@@ -203,9 +203,17 @@ crawlers would get only the empty SPA shell.
 2. Build the web bundle **and** run the SEO pipeline:
    ```bash
    cd "Patient Frontend"
-   npm run build:web        # expo export → inject-seo.js → gen-seo-pages.js, all into dist/
+   BUILD_API_KEY=<same value as the server's .env> npm run build:web        # expo export → inject-seo.js → gen-seo-pages.js, all into dist/
    ```
-   `gen-seo-pages.js` fetches live doctors from `https://api.mydentistpk.com` to generate
+   > **`BUILD_API_KEY` is required.** The API withholds phone numbers and exact
+> addresses from unauthenticated callers (guests and scrapers). The generator
+> calls that same API, so **without this key the build silently publishes the
+> guest view** — same page count, quietly missing the contact details and full
+> addresses Google uses to rank you locally, and no error to notice. The value
+> lives in `~/api.mydentistpk.com/.env` on the server; pass the same value here.
+> It is build-time only and never appears in the published output.
+
+`gen-seo-pages.js` fetches live doctors from `https://api.mydentistpk.com` to generate
    the pre-rendered pages + `sitemap.xml`; `inject-seo.js` injects the head/robots/favicons/
    `.htaccess`. (GSC verification token is baked in via `GSC_TOKEN`, default hardcoded.)
 3. Deploy **the contents of `dist/`** into `public_html` (the apex docroot). Over SSH,

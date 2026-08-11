@@ -31,9 +31,16 @@ const APP = 'https://mydentistpk.com';
 const API = process.env.SEO_API_URL || 'https://api.mydentistpk.com';
 
 // ── tiny fetch (no deps) ────────────────────────────────────────────────────
+// The API withholds phone numbers and exact addresses from unauthenticated
+// callers. These pages are the ones Google indexes and are meant to carry full
+// detail, so the generator identifies itself with the build key. Without it the
+// build silently publishes the guest view — same page count, quietly less data.
+const BUILD_KEY = process.env.BUILD_API_KEY || '';
+
 function getJSON(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { timeout: 20000 }, (res) => {
+    const headers = BUILD_KEY ? { 'x-build-key': BUILD_KEY } : {};
+    const req = https.get(url, { timeout: 20000, headers }, (res) => {
       let body = '';
       res.on('data', (c) => (body += c));
       res.on('end', () => {

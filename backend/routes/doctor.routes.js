@@ -10,7 +10,15 @@ const {
   getDoctorStats
 } = require('../controllers/doctor.controller');
 
+const optionalAuth = require('../middleware/optionalAuth');
+
 const router = express.Router();
+
+// Public directory: open to everyone, but the controller withholds personal
+// contact details from callers without a valid session. optionalAuth only sets
+// req.isAuthed — it never rejects, so crawlers and signed-out visitors still
+// get the listing.
+router.use(optionalAuth);
 
 // @route   GET /api/doctors
 router.get(

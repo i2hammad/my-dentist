@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ensureAuth } from "../utils/authGuard";
+import { addressFor, GATED_HINT } from '../utils/guestData';
 import { trackViewDoctor, trackContactDoctor, trackReviewSubmitted, trackSaveDoctor } from '../utils/analytics';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity, ScrollView,
@@ -106,6 +107,9 @@ export default function DoctorProfileScreen({ route, navigation }) {
   const [payingBillId, setPayingBillId] = useState(null);
 
   const [activeTab, setActiveTab] = useState('About');
+  // Also gates the address: guests see the area, not the doorstep. The API
+  // withholds the exact address and contact details from them as well, so this
+  // keeps the UI honest about what it actually has.
   const [isGuest, setIsGuest] = useState(false); // no token → hide account-only tabs
   const [tabsScrollEnd, setTabsScrollEnd] = useState(false);
   const [tabsScrollStart, setTabsScrollStart] = useState(true); // at the far-left start
@@ -717,7 +721,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={14} color="#64748B" />
             {!!doctor.address && (
-              <Text style={styles.distanceText}>{doctor.address}{doctor.city ? `, ${doctor.city}` : ''}</Text>
+              <Text style={styles.distanceText}>{addressFor(doctor, isGuest)}</Text>
             )}
             {distanceLabel && (
               <View style={styles.distanceChip}>
@@ -887,7 +891,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
                     <Ionicons name="location-outline" size={14} color="#16A34A" />
                   </View>
                   <Text style={{ fontSize: 13, color: '#334155', flex: 1, lineHeight: 19 }}>
-                    {[doctor.address, doctor.city].filter(Boolean).join(', ')}
+                    {addressFor(doctor, isGuest)}
                   </Text>
                   {distanceLabel && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 }}>
@@ -1231,7 +1235,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
                   <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
                     <Ionicons name="location-outline" size={16} color="#64748B" style={{ marginTop: 1 }} />
                     <Text style={{ flex: 1, fontSize: 12.5, color: '#334155', fontWeight: '500', lineHeight: 18 }}>
-                      {[doctor.address, doctor.city].filter(Boolean).join(', ')}
+                      {addressFor(doctor, isGuest)}
                     </Text>
                   </View>
                 ) : null}

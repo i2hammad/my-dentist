@@ -1,6 +1,33 @@
 const prisma = require('../config/prisma');
 const { serialize, remapMany } = require('../utils/serialize');
 
+/**
+ * Strips personal contact details for callers without a session.
+ *
+ * The directory used to return every doctor's mobile number and exact street
+ * address to anyone who called the endpoint, including scrapers. Guests keep
+ * enough to choose a dentist — name, specialty, clinic, city, rating, distance
+ * — and get the rest after signing up.
+ *
+ * The pre-rendered pages are generated at build time by a trusted script and
+ * keep full detail on purpose: they are what Google indexes.
+ */
+const publicView = (rows, isAuthed) => {
+  if (isAuthed) return rows;
+  const trim = (d) => {
+    if (!d || typeof d !== 'object') return d;
+    const { phone, clinicContact, mobileNumber, email, ...rest } = d;
+    // Address is coarsened rather than removed: "Satellite Town, Rawalpindi"
+    // still tells someone whether a clinic is convenient.
+    if (rest.address) {
+      const parts = String(rest.address).split(',').map((x) => x.trim()).filter(Boolean);
+      rest.address = parts.length > 2 ? parts.slice(-2).join(', ') : rest.address;
+    }
+    return rest;
+  };
+  return Array.isArray(rows) ? rows.map(trim) : trim(rows);
+};
+
 // Per-doctor treatment count + rating aggregate.
 async function enrich(doctor) {
   const [treatmentsCount, ratingAgg] = await Promise.all([
@@ -47,7 +74,7 @@ const getDoctors = async (req, res) => {
       total,
       page,
       pages: Math.ceil(total / limit),
-      data: serialize(remapMany(enriched, { user: 'userId' })),
+      data: publicView(serialize(remapMany(enriched, { user: 'userId' })), req.isAuthed),
     });
   } catch (error) {
     console.error('Get doctors error:', error);
@@ -96,7 +123,7 @@ const getNearbyDoctors = async (req, res) => {
       distanceKm: Math.round((r.distance || 0) * 100) / 100,
     }));
 
-    res.status(200).json({ success: true, count: results.length, data: serialize(results) });
+    res.status(200).json({ success: true, count: results.length, data: publicView(serialize(results), req.isAuthed) });
   } catch (error) {
     console.error('Get nearby doctors error:', error);
     res.status(500).json({ success: false, message: 'Server error while fetching nearby doctors' });
@@ -141,7 +168,7 @@ const searchDoctors = async (req, res) => {
       total,
       page,
       pages: Math.ceil(total / limit),
-      data: serialize(remapMany(doctors, { user: 'userId' })),
+      data: publicView(serialize(remapMany(doctors, { user: 'userId' })), req.isAuthed),
     });
   } catch (error) {
     console.error('Search doctors error:', error);
@@ -160,7 +187,8 @@ const getDoctorById = async (req, res) => {
     });
     if (!doctor || doctor.isBlocked) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
-    const [data] = serialize(remapMany([doctor], { user: 'userId' }));
+    const [raw] = serialize(remapMany([doctor], { user: 'userId' }));
+    const data = publicView(raw, req.isAuthed);
     res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('Get doctor by ID error:', error);

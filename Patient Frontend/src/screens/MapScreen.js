@@ -410,7 +410,7 @@ export default function MapScreen({ navigation, route }) {
                   )}
                   <View style={styles.previewFacts}>
                     {!!selectedDoc.experience && (
-                      <Text style={styles.previewFact}>{selectedDoc.experience}+ yrs</Text>
+                      <Text style={styles.previewFact}>{selectedDoc.experience}+ Years</Text>
                     )}
                     {!!selectedDoc.consultationFee && (
                       <Text style={styles.previewFact}>

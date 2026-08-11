@@ -1,5 +1,6 @@
 ﻿import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { isValidName, isValidPhone, isValidEmail, isValidPassword, failedPasswordRules, PHONE_HINT } from '../utils/signupRules';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -35,16 +36,14 @@ export default function RegisterScreen({ route, navigation }) {
     }
   }, [route.params?.role]);
 
-  const isNameValid = fullName.trim().length >= 2;
-  // Pakistani mobile, e.g. 03001234567 — same rule as PatientSetupScreen.
-  const isPhoneValid = /^03\d{9}$/.test(phone.trim());
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const isLengthValid = password.length >= 8;
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasLowercase = /[a-z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasSpecialChar = /[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]/.test(password);
-  const isPasswordValid = isLengthValid && hasUppercase && hasLowercase && hasNumber && hasSpecialChar;
+  // Rules live in utils/signupRules.js, shared with the account sheet at the end
+  // of booking. The two had drifted — this screen demanded 8 characters with
+  // mixed case and a symbol while the sheet accepted 6 with a digit, so the
+  // same password was refused in one place and accepted in the other.
+  const isNameValid = isValidName(fullName);
+  const isPhoneValid = isValidPhone(phone);
+  const isEmailValid = isValidEmail(email);
+  const isPasswordValid = isValidPassword(password);
 
   const handleRegister = async () => {
     if (!fullName.trim() || !phone.trim() || !email.trim() || !password || !confirmPassword) {
@@ -56,7 +55,7 @@ export default function RegisterScreen({ route, navigation }) {
     }
 
     if (!isPhoneValid) {
-      return alert('Enter an 11-digit mobile number starting with 03.');
+      return alert(PHONE_HINT + '.');
     }
     
     if (!isEmailValid) {
@@ -64,14 +63,8 @@ export default function RegisterScreen({ route, navigation }) {
     }
 
     if (!isPasswordValid) {
-      const missing = [];
-      if (!isLengthValid) missing.push('• Minimum 8 characters');
-      if (!hasUppercase) missing.push('• At least one uppercase letter (A-Z)');
-      if (!hasLowercase) missing.push('• At least one lowercase letter (a-z)');
-      if (!hasNumber) missing.push('• At least one number (0-9)');
-      if (!hasSpecialChar) missing.push('• At least one special character (e.g. !@#$%^&*)');
-
-      return alert('Password does not meet the security requirements:\n\n' + missing.join('\n'));
+      return alert('Password does not meet the security requirements:\n\n'
+        + failedPasswordRules(password).map((r) => '• ' + r).join('\n'));
     }
 
     if (password !== confirmPassword) {

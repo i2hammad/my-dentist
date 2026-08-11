@@ -352,7 +352,7 @@ function doctorCard(d, locLine, opts = {}) {
   const clinic = (d.clinicName || '').trim();
 
   const facts = [
-    d.experience ? `<span class="fact">${Number(d.experience)}+ yrs</span>` : '',
+    d.experience ? `<span class="fact">${Number(d.experience)}+ Years</span>` : '',
     d.pmdcVerified ? `<span class="fact ok">PMDC verified</span>` : '',
     d.avgRating && d.totalReviews
       ? `<span class="fact star">★ ${Number(d.avgRating).toFixed(1)} <i>(${d.totalReviews})</i></span>` : '',
@@ -440,7 +440,7 @@ function doctorPage(d) {
   const chips = [
     spec && `<span class="chip key">${esc(specSingular(spec))}</span>`,
     d.pmdcVerified && `<span class="chip ver">✓ PMDC verified</span>`,
-    d.experience && `<span class="chip">${d.experience}+ yrs experience</span>`,
+    d.experience && `<span class="chip">${d.experience}+ Years experience</span>`,
     d.clinicTier && `<span class="chip">${esc(d.clinicTier)} clinic</span>`,
     (d.languages || []).length && `<span class="chip">${esc((d.languages || []).join(', '))}</span>`,
   ].filter(Boolean).join(' ');

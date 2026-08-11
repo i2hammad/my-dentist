@@ -122,7 +122,7 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <Ionicons name="briefcase-outline" size={13} color="#64748B" />
-          <Text style={styles.statValue}>{item.experience || 0}+ yrs</Text>
+          <Text style={styles.statValue}>{item.experience || 0}+ Years</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
@@ -136,7 +136,7 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
           <Text style={styles.outlineBtnTxt}>View Profile</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.solidBtn} onPress={() => onBook && onBook(item)}>
-          <Text style={styles.solidBtnTxt}>Book Now</Text>
+          <Text style={styles.solidBtnTxt}>Book Appointment</Text>
         </TouchableOpacity>
       </View>
     </View>

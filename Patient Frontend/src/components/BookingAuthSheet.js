@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PASSWORD_HINT, isValidPassword, isValidEmail, isValidPhone, isValidName } from '../utils/signupRules';
 
 /**
  * Account step at the END of booking, not the start.
@@ -17,13 +18,9 @@ import { Ionicons } from '@expo/vector-icons';
  * the redirect it replaces.
  */
 
-// Mirrors the API's own rule (auth.routes.js): 6+ characters, at least one
-// digit. Stated up front rather than discovered through a server error.
-const PASSWORD_HINT = 'At least 6 characters, including a number';
-const isValidPassword = (p) => p.length >= 6 && /\d/.test(p);
-const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-// Pakistani mobile, e.g. 03001234567 — same rule as PatientSetupScreen.
-const isValidPhone = (p) => /^03\d{9}$/.test(p.trim());
+// Shared with RegisterScreen so the same password is accepted in both places.
+// This sheet used to allow 6 characters with a digit (all the API enforces)
+// while the signup screen demanded 8 with mixed case and a symbol.
 
 export default function BookingAuthSheet({
   visible,
@@ -46,7 +43,7 @@ export default function BookingAuthSheet({
   const mark = (f) => setTouched((t) => ({ ...t, [f]: true }));
 
   const errors = {};
-  if (!isLogin && !fullName.trim()) errors.fullName = 'Please enter your name';
+  if (!isLogin && !isValidName(fullName)) errors.fullName = 'Please enter your name';
   if (!isValidEmail(email)) errors.email = 'Enter a valid email address';
   if (!isLogin && !isValidPhone(phone)) errors.phone = 'Enter an 11-digit number starting with 03';
   if (!isValidPassword(password)) errors.password = isLogin ? 'Enter your password' : PASSWORD_HINT;
@@ -117,9 +114,9 @@ export default function BookingAuthSheet({
           ) : null}
 
           <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 340 }}>
-            {!isLogin && field('Full name', fullName, setFullName, 'fullName', { placeholder: 'e.g. Ayesha Khan', autoCapitalize: 'words' })}
-            {field('Email', email, setEmail, 'email', { placeholder: 'you@example.com', keyboardType: 'email-address', autoCapitalize: 'none', autoCorrect: false })}
-            {!isLogin && field('Mobile number', phone, setPhone, 'phone', { placeholder: '03001234567', keyboardType: 'phone-pad', maxLength: 11 })}
+            {!isLogin && field('Full Name', fullName, setFullName, 'fullName', { placeholder: 'e.g. Ayesha Khan', autoCapitalize: 'words' })}
+            {!isLogin && field('Mobile Number', phone, setPhone, 'phone', { placeholder: '03001234567', keyboardType: 'phone-pad', maxLength: 11 })}
+            {field('Email Address', email, setEmail, 'email', { placeholder: 'you@example.com', keyboardType: 'email-address', autoCapitalize: 'none', autoCorrect: false })}
             {field('Password', password, setPassword, 'password', {
               placeholder: isLogin ? 'Your password' : PASSWORD_HINT,
               secureTextEntry: !showPassword,

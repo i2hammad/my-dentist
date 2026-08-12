@@ -361,6 +361,14 @@ RewriteRule ^ - [L]
 RewriteCond %{REQUEST_FILENAME}.html -f
 RewriteRule ^(.+?)/?$ $1.html [L]
 
+# Static assets must 404 when missing, never fall through to the shell. A stale
+# service worker or a cached page can ask for a bundle from a previous deploy;
+# answering that with index.html returns HTML under a .js content type, which
+# the browser cannot parse — the page renders blank with no useful error.
+# Safari surfaced this; a 404 lets the caller fail honestly and re-fetch.
+RewriteCond %{REQUEST_URI} \.(js|mjs|css|map|json|webmanifest|png|jpe?g|webp|svg|ico|ttf|woff2?)$ [NC]
+RewriteRule ^ - [R=404,L]
+
 # Everything else → the app shell (client-side routing).
 RewriteRule ^ index.html [L]
 

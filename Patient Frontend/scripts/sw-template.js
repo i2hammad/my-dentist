@@ -75,6 +75,14 @@ self.addEventListener('fetch', (event) => {
   if (isHashedAsset(url)) {
     event.respondWith(
       caches.match(request).then((hit) => hit || fetch(request).then((res) => {
+        // A 404 here means this client is asking for a bundle from a previous
+        // deploy — its cached shell is stale. Drop the caches and unregister so
+        // the next load fetches everything fresh, instead of leaving the user
+        // on a blank page that a reload cannot fix.
+        if (res.status === 404) {
+          caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+            .then(() => self.registration.unregister());
+        }
         if (res.ok) {
           const copy = res.clone();
           caches.open(ASSET_CACHE).then((c) => c.put(request, copy));

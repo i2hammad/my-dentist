@@ -144,11 +144,12 @@ export default function SearchScreen({ navigation, route }) {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  // `specialty` comes from the category chips; `q` is a query handed over from
+  // Home when its paged list could not cover the whole directory.
   useEffect(() => {
-    if (route.params?.specialty) {
-      setSearchQuery(route.params.specialty);
-    }
-  }, [route.params?.specialty]);
+    const incoming = route.params?.q || route.params?.specialty;
+    if (incoming) setSearchQuery(incoming);
+  }, [route.params?.specialty, route.params?.q]);
 
   // Search filters the whole directory client-side (name, specialty, clinic,
   // city), so it needs every doctor rather than a page. The API caps `limit` at

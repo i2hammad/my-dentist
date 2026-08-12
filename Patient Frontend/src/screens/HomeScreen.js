@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   Image,
@@ -82,6 +83,8 @@ import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import { useNotifications } from '../context/NotificationContext';
 import DoctorCard from '../components/DoctorCard';
+import { clarityEvent } from '../utils/clarity';
+import { trackSearch } from '../utils/analytics';
 import useResponsive from '../hooks/useResponsive';
 import { ctaLabel } from '../utils/promo';
 import { getCoords } from '../utils/geo';
@@ -169,8 +172,21 @@ export default function HomeScreen({ navigation }) {
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [doctors, setDoctors]         = useState([]);
   const [loading, setLoading]         = useState(true);
+  // Home searches in place. It used to be a Text placeholder inside a
+  // TouchableOpacity that navigated to the Search screen — it looked like an
+  // input, so tapping it to type sent you somewhere else instead.
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab]     = useState('Nearby');
   const isNearby = filterTab === 'Nearby';
+
+  // Reported once the user stops typing. Without the debounce a 12-character
+  // query would fire 12 events and make search volume meaningless.
+  useEffect(() => {
+    const t = searchQuery.trim();
+    if (t.length < 3) return;
+    const id = setTimeout(() => { trackSearch(t); clarityEvent('home_search'); }, 900);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
   const [favorites, setFavorites]     = useState({});
   const isGuest = useIsGuest();
   // Favorites needs an account — hide that filter chip for guests.
@@ -423,9 +439,19 @@ export default function HomeScreen({ navigation }) {
     } catch {}
   };
 
-  const filteredDoctors = filterTab === 'Favorites'
+  const tabFiltered = filterTab === 'Favorites'
     ? favoriteDoctors
     : filterDoctors(doctors, filterTab, favorites, patientCoords, tierThresholds);
+
+  // Name, specialty, clinic and city — the four things someone types into a
+  // dentist search. Applied after the tab filter so "Elite" + "braces" narrows
+  // rather than replacing.
+  const q = searchQuery.trim().toLowerCase();
+  const filteredDoctors = !q ? tabFiltered : tabFiltered.filter((d) => {
+    const hay = [d.fullName, d.specialization, d.clinicName, d.city]
+      .filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
 
   // Greeting + first name for the header.
   const firstName = (profile?.fullName || '').trim().split(/\s+/)[0] || '';
@@ -681,17 +707,30 @@ export default function HomeScreen({ navigation }) {
           // giant lozenge; a squarer field with a capped width looks like a
           // search input. Mobile keeps the pill.
           style={[styles.searchBar, isWeb && isWide && styles.searchBarWide]}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Search')}
+          activeOpacity={1}
         >
           <Ionicons name="search-outline" size={20} color="#94A3B8" style={{ marginRight: 8 }} />
-          <Text style={styles.searchPlaceholder} numberOfLines={1}>
-            Search Dentist / Clinic / Treatment
-          </Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search Dentist / Clinic / Treatment"
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
           <View style={styles.searchActions}>
-            <TouchableOpacity style={styles.searchActionBtn} onPress={() => navigation.navigate('Search')}>
-              <Ionicons name="mic-outline" size={18} color="#64748B" />
-            </TouchableOpacity>
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                style={styles.searchActionBtn}
+                onPress={() => setSearchQuery('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+            {/* Filters still live on the Search screen, which has the full set. */}
             <TouchableOpacity style={styles.searchActionBtn} onPress={() => navigation.navigate('Search')}>
               <Ionicons name="options-outline" size={18} color="#64748B" />
             </TouchableOpacity>
@@ -857,8 +896,32 @@ export default function HomeScreen({ navigation }) {
           // is irrelevant — offer cities that do have some), versus a clinic-type
           // filter that excluded them (offer to clear it).
           <View style={styles.emptyContainer}>
-            <Ionicons name="location-outline" size={40} color="#CBD5E1" />
-            {filterTab === 'Favorites' ? (
+            <Ionicons name={q ? 'search-outline' : 'location-outline'} size={40} color="#CBD5E1" />
+            {q ? (
+              // A search that matched nothing is its own case: the city and the
+              // filter are fine, the words are the problem.
+              <>
+                <Text style={styles.emptyTitle}>No matches for “{searchQuery.trim()}”</Text>
+                <Text style={styles.emptyText}>
+                  {hasMore
+                    // Home loads 30 at a time, so a search only sees what has
+                    // been fetched. Saying so beats implying the directory has
+                    // nothing — the Search screen loads every page.
+                    ? 'Searching the dentists loaded so far. Open full search to look through all of them.'
+                    : 'Try a name, specialty, clinic or city.'}
+                </Text>
+                {hasMore && (
+                  <TouchableOpacity style={styles.emptyCityBtn} onPress={() => navigation.navigate('Search', { q: searchQuery.trim() })}>
+                    <Ionicons name="search-outline" size={14} color="#0052FF" />
+                    <Text style={styles.emptyCityTxt}>Search all dentists</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.emptyCityBtn} onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle-outline" size={14} color="#0052FF" />
+                  <Text style={styles.emptyCityTxt}>Clear search</Text>
+                </TouchableOpacity>
+              </>
+            ) : filterTab === 'Favorites' ? (
               <>
                 <Text style={styles.emptyTitle}>No saved dentists yet</Text>
                 <Text style={styles.emptyText}>Tap the heart on any dentist to save them here.</Text>
@@ -1286,6 +1349,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     marginTop: 4,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    paddingVertical: 0,
+    // RN-web draws a focus ring on the input that fights the bar's own border.
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),
   },
   searchPlaceholder: {
     flex: 1,

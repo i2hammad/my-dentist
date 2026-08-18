@@ -52,6 +52,15 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
             source={{ uri: item.photo ? imgUrl(item.photo, { w: 160, popular: !!item.isPopular, name: item.fullName, spec: item.specialization, clinic: item.clinicName, city: item.city }) : item.photoUrl || 'https://via.placeholder.com/150' }}
             style={styles.doctorImage}
           />
+          {/* Overlaid on the photo rather than sitting in the info column:
+              it labels the dentist, and pinning it to the image keeps the
+              text column to one consistent rhythm of name/specialty/rating. */}
+          {item.isPopular && (
+            <View style={[styles.popularBadge, { backgroundColor: item.popularType === 'paid' ? '#2563EB' : '#7C3AED' }]}>
+              <Ionicons name="star" size={10} color="#FFFFFF" />
+              <Text style={styles.popularBadgeText}>Popular</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.info}>
@@ -80,15 +89,6 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
             )}
           </View>
 
-          {/* Below the rest of the profile info (name/specialty/rating/location)
-              rather than tucked under the specialty line, so it reads as a
-              standalone signal once the reader already has the full picture. */}
-          {item.isPopular && (
-            <View style={[styles.popularBadge, { backgroundColor: item.popularType === 'paid' ? '#DBEAFE' : '#DCFCE7' }]}>
-              <Ionicons name="star" size={11} color={item.popularType === 'paid' ? '#1D4ED8' : '#15803D'} />
-              <Text style={[styles.popularBadgeText, { color: item.popularType === 'paid' ? '#1D4ED8' : '#15803D' }]}>Popular</Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.rightActions}>
@@ -315,17 +315,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   popularBadge: {
+    // The photo is only 64px wide, so the pill spans its full width rather
+    // than floating in a corner it cannot fit into.
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 3,
-    paddingHorizontal: 7,
+    justifyContent: 'center',
+    gap: 2,
     paddingVertical: 2,
-    borderRadius: 8,
-    marginTop: 3,
   },
   popularBadgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

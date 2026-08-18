@@ -98,12 +98,27 @@ import { matchesTier } from '../utils/clinicTier';
 // the right of Nearby, off the edge of the screen on a phone. They're folded
 // into a single "Favourite" chip that opens a box of these four options —
 // picking one swaps its name onto the chip in place of "Favourite".
-const FAV_OPTIONS = [
-  { key: 'Favorites', label: 'Favourites', icon: 'heart' },
-  { key: 'Elite',     label: 'Elite',      icon: 'star' },
-  { key: 'Standard',  label: 'Standard',   icon: 'shield-checkmark' },
-  { key: 'Modern',    label: 'Modern',     icon: 'star-half' },
+//
+// Split into two labelled groups inside the box, because the four are not
+// peers: "Favourites" is the patient's own saved list, while Elite/Standard/
+// Modern grade the clinic's facilities. Flat, they read as one arbitrary row
+// and the tiers look like more kinds of favourite.
+const FAV_GROUPS = [
+  {
+    title: 'Saved',
+    options: [{ key: 'Favorites', label: 'Favourites', icon: 'heart' }],
+  },
+  {
+    title: 'Clinic type',
+    options: [
+      { key: 'Elite',    label: 'Elite',    icon: 'star' },
+      { key: 'Standard', label: 'Standard', icon: 'shield-checkmark' },
+      { key: 'Modern',   label: 'Modern',   icon: 'star-half' },
+    ],
+  },
 ];
+
+const FAV_OPTIONS = FAV_GROUPS.flatMap(g => g.options);
 
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
 function filterDoctors(doctors, tab, favorites, patientCoords, tierThresholds) {
@@ -194,8 +209,12 @@ export default function HomeScreen({ navigation }) {
   }, [searchQuery]);
   const [favorites, setFavorites]     = useState({});
   const isGuest = useIsGuest();
-  // Favorites needs an account — hide that option for guests.
-  const visibleFavOptions = isGuest ? FAV_OPTIONS.filter(o => o.key !== 'Favorites') : FAV_OPTIONS;
+  // Favorites needs an account — hide that option for guests. Dropping it can
+  // empty a whole group, so drop the group's heading with it rather than
+  // leaving a "Saved" label over nothing.
+  const visibleFavGroups = FAV_GROUPS
+    .map(g => ({ ...g, options: isGuest ? g.options.filter(o => o.key !== 'Favorites') : g.options }))
+    .filter(g => g.options.length > 0);
   const favSelected = FAV_OPTIONS.find(o => o.key === filterTab);
   const [favoriteDoctors, setFavoriteDoctors] = useState([]);
   const [campaigns, setCampaigns]       = useState([]);
@@ -743,19 +762,112 @@ export default function HomeScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* LOCATION ROW — tap to toggle city picker */}
-        {/* Positioning context for the floating picker below. */}
-        <View style={styles.cityAnchor}>
-        <TouchableOpacity style={[styles.locationRowBody, isWeb && isWide && styles.locationRowWide]} activeOpacity={0.8} onPress={() => setShowCityPicker(v => !v)}>
-          <Ionicons name="location" size={16} color="#0052FF" />
-          {/* Always the selected city. This row is the city control, so it shows
-              its own value — an earlier version swapped in "All cities" while
-              Nearby was active, which made the control look like it reset itself
-              every time a filter was tapped. Nearby's wider scope is stated in
-              the section subtitle instead, where it belongs. */}
-          <Text style={styles.locationTextBody}>{selectedCity ? `${selectedCity}, Pakistan` : 'All cities'}</Text>
-          <Ionicons name={showCityPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#94A3B8" />
-        </TouchableOpacity>
+        {/* ── FILTER TABS ── */}
+        <View style={styles.filterTabsAnchor}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterTabsContainer}
+          style={styles.filterTabsScroll}
+        >
+          {/* City is a chip in this row rather than a full-width bar on its own
+              row above it: it is one more way to narrow the list, so it belongs
+              beside the other two instead of looking like part of the search. */}
+          <TouchableOpacity
+            style={[styles.filterTab, !!selectedCity && styles.filterTabActive]}
+            onPress={() => { setShowCityPicker(v => !v); setShowFavMenu(false); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="location"
+              size={14}
+              color={selectedCity ? '#FFFFFF' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterTabText, !!selectedCity && styles.filterTabTextActive]}>
+              {selectedCity || 'All cities'}
+            </Text>
+            <Ionicons
+              name={showCityPicker ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={selectedCity ? '#FFFFFF' : '#94A3B8'}
+              style={{ marginLeft: 5 }}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterTab, filterTab === 'Nearby' && styles.filterTabActive]}
+            onPress={() => setFilterTab('Nearby')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="navigate"
+              size={14}
+              color={filterTab === 'Nearby' ? '#FFFFFF' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterTabText, filterTab === 'Nearby' && styles.filterTabTextActive]}>
+              Nearby
+            </Text>
+          </TouchableOpacity>
+
+          {/* Favourite/Elite/Standard/Modern used to be four separate chips.
+              One chip now opens a box with all four — whichever one is picked
+              replaces the "Favourite" label on the chip itself. */}
+          <TouchableOpacity
+            style={[styles.filterTab, !!favSelected && styles.filterTabActive]}
+            onPress={() => { setShowFavMenu(v => !v); setShowCityPicker(false); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={favSelected ? favSelected.icon : 'heart'}
+              size={14}
+              color={favSelected ? '#FFFFFF' : '#F59E0B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterTabText, !!favSelected && styles.filterTabTextActive]}>
+              {favSelected ? favSelected.label : 'Favourite'}
+            </Text>
+            <Ionicons
+              name={showFavMenu ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={favSelected ? '#FFFFFF' : '#94A3B8'}
+              style={{ marginLeft: 5 }}
+            />
+          </TouchableOpacity>
+        </ScrollView>
+
+        {showFavMenu && (
+          <View style={styles.favMenuCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="heart" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Favourite</Text>
+              <TouchableOpacity onPress={() => setShowFavMenu(false)} style={{ marginLeft: 'auto' }}>
+                <Ionicons name="close" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            {visibleFavGroups.map((group, gi) => (
+              <View key={group.title} style={gi > 0 ? styles.favGroupNext : undefined}>
+                <Text style={styles.favGroupTitle}>{group.title}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {group.options.map(opt => {
+                    const on = filterTab === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: on ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: on ? '#0052FF' : '#E2E8F0' }}
+                        onPress={() => { setFilterTab(opt.key); setShowFavMenu(false); }}
+                      >
+                        <Ionicons name={opt.icon} size={14} color={on ? '#FFFFFF' : '#64748B'} style={{ marginRight: 6 }} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: on ? '#FFF' : '#334155' }}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Inline City Picker */}
         {showCityPicker && (
@@ -802,83 +914,62 @@ export default function HomeScreen({ navigation }) {
         )}
         </View>
 
-        {/* ── FILTER TABS ── */}
-        <View style={styles.filterTabsAnchor}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterTabsContainer}
-          style={styles.filterTabsScroll}
-        >
-          <TouchableOpacity
-            style={[styles.filterTab, filterTab === 'Nearby' && styles.filterTabActive]}
-            onPress={() => setFilterTab('Nearby')}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="navigate"
-              size={14}
-              color={filterTab === 'Nearby' ? '#FFFFFF' : '#64748B'}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.filterTabText, filterTab === 'Nearby' && styles.filterTabTextActive]}>
-              Nearby
-            </Text>
-          </TouchableOpacity>
+        {/* Nearby sorts by distance, which needs a location. Without one the
+            list is silently just API order, so say so and give a way to fix it
+            rather than letting the chip claim a sort that isn't happening.
+            Once located, the same slot turns into the map entry point.
 
-          {/* Favourite/Elite/Standard/Modern used to be four separate chips.
-              One chip now opens a box with all four — whichever one is picked
-              replaces the "Favourite" label on the chip itself. */}
-          <TouchableOpacity
-            style={[styles.filterTab, !!favSelected && styles.filterTabActive]}
-            onPress={() => setShowFavMenu(v => !v)}
-            activeOpacity={0.8}
-          >
+            Phone only. On the wide web layout the hero already carries the
+            pitch and the prompt reads as a fourth stacked banner under the
+            search bar. */}
+        {!(isWeb && isWide) && (
+        <View style={styles.nearbyCard}>
+          <View style={styles.nearbyIcon}>
             <Ionicons
-              name={favSelected ? favSelected.icon : 'heart'}
-              size={14}
-              color={favSelected ? '#FFFFFF' : '#F59E0B'}
-              style={{ marginRight: 6 }}
+              name={patientCoords ? 'navigate' : 'location'}
+              size={18}
+              color="#0052FF"
             />
-            <Text style={[styles.filterTabText, !!favSelected && styles.filterTabTextActive]}>
-              {favSelected ? favSelected.label : 'Favourite'}
-            </Text>
-            <Ionicons
-              name={showFavMenu ? 'chevron-up' : 'chevron-down'}
-              size={14}
-              color={favSelected ? '#FFFFFF' : '#94A3B8'}
-              style={{ marginLeft: 5 }}
-            />
-          </TouchableOpacity>
-        </ScrollView>
-
-        {showFavMenu && (
-          <View style={styles.favMenuCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Ionicons name="heart" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Favourite</Text>
-              <TouchableOpacity onPress={() => setShowFavMenu(false)} style={{ marginLeft: 'auto' }}>
-                <Ionicons name="close" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {visibleFavOptions.map(opt => {
-                const on = filterTab === opt.key;
-                return (
-                  <TouchableOpacity
-                    key={opt.key}
-                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: on ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: on ? '#0052FF' : '#E2E8F0' }}
-                    onPress={() => { setFilterTab(opt.key); setShowFavMenu(false); }}
-                  >
-                    <Ionicons name={opt.icon} size={14} color={on ? '#FFFFFF' : '#64748B'} style={{ marginRight: 6 }} />
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: on ? '#FFF' : '#334155' }}>{opt.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
           </View>
-        )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.nearbyTitle}>
+              {patientCoords ? 'Nearby Dentists' : 'For Nearby Dentists'}
+            </Text>
+            <Text style={styles.nearbySub}>
+              {locating
+                ? 'Finding your location\u2026'
+                : patientCoords
+                  ? 'Sorted by distance from you'
+                  : 'Turn on your location to sort by distance'}
+            </Text>
+          </View>
+          {locating ? (
+            <ActivityIndicator size="small" color="#0052FF" />
+          ) : patientCoords ? (
+            <TouchableOpacity
+              style={styles.nearbyAction}
+              onPress={() => navigation.navigate('Map', { doctors: filteredDoctors, patientCoords })}
+            >
+              <Text style={styles.nearbyActionTxt}>See Map</Text>
+              <Ionicons name="map-outline" size={16} color="#0052FF" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+          ) : (
+            // Re-arm the one-shot ref, otherwise the effect that asks for
+            // coordinates refuses to run a second time and the button is dead.
+            <TouchableOpacity
+              style={styles.nearbyAction}
+              onPress={() => {
+                askedForLocation.current = false;
+                setFilterTab('Nearby');
+                setPatientCoords(null);
+              }}
+            >
+              <Text style={styles.nearbyActionTxt}>Turn on</Text>
+              <Ionicons name="navigate-outline" size={16} color="#0052FF" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+          )}
         </View>
+        )}
 
         {/* ── DOCTOR LIST ── */}
         {loading ? (
@@ -1151,30 +1242,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginHorizontal: 2,
   },
-  // Nothing to override on wide screens — the shared 16px inset already aligns
-  // this with the headline, search bar and filter chips.
-  locationRowWide: {},
-  cityAnchor: { position: 'relative', zIndex: 50 },
-  locationRowBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  locationTextBody: {
-    flex: 1,
-    color: '#0F172A',
-    fontSize: 13,
-    fontWeight: '700',
-  },
   cityPickerCard: {
     // Floats over the content instead of pushing it down. In normal flow the
     // whole doctor list jumped by the height of the panel each time the picker
@@ -1183,13 +1250,13 @@ const styles = StyleSheet.create({
     top: '100%',
     left: 16,
     right: 16,
-    zIndex: 50,
-    elevation: 12,
+    zIndex: 40,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#DBEAFE',
     padding: 14,
+    marginTop: -4,
     marginBottom: 10,
     shadowColor: '#000',
     shadowOpacity: 0.08,
@@ -1431,9 +1498,47 @@ const styles = StyleSheet.create({
   filterTabTextActive: {
     color: '#FFFFFF',
   },
-  // Relative anchor so the Favourite box below floats over the doctor list
-  // instead of pushing it down — same trick as cityAnchor/cityPickerCard.
-  filterTabsAnchor: { position: 'relative', zIndex: 40 },
+  favGroupTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  favGroupNext: { marginTop: 14 },
+
+  nearbyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: '#F5F8FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  nearbyIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E6EEFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  nearbyTitle: { fontSize: 15, fontWeight: '800', color: '#0052FF' },
+  nearbySub: { fontSize: 12.5, color: '#64748B', marginTop: 2 },
+  nearbyAction: { flexDirection: 'row', alignItems: 'center', paddingLeft: 10 },
+  nearbyActionTxt: { fontSize: 13.5, fontWeight: '700', color: '#0052FF' },
+
+  // Relative anchor so the two floating panels below (city picker + Favourite
+  // box) hang over the doctor list instead of pushing it down. zIndex is the
+  // city row's old 50, not the chips' 40: children cannot escape this stacking
+  // context, so it is what actually decides whether the panels clear the list.
+  filterTabsAnchor: { position: 'relative', zIndex: 50 },
   favMenuCard: {
     position: 'absolute',
     top: '100%',

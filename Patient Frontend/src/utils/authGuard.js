@@ -14,6 +14,17 @@ export async function ensureAuth(navigation) {
   return false;
 }
 
+// Same gate, but for "Book Appointment" specifically: guests go to Sign Up
+// up front rather than Login, and rather than browsing the booking form
+// first (see BookingAuthSheet — that flow stays for anyone already inside
+// the booking screen; this is the entry point from the doctor list/profile).
+export async function ensureSignupForBooking(navigation) {
+  const token = await storage.getItem('userToken');
+  if (token) return true;
+  navigation.navigate('Register', { role: 'patient' });
+  return false;
+}
+
 // Screen gate — bounce guests to Login when a whole screen needs an account
 // (Inbox, Saved, Notifications…). Call at the top of the screen. Prefer
 // `useIsGuest()` + <GuestGate/> for tab screens so the tab stays usable.

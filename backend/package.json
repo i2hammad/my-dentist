@@ -7,7 +7,8 @@
     "start": "node bootstrap.js",
     "dev": "nodemon server.js",
     "seed": "node prisma/seed.js",
-    "generate": "prisma generate"
+    "generate": "prisma generate",
+    "postinstall": "prisma generate"
   },
   "keywords": [
     "dental",

@@ -16,7 +16,7 @@ const ALLOWED_W = [80, 160, 320, 640]; // snap to these to bound cache size
 // Only 320px and up: at 80/160px the URL renders as an illegible smudge that
 // dirties the thumbnail without communicating anything.
 const WATERMARK_MIN_W = 320;
-const SITE_LABEL = 'mydentistpk.com';
+const SITE_LABEL = 'Dentist My PK';
 const SITE_URL = 'https://mydentistpk.com';
 
 /**

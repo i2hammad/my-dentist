@@ -63,15 +63,6 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
           </View>
           <Text style={styles.specialty}>{item.specialization || 'Dentist'}</Text>
 
-          {/* Paid placement is blue, earned (reward points) is green. Carried over
-              from HomeScreen — Search never showed it. */}
-          {item.isPopular && (
-            <View style={[styles.popularBadge, { backgroundColor: item.popularType === 'paid' ? '#DBEAFE' : '#DCFCE7' }]}>
-              <Ionicons name="star" size={11} color={item.popularType === 'paid' ? '#1D4ED8' : '#15803D'} />
-              <Text style={[styles.popularBadgeText, { color: item.popularType === 'paid' ? '#1D4ED8' : '#15803D' }]}>Popular</Text>
-            </View>
-          )}
-
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={14} color="#F59E0B" />
             <Text style={styles.ratingText}>{item.avgRating?.toFixed(1) || '0.0'}</Text>
@@ -88,6 +79,16 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
               </View>
             )}
           </View>
+
+          {/* Below the rest of the profile info (name/specialty/rating/location)
+              rather than tucked under the specialty line, so it reads as a
+              standalone signal once the reader already has the full picture. */}
+          {item.isPopular && (
+            <View style={[styles.popularBadge, { backgroundColor: item.popularType === 'paid' ? '#DBEAFE' : '#DCFCE7' }]}>
+              <Ionicons name="star" size={11} color={item.popularType === 'paid' ? '#1D4ED8' : '#15803D'} />
+              <Text style={[styles.popularBadgeText, { color: item.popularType === 'paid' ? '#1D4ED8' : '#15803D' }]}>Popular</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.rightActions}>

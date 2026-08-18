@@ -2,7 +2,7 @@
 import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, ActivityIndicator, Image, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ensureAuth, useIsGuest } from '../utils/authGuard';
+import { ensureAuth, ensureSignupForBooking, useIsGuest } from '../utils/authGuard';
 import { getCoords } from '../utils/geo';
 import { trackSearch } from '../utils/analytics';
 import axios from 'axios';
@@ -338,7 +338,7 @@ export default function SearchScreen({ navigation, route }) {
         <TouchableOpacity 
           style={styles.solidBtn}
           onPress={async () => {
-            // Guests reach Booking; the account is collected at confirm.
+            if (!(await ensureSignupForBooking(navigation))) return; // guests → sign up
             navigation.navigate('Booking', { doctor: item });
           }}
         >

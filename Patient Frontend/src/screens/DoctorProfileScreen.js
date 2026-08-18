@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ensureAuth } from "../utils/authGuard";
+import { ensureAuth, ensureSignupForBooking } from "../utils/authGuard";
 import { addressFor, GATED_HINT } from '../utils/guestData';
 import { trackViewDoctor, trackContactDoctor, trackReviewSubmitted, trackSaveDoctor } from '../utils/analytics';
 import {
@@ -732,8 +732,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
           </View>
         )}
         <TouchableOpacity style={styles.webBookBtn} onPress={async () => {
-          // Guests go straight to Booking now: the account is created at the
-          // confirm step, once they have picked a date, time and treatment.
+          if (!(await ensureSignupForBooking(navigation))) return; // guests → sign up
           navigation.navigate('Booking', { doctor });
         }}>
           <Ionicons name="calendar-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
@@ -912,7 +911,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
             <TouchableOpacity
               style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0052FF', borderRadius: 14, paddingVertical: 13, gap: 6 }}
               onPress={async () => {
-                // Guests reach Booking; the account is collected at confirm.
+                if (!(await ensureSignupForBooking(navigation))) return; // guests → sign up
                 navigation.navigate('Booking', { doctor });
               }}
             >
@@ -2348,7 +2347,7 @@ export default function DoctorProfileScreen({ route, navigation }) {
           <TouchableOpacity
             style={styles.bookBtn}
             onPress={async () => {
-              // Guests reach Booking; the account is collected at confirm.
+              if (!(await ensureSignupForBooking(navigation))) return; // guests → sign up
               navigation.navigate('Booking', { doctor });
             }}
           >

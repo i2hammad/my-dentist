@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ensureAuth, useIsGuest } from "../utils/authGuard";
+import { ensureAuth, ensureSignupForBooking, useIsGuest } from "../utils/authGuard";
 import {
   View,
   Text,
@@ -93,12 +93,16 @@ import { matchesTier } from '../utils/clinicTier';
 // ─── Filter tab config ──────────────────────────────────────────────
 // Solid icons, matching SearchScreen's row — the outline variants read as
 // washed-out at 14px next to a solid active chip.
-const FILTER_TABS = [
-  { key: 'Nearby',    label: 'Nearby',           icon: 'navigate' },
-  { key: 'Favorites', label: 'Favorites',        icon: 'heart' },
-  { key: 'Elite',     label: 'Elite Clinic',     icon: 'star' },
-  { key: 'Modern',    label: 'Modern Clinic',    icon: 'star-half' },
-  { key: 'Standard',  label: 'Standard Clinic',  icon: 'shield-checkmark' },
+//
+// The clinic-tier tabs + Favorites used to be four separate chips sitting to
+// the right of Nearby, off the edge of the screen on a phone. They're folded
+// into a single "Favourite" chip that opens a box of these four options —
+// picking one swaps its name onto the chip in place of "Favourite".
+const FAV_OPTIONS = [
+  { key: 'Favorites', label: 'Favourites', icon: 'heart' },
+  { key: 'Elite',     label: 'Elite',      icon: 'star' },
+  { key: 'Standard',  label: 'Standard',   icon: 'shield-checkmark' },
+  { key: 'Modern',    label: 'Modern',     icon: 'star-half' },
 ];
 
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
@@ -170,6 +174,7 @@ export default function HomeScreen({ navigation }) {
   const [doctorTotal, setDoctorTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
+  const [showFavMenu, setShowFavMenu] = useState(false);
   const [doctors, setDoctors]         = useState([]);
   const [loading, setLoading]         = useState(true);
   // Home searches in place. It used to be a Text placeholder inside a
@@ -189,8 +194,9 @@ export default function HomeScreen({ navigation }) {
   }, [searchQuery]);
   const [favorites, setFavorites]     = useState({});
   const isGuest = useIsGuest();
-  // Favorites needs an account — hide that filter chip for guests.
-  const visibleFilterTabs = isGuest ? FILTER_TABS.filter(t => t.key !== 'Favorites') : FILTER_TABS;
+  // Favorites needs an account — hide that option for guests.
+  const visibleFavOptions = isGuest ? FAV_OPTIONS.filter(o => o.key !== 'Favorites') : FAV_OPTIONS;
+  const favSelected = FAV_OPTIONS.find(o => o.key === filterTab);
   const [favoriteDoctors, setFavoriteDoctors] = useState([]);
   const [campaigns, setCampaigns]       = useState([]);
   const [tierThresholds, setTierThresholds] = useState(null); // admin-managed clinic tier ranges
@@ -797,70 +803,81 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* ── FILTER TABS ── */}
+        <View style={styles.filterTabsAnchor}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterTabsContainer}
           style={styles.filterTabsScroll}
         >
-          {visibleFilterTabs.map(tab => {
-            const active = filterTab === tab.key;
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                style={[styles.filterTab, active && styles.filterTabActive]}
-                onPress={() => setFilterTab(tab.key)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={tab.icon}
-                  size={14}
-                  // Accent per filter, as on Search: Favorites orange, Elite
-                  // blue, the rest grey. Active chips go white on blue.
-                  color={active ? '#FFFFFF' : (tab.key === 'Favorites' ? '#F59E0B' : tab.key === 'Elite' ? '#3B82F6' : '#64748B')}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={[styles.filterTabText, active && styles.filterTabTextActive]}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <TouchableOpacity
+            style={[styles.filterTab, filterTab === 'Nearby' && styles.filterTabActive]}
+            onPress={() => setFilterTab('Nearby')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="navigate"
+              size={14}
+              color={filterTab === 'Nearby' ? '#FFFFFF' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterTabText, filterTab === 'Nearby' && styles.filterTabTextActive]}>
+              Nearby
+            </Text>
+          </TouchableOpacity>
+
+          {/* Favourite/Elite/Standard/Modern used to be four separate chips.
+              One chip now opens a box with all four — whichever one is picked
+              replaces the "Favourite" label on the chip itself. */}
+          <TouchableOpacity
+            style={[styles.filterTab, !!favSelected && styles.filterTabActive]}
+            onPress={() => setShowFavMenu(v => !v)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={favSelected ? favSelected.icon : 'heart'}
+              size={14}
+              color={favSelected ? '#FFFFFF' : '#F59E0B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterTabText, !!favSelected && styles.filterTabTextActive]}>
+              {favSelected ? favSelected.label : 'Favourite'}
+            </Text>
+            <Ionicons
+              name={showFavMenu ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={favSelected ? '#FFFFFF' : '#94A3B8'}
+              style={{ marginLeft: 5 }}
+            />
+          </TouchableOpacity>
         </ScrollView>
 
-        {/* ── SECTION HEADER ── */}
-        <View style={styles.sectionHeader}>
-          <View>
-            {/* The heading states what the list actually is. Claiming "near you"
-                without coordinates was the visible half of the bug — for a
-                signed-out visitor nothing was ever sorted by distance. */}
-            <Text style={styles.sectionTitle}>
-              {isNearby && patientCoords ? 'Nearby Doctors' : 'Dentists'}
-            </Text>
-            {/* Scope lives here, not on the city control. Nearby searches every
-                city either way; whether it can sort by distance depends on
-                having coordinates. */}
-            <Text style={styles.sectionSubtitle}>
-              {locating
-                ? 'Finding dentists near you…'
-                : isNearby
-                  ? (patientCoords
-                    ? 'All cities · sorted by distance from you'
-                    : 'All cities · turn on location to sort by distance')
-                  : (selectedCity ? `In ${selectedCity}` : 'All cities')}
-            </Text>
+        {showFavMenu && (
+          <View style={styles.favMenuCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Ionicons name="heart" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>Favourite</Text>
+              <TouchableOpacity onPress={() => setShowFavMenu(false)} style={{ marginLeft: 'auto' }}>
+                <Ionicons name="close" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {visibleFavOptions.map(opt => {
+                const on = filterTab === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: on ? '#0052FF' : '#F1F5F9', borderWidth: 1, borderColor: on ? '#0052FF' : '#E2E8F0' }}
+                    onPress={() => { setFilterTab(opt.key); setShowFavMenu(false); }}
+                  >
+                    <Ionicons name={opt.icon} size={14} color={on ? '#FFFFFF' : '#64748B'} style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: on ? '#FFF' : '#334155' }}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-          <TouchableOpacity
-            style={styles.seeMapBtn}
-            activeOpacity={0.7}
-            onPress={async () => {
-              if (!(await ensureAuth(navigation))) return; // guests → signup
-              navigation.navigate('Map', { doctors, patientCoords });
-            }}
-          >
-            <Ionicons name="map-outline" size={14} color="#2563EB" />
-            <Text style={styles.seeMapText}>See Map</Text>
-          </TouchableOpacity>
+        )}
         </View>
 
         {/* ── DOCTOR LIST ── */}
@@ -968,9 +985,10 @@ export default function HomeScreen({ navigation }) {
                   isFavorite={!!favorites[doc._id]}
                   onToggleFavorite={toggleFavorite}
                   onPress={() => navigation.navigate('DoctorProfile', { doctorId: doc._id, doctor: doc })}
-                  // Guests included: the account is created at the confirm step
-                  // inside Booking, not before they have chosen anything.
-                  onBook={(d) => navigation.navigate('Booking', { doctor: d })}
+                  onBook={async (d) => {
+                    if (!(await ensureSignupForBooking(navigation))) return; // guests → sign up
+                    navigation.navigate('Booking', { doctor: d });
+                  }}
                   patientCoords={patientCoords}
                 />
               </View>
@@ -1413,41 +1431,26 @@ const styles = StyleSheet.create({
   filterTabTextActive: {
     color: '#FFFFFF',
   },
-
-  // Section header
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0F172A',
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  // Reads as a button rather than stray blue text — it opens a whole screen.
-  seeMapBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EFF4FF',
+  // Relative anchor so the Favourite box below floats over the doctor list
+  // instead of pushing it down — same trick as cityAnchor/cityPickerCard.
+  filterTabsAnchor: { position: 'relative', zIndex: 40 },
+  favMenuCard: {
+    position: 'absolute',
+    top: '100%',
+    left: 16,
+    right: 16,
+    zIndex: 40,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#DBE7FF',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  seeMapText: {
-    color: '#2563EB',
-    fontSize: 13,
-    fontWeight: '600',
+    borderColor: '#DBEAFE',
+    padding: 14,
+    marginTop: -4,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
   // Responsive grid for doctor cards (wide web only)

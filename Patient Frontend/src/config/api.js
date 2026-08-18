@@ -21,6 +21,9 @@ const getDefaultUrl = () => {
   return 'http://localhost:5000';
 };
 
-const API_BASE_URL = envUrl || getDefaultUrl();
+// Strip any trailing slash(es): every call site appends its own leading
+// slash (`${API_BASE_URL}/api/...`), so a URL saved with one in .env — an
+// easy typo — silently produced a double slash and a 404 on every request.
+const API_BASE_URL = (envUrl || getDefaultUrl()).replace(/\/+$/, '');
 
 export default API_BASE_URL;

@@ -120,6 +120,16 @@ const FAV_GROUPS = [
 
 const FAV_OPTIONS = FAV_GROUPS.flatMap(g => g.options);
 
+// Web only: the three clinic tiers as their own always-visible chips next to
+// Nearby, instead of tucked inside the Favourite box — there's room for them
+// on a desktop-width row. Favourite/saved-list is dropped from the row
+// entirely on web; mobile keeps the box exactly as it was.
+const WEB_TIER_CHIPS = [
+  { key: 'Elite',    label: 'Elite Clinic',    icon: 'star' },
+  { key: 'Modern',   label: 'Modern Clinic',   icon: 'star-half' },
+  { key: 'Standard', label: 'Standard Clinic', icon: 'shield-checkmark' },
+];
+
 // Facility grades: Standard 1–15 · Modern 16–30 · Elite 31+
 function filterDoctors(doctors, tab, favorites, patientCoords, tierThresholds) {
   if (tab === 'Nearby') {
@@ -811,33 +821,55 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
 
-          {/* Favourite/Elite/Standard/Modern used to be four separate chips.
-              One chip now opens a box with all four — whichever one is picked
-              replaces the "Favourite" label on the chip itself. */}
-          <TouchableOpacity
-            style={[styles.filterTab, !!favSelected && styles.filterTabActive]}
-            onPress={() => { setShowFavMenu(v => !v); setShowCityPicker(false); }}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={favSelected ? favSelected.icon : 'heart'}
-              size={14}
-              color={favSelected ? '#FFFFFF' : '#F59E0B'}
-              style={{ marginRight: 6 }}
-            />
-            <Text style={[styles.filterTabText, !!favSelected && styles.filterTabTextActive]}>
-              {favSelected ? favSelected.label : 'Favourite'}
-            </Text>
-            <Ionicons
-              name={showFavMenu ? 'chevron-up' : 'chevron-down'}
-              size={14}
-              color={favSelected ? '#FFFFFF' : '#94A3B8'}
-              style={{ marginLeft: 5 }}
-            />
-          </TouchableOpacity>
+          {isWeb && isWide ? (
+            // Web: three always-visible tier chips, no Favourite/saved-list.
+            WEB_TIER_CHIPS.map(t => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.filterTab, filterTab === t.key && styles.filterTabActive]}
+                onPress={() => setFilterTab(t.key)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={t.icon}
+                  size={14}
+                  color={filterTab === t.key ? '#FFFFFF' : '#64748B'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.filterTabText, filterTab === t.key && styles.filterTabTextActive]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            // Mobile: Favourite/Elite/Standard/Modern folded into one chip that
+            // opens a box with all four — whichever one is picked replaces the
+            // "Favourite" label on the chip itself.
+            <TouchableOpacity
+              style={[styles.filterTab, !!favSelected && styles.filterTabActive]}
+              onPress={() => { setShowFavMenu(v => !v); setShowCityPicker(false); }}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={favSelected ? favSelected.icon : 'heart'}
+                size={14}
+                color={favSelected ? '#FFFFFF' : '#F59E0B'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterTabText, !!favSelected && styles.filterTabTextActive]}>
+                {favSelected ? favSelected.label : 'Favourite'}
+              </Text>
+              <Ionicons
+                name={showFavMenu ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={favSelected ? '#FFFFFF' : '#94A3B8'}
+                style={{ marginLeft: 5 }}
+              />
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
-        {showFavMenu && (
+        {!(isWeb && isWide) && showFavMenu && (
           <View style={styles.favMenuCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
               <Ionicons name="heart" size={16} color="#F59E0B" style={{ marginRight: 6 }} />

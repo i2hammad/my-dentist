@@ -92,14 +92,10 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
         </View>
 
         <View style={styles.rightActions}>
-          {/* Only a genuine 'online' earns a badge. Rendering anything else as
-              "Busy" made 28 of 29 dentists look unavailable when they had simply
-              not opened the app. */}
-          {item.onlineStatus === 'online' && (
-            <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7' }]}>
-              <Text style={[styles.statusText, { color: '#16A34A' }]}>Online</Text>
-            </View>
-          )}
+          {/* Heart comes first so it always sits at the same spot next to the
+              name, regardless of whether the badge below it is rendered —
+              `space-between` used to push it to the bottom of the row on
+              cards with no Online badge and the top on cards with one. */}
           <TouchableOpacity
             style={styles.heartButton}
             onPress={() => onToggleFavorite && onToggleFavorite(item._id)}
@@ -111,6 +107,14 @@ export default function DoctorCard({ doctor, isWide, patientCoords, isFavorite, 
               color={isFavorite ? '#EF4444' : '#0066FF'}
             />
           </TouchableOpacity>
+          {/* Only a genuine 'online' earns a badge. Rendering anything else as
+              "Busy" made 28 of 29 dentists look unavailable when they had simply
+              not opened the app. */}
+          {item.onlineStatus === 'online' && (
+            <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7' }]}>
+              <Text style={[styles.statusText, { color: '#16A34A' }]}>Online</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -234,7 +238,13 @@ const styles = StyleSheet.create({
   distPillTxt: { fontSize: 11, color: '#2563EB', fontWeight: '700' },
   rightActions: {
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    // `space-between` distributed the heart across this column's full
+    // stretched height, which is fixed on mobile's single-column list but
+    // varies with the tallest card in a row on the web grid — the heart
+    // landed at a different height on every row. `flex-start` + a fixed gap
+    // pins it directly under the top edge on every card, on every platform.
+    justifyContent: 'flex-start',
+    gap: 8,
   },
   statusBadge: {
     paddingHorizontal: 8,
